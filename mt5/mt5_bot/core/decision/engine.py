@@ -71,10 +71,17 @@ class DecisionEngine(object):
     Fuses indicator, learning, and news signals into one Decision.
 
     Constructed with the loaded config plus optional, already-built components:
-      - learner       : a BaseModel (from learning.factory). May be None.
+      - learner       : a BaseModel (from learning.factory). May be None. Used
+                        as the default/shared learner (and the fallback when a
+                        per-symbol lookup is not available).
       - feature_builder : a FeatureBuilder used to make the learner's input row.
       - news_analyzer : a NewsAnalyzer (Phase 4). May be None.
       - memory        : a MemoryStore, used to load top strategies per symbol.
+      - learner_provider : optional callable symbol -> learner (A5 / P3.4). When
+                        supplied (e.g. BotContext.learner_for), the engine asks
+                        for the deciding symbol's own learner so per-symbol ML
+                        models are used. When None, the shared `learner` is used
+                        for every symbol (unchanged light-path behavior).
 
     Keeping these injectable makes the engine testable and lets the caller
     control how heavy each component is (or skip it entirely).
@@ -84,10 +91,13 @@ class DecisionEngine(object):
                  feature_builder: Optional[object] = None,
                  news_analyzer: Optional[object] = None,
                  memory: Optional[object] = None,
-                 timing: Optional[object] = None):
+                 timing: Optional[object] = None,
+                 learner_provider: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("decision.engine", cfg)
         self.learner = learner
+        # Optional callable symbol -> learner for per-symbol ML models (P3.4).
+        self.learner_provider = learner_provider
         self.feature_builder = feature_builder
         self.news = news_analyzer
         self.memory = memory
@@ -183,17 +193,36 @@ class DecisionEngine(object):
         return (max(-1.0, min(1.0, sig)), "indicators",
                 self.default_sl, self.default_tp)
 
-    def _learning_signal(self, ohlcv: Any) -> float:
+    def _learner_for(self, symbol: str):
+        """
+        Resolve the learner to use for `symbol` (A5 / P3.4).
+
+        If a learner_provider callable was injected, ask it for the symbol's
+        learner (per-symbol ML); on any failure or if it returns None, fall back
+        to the shared `self.learner` so the engine never crashes.
+        """
+        if self.learner_provider is not None:
+            try:
+                learner = self.learner_provider(symbol)
+                if learner is not None:
+                    return learner
+            except Exception as exc:
+                self.log.error("Per-symbol learner lookup failed for %s: %s",
+                               symbol, exc)
+        return self.learner
+
+    def _learning_signal(self, ohlcv: Any, symbol: str) -> float:
         """Return the active learner's directional signal in [-1, +1] or 0.0."""
-        if self.learner is None or self.feature_builder is None:
+        learner = self._learner_for(symbol)
+        if learner is None or self.feature_builder is None:
             return 0.0
         try:
-            if not getattr(self.learner, "is_ready", lambda: False)():
+            if not getattr(learner, "is_ready", lambda: False)():
                 return 0.0
             row = self.feature_builder.build_inference_row(ohlcv)
             if row is None:
                 return 0.0
-            return max(-1.0, min(1.0, float(self.learner.predict_signal(row))))
+            return max(-1.0, min(1.0, float(learner.predict_signal(row))))
         except Exception as exc:
             self.log.error("Learning signal error: %s", exc)
             return 0.0
@@ -243,7 +272,7 @@ class DecisionEngine(object):
         ind_sig, ind_src, sl_mult, tp_mult = self._indicator_signal(
             ohlcv, symbol, timeframe
         )
-        learn_sig = self._learning_signal(ohlcv)
+        learn_sig = self._learning_signal(ohlcv, symbol)
         news_sig = self._news_signal(symbol)
         # Phase 5 (user-update-request): time/session/season awareness.
         time_sig = self._timing_signal(ohlcv, symbol, timeframe)
@@ -253,7 +282,8 @@ class DecisionEngine(object):
         if abs(self.w_ind) > 0:
             parts.append((self.w_ind, ind_sig, "indicators(%s)" % ind_src))
             components["indicators"] = ind_sig
-        if abs(self.w_learn) > 0 and self.learner is not None:
+        if abs(self.w_learn) > 0 and (self.learner is not None
+                                      or self.learner_provider is not None):
             parts.append((self.w_learn, learn_sig, "learning"))
             components["learning"] = learn_sig
         if abs(self.w_news) > 0 and self.news is not None:
@@ -298,7 +328,8 @@ class DecisionEngine(object):
 
         # Optional agreement rule: indicators and learning must share direction.
         agree_ok = True
-        if self.require_agreement and self.learner is not None:
+        if self.require_agreement and (self.learner is not None
+                                       or self.learner_provider is not None):
             if ind_sig != 0.0 and learn_sig != 0.0:
                 agree_ok = (ind_sig > 0) == (learn_sig > 0)
             reasons.append("agreement_ok=%d" % int(agree_ok))

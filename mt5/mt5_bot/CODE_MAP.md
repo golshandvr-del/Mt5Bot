@@ -157,7 +157,9 @@ Top-level sections:
 - `risk`     : `risk_per_trade`, `max_open_positions`, `max_daily_loss`, default
   SL/TP ATR multiples, min/max lot, deviation, magic number.
 - `indicators`: per-indicator `{enabled, params}` toggles (Phase 2).
-- `learning` : `active_model` + per-learner config blocks (Phase 1).
+- `learning` : `active_model`, `per_symbol` (A5 / P3.4; default false = one
+  shared model, true = per-symbol models trained + used per symbol), and
+  per-learner config blocks (Phase 1).
 - `memory`   : db/registry files, `walk_forward` windows (train/test/step_bars
   plus `min_segments` and `holdout_bars` for statistical robustness), `search`
   settings incl. the `significance` block (A3 / P2.3: `enabled`, `max_pvalue`,
@@ -195,7 +197,14 @@ LAZILY builds and caches shared singletons via properties:
 `connector`, `data_feed`, `indicators`, `feature_builder`, `learner`, `memory`,
 `news`, `risk`, `orders`, `engine`.
 - `connect_mt5()` connects to MT5 if `mt5.enabled` (never fatal).
-- `learner` property also tries to `load()` the persisted model file.
+- `learner` property also tries to `load()` the persisted (shared) model file.
+- `learner_for(symbol)` (A5 / P3.4): when `learning.per_symbol` is false
+  (default) it returns the shared `learner`; when true it builds+caches ONE
+  learner per symbol and loads that symbol's `models/<model>_<SYMBOL>.pkl`
+  (via `_per_symbol_model_file`, mirroring runners.py). A missing/failed
+  per-symbol file falls back to the shared learner so an untrained symbol never
+  crashes. Only wired into the engine (as `learner_provider`) when per_symbol
+  is on, so the default light path is byte-identical.
 - `shutdown()` closes the MT5 connection.
 
 ### app/runners.py - one function per mode
@@ -208,8 +217,9 @@ LAZILY builds and caches shared singletons via properties:
   `models/<model>_<SYMBOL>.pkl` (via `_per_symbol_model_file`, which sanitizes
   the symbol and inserts it before the extension) so, e.g., XAUUSD does not
   dilute EURUSD. Degrades gracefully (a symbol with too little data is skipped).
-  The engine's per-symbol learner LOOKUP is wired in P3.4; P3.3 only produces
-  the files.
+  The engine's per-symbol learner LOOKUP is wired in P3.4 via
+  `BotContext.learner_for` + `DecisionEngine.learner_provider`; P3.3 only
+  produces the files.
 - `run_search(ctx)` : Phase 3. For each symbol, load history and run
   `StrategySearch.run`, persisting results + updating the registry.
 - `run_backtest(ctx)`: Phase 3. Backtest the memory-top strategy (or a default
@@ -463,12 +473,17 @@ Value object: `action` (+1/-1/0), `score` [-1,+1], `size_hint` [0,1],
 
 ### `DecisionEngine`
 Constructed with cfg + optional `learner`, `feature_builder`, `news_analyzer`,
-`memory`. `decide(ohlcv, symbol, tf) -> Decision`:
+`memory`, `timing`, and `learner_provider`. `learner_provider` (A5 / P3.4) is an
+optional callable `symbol -> learner`; when supplied (BotContext passes
+`ctx.learner_for` only while `learning.per_symbol` is true) the engine uses the
+DECIDING symbol's own ML model, falling back to the shared `learner` on any
+failure. `decide(ohlcv, symbol, tf) -> Decision`:
 1. **Indicator signal**: prefer the memory-selected top-strategy ENSEMBLE for
    this symbol/timeframe (loaded via `memory.load_registry_top`), else an
    equal-weight blend of enabled stand-alone indicators. Also yields SL/TP mults.
-2. **Learning signal**: active learner's `predict_signal` on the latest feature
-   row (0.0 if learner not ready).
+2. **Learning signal**: `_learner_for(symbol)` resolves the per-symbol learner
+   (or the shared one), then its `predict_signal` on the latest feature row
+   (0.0 if the resolved learner is not ready).
 3. **News signal**: `news.get_signal(symbol)` (0.0 if disabled).
 4. Weighted blend using `decision.weights`, re-normalized over only the
    components that actually contributed. Optional news blackout and
@@ -758,9 +773,14 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   + `bootstrap_pvalue` in metrics, `win_rate_ci_low` + `pnl_pvalue` in
   compute_metrics, the `memory.search.significance` config block, and the store
   record-but-never-promote filter, all locked in by
-  `tests/test_metrics_significance.py`). Next up is Phase P3 (robust context
-  modeling: time-bucket Bayesian shrinkage, per-symbol ML model, weekend
-  swap/gap in the backtester).
+  `tests/test_metrics_significance.py`). Phase P3 (robust context modeling) is
+  IN PROGRESS: P3.1 time-bucket Bayesian shrinkage + higher trust threshold,
+  P3.2 its test, P3.3 per-symbol ML TRAINING (run_train writes
+  models/<model>_<SYMBOL>.pkl), and P3.4 the per-symbol learner LOOKUP
+  (`BotContext.learner_for` + `DecisionEngine.learner_provider`, config key
+  `learning.per_symbol` default false) are done. Remaining in P3: P3.5 the
+  two-symbol distinct-model test, P3.6/P3.7 weekend swap+gap in the backtester,
+  P3.8 the A4/A5/A6 status flips.
 - PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
   biggest current risk as STATISTICAL (small samples), not software. The roadmap
   there sequences Track A (multi-year real data, more walk-forward segments +

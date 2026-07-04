@@ -12,7 +12,8 @@ All text is standard ASCII English only.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+import os
+from typing import Any, Dict, Optional
 
 from config.loader import load_config, resolve_path
 from core.utils.helpers import set_global_seed
@@ -49,6 +50,9 @@ class BotContext(object):
         self._data_feed: Optional[DataFeed] = None
         self._indicators = None
         self._learner = None
+        # Per-symbol learner cache (A5 / P3.4). Only used when
+        # learning.per_symbol is true; keyed by the raw symbol string.
+        self._symbol_learners: Dict[str, Any] = {}
         self._feature_builder: Optional[FeatureBuilder] = None
         self._memory: Optional[MemoryStore] = None
         self._news: Optional[NewsAnalyzer] = None
@@ -104,6 +108,71 @@ class BotContext(object):
             self._learner = model
         return self._learner
 
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _per_symbol_model_file(base_model_file: str, symbol: str) -> str:
+        """
+        Derive a per-symbol model filename from the shared model_file (A5).
+
+        Mirrors app/runners.py::_per_symbol_model_file exactly so training and
+        the decision-engine lookup agree on where each symbol's model lives:
+        insert a sanitized symbol before the extension, e.g.
+        "models/ml_classifier.pkl" -> "models/ml_classifier_EURUSD.pkl". A
+        broker symbol like "EURUSD.m" is sanitized to safe filename characters.
+        """
+        safe = "".join(
+            ch for ch in str(symbol) if ch.isalnum() or ch in ("_", "-", ".")
+        ) or "SYMBOL"
+        root, ext = os.path.splitext(base_model_file)
+        if ext:
+            return "%s_%s%s" % (root, safe, ext)
+        return "%s_%s" % (base_model_file, safe)
+
+    def learner_for(self, symbol: str):
+        """
+        Return the learner the decision engine should use for `symbol` (A5 / P3.4).
+
+        When `learning.per_symbol` is false (default) this is simply the shared
+        `learner` singleton, so the light path is unchanged. When true, it builds
+        and caches ONE learner per symbol and tries to load that symbol's
+        persisted model file (models/<model>_<SYMBOL>.pkl). If the per-symbol
+        file is missing or fails to load (e.g. the symbol was never trained), it
+        falls back to the shared learner so the bot never crashes and simply
+        contributes a neutral signal when nothing is ready.
+        """
+        if not bool(self.cfg.get_path("learning.per_symbol", False)):
+            return self.learner
+
+        key = str(symbol)
+        if key in self._symbol_learners:
+            return self._symbol_learners[key]
+
+        name = self.cfg.get_path("learning.active_model", "ml_classifier")
+        base_file = self.cfg.get_path("learning.%s.model_file" % name, "")
+        model = build_active_model(self.cfg)
+        loaded = False
+        if base_file:
+            sym_file = self._per_symbol_model_file(base_file, key)
+            path = resolve_path(self.cfg, sym_file)
+            if os.path.exists(path):
+                try:
+                    model.load(path)
+                    loaded = True
+                except Exception as exc:
+                    self.log.warning(
+                        "Could not load per-symbol model %s: %s", path, exc)
+            else:
+                self.log.info(
+                    "No per-symbol model for %s at %s; using shared model.",
+                    key, path)
+
+        if not loaded:
+            # Fall back to the shared learner (which may itself be loaded or
+            # neutral); this keeps behavior graceful when a symbol is untrained.
+            model = self.learner
+        self._symbol_learners[key] = model
+        return model
+
     @property
     def memory(self) -> MemoryStore:
         if self._memory is None:
@@ -153,6 +222,11 @@ class BotContext(object):
     @property
     def engine(self) -> DecisionEngine:
         if self._engine is None:
+            # A5 / P3.4: when per-symbol ML is enabled, give the engine a
+            # provider so it uses each deciding symbol's own model; otherwise
+            # leave it None so the shared learner is used everywhere (unchanged).
+            per_symbol = bool(self.cfg.get_path("learning.per_symbol", False))
+            provider = self.learner_for if per_symbol else None
             self._engine = DecisionEngine(
                 self.cfg,
                 learner=self.learner,
@@ -160,6 +234,7 @@ class BotContext(object):
                 news_analyzer=self.news,
                 memory=self.memory,
                 timing=self.timing,
+                learner_provider=provider,
             )
         return self._engine
 

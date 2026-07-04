@@ -170,6 +170,26 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.4 (Track A / A5, code+config). Per-symbol learner LOOKUP is now wired into
+  the live decision path, completing the training-side work from P3.3. Added
+  `learning.per_symbol` (default false) to config.yaml. `app/context.py` gained
+  `learner_for(symbol)` + a per-symbol learner cache + a static
+  `_per_symbol_model_file` that mirrors runners.py so training and lookup agree
+  on paths. Default (per_symbol=false) simply returns the shared learner, so the
+  Windows-7 light path is byte-identical; per_symbol=true builds/caches one
+  learner per symbol and loads models/<model>_<SYMBOL>.pkl, gracefully falling
+  back to the shared learner when a symbol has no trained file yet (never
+  crashes, just contributes a neutral signal). `core/decision/engine.py` gained
+  an optional `learner_provider` callable; `_learner_for(symbol)` resolves the
+  symbol's learner (shared on any failure) and `_learning_signal(ohlcv, symbol)`
+  uses it, so `decide()` picks each symbol's own model. `BotContext.engine`
+  passes the provider ONLY when per_symbol is on. Realism note: this closes the
+  loop on the expert review's cross-symbol dilution fix - gold and FX now decide
+  with their own models at live time, not just train separately. Verified:
+  default keeps provider None and the 48-test suite green; a per_symbol=true
+  smoke run resolved three DISTINCT ready learners (EURUSD/GBPUSD/XAUUSD) and an
+  untrained symbol fell back to the shared learner. The distinct-model test is
+  P3.5; the A5 status flip is P3.8. Next: P3.5.
 - P3.3 (Track A / A5, code). Per-symbol ML training. app/runners.py::run_train
   gained a `learning.per_symbol` branch (default false, read defensively). Off =
   the original single shared-model behavior, byte-identical. On = the new

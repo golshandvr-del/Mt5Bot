@@ -68,6 +68,14 @@ Swappable learners behind one `BaseModel` interface, selected via
 Missing heavy backends automatically fall back to lighter ones (and finally to a
 pure-Python model), so the bot always has a working learner.
 
+Per-symbol models (`learning.per_symbol`, default `false`): by default one shared
+model is trained and used for every symbol. Set it to `true` to train and use a
+SEPARATE model per symbol (saved as `models/<model>_<SYMBOL>.pkl`) so, for
+example, XAUUSD's very different volatility does not dilute EURUSD and vice versa.
+Run `python main.py --mode train` after enabling it to produce the per-symbol
+files; if a symbol has no trained file yet, the decision engine falls back to the
+shared model for that symbol.
+
 ### Phase 2 - Indicators / tools (`core/indicators/`)
 A large, **pluggable** technical-indicator library. Each indicator produces a
 `[-1, +1]` signal and can be enabled/tuned in config:
@@ -265,7 +273,8 @@ python main.py --mode paper               # dry-run decisions
 - `risk.*`: `risk_per_trade`, `max_open_positions`, `max_daily_loss`, SL/TP ATR
   multiples, lot limits, magic number.
 - `indicators.*`: per-indicator `{enabled, params}` toggles.
-- `learning.active_model` + per-learner blocks.
+- `learning.active_model`, `learning.per_symbol` (default false; true = a
+  separate ML model per symbol), and per-learner blocks.
 - `memory.*`: walk-forward windows (incl. `min_segments` / `holdout_bars`),
   search settings (incl. the `significance` promotion filter), `ensemble_top_k`.
 - `news.*`: sources, sentiment backend, `signal_weight`, `blackout_minutes`.

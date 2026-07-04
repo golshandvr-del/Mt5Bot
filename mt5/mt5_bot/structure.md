@@ -357,7 +357,7 @@ gold realistically.
 - [x] P3.3 (code) Per-symbol ML: `app/runners.py::run_train` loops per symbol
       and saves `models/ml_classifier_<SYMBOL>.pkl`; keep the shared-model path
       as fallback when `learning.per_symbol` is false. [A5]
-- [ ] P3.4 (code+config) `app/context.py` per-symbol learner cache/lookup and
+- [x] P3.4 (code+config) `app/context.py` per-symbol learner cache/lookup and
       `core/decision/engine.py` selects the deciding symbol's learner. Add
       `learning.per_symbol` (default false) to config.yaml.
 - [ ] P3.5 (test) Extend `tests/test_learning.py` (or add a test file): two
@@ -472,6 +472,33 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.4 DONE (code+config): per-symbol learner LOOKUP wired into the live path
+  (A5). config.yaml gained `learning.per_symbol` (default false) with an
+  explanatory comment: false = one SHARED model for every symbol (byte-identical
+  to before), true = train + USE a separate model per symbol.
+  `app/context.py` added `learner_for(symbol)` plus a per-symbol learner cache
+  (`self._symbol_learners`) and a static `_per_symbol_model_file` that MIRRORS
+  runners.py exactly, so training and lookup agree on file paths. In default
+  mode `learner_for` just returns the shared `learner` (light path unchanged);
+  in per-symbol mode it builds+caches one learner per symbol and loads that
+  symbol's `models/<model>_<SYMBOL>.pkl`, gracefully falling back to the shared
+  learner when a per-symbol file is missing/unloadable (an untrained symbol
+  never crashes and simply contributes a neutral signal). The engine is only
+  given the provider when per_symbol is on: `BotContext.engine` passes
+  `learner_provider=self.learner_for` iff `learning.per_symbol` is true, else
+  None. `core/decision/engine.py` gained an optional `learner_provider`
+  constructor arg; `_learner_for(symbol)` resolves the symbol's learner (or the
+  shared one on any failure) and `_learning_signal(ohlcv, symbol)` now uses it,
+  so `decide()` picks each symbol's own model. The "learning contributes"
+  and `require_agreement` guards now also fire when a provider is present (not
+  only when the shared learner is non-None). Verified: default config keeps
+  provider None, `learner_for` returns the shared learner, and the 48-test
+  suite stays green; a manual per_symbol=true smoke run trained three distinct
+  models (EURUSD/GBPUSD/XAUUSD), a fresh context resolved three DISTINCT ready
+  learners from those files, and an untrained symbol (NZDUSD) fell back to the
+  shared learner. CODE_MAP.md sections 3, 4 (context + run_train note), and 10
+  (engine) plus section 17 updated. The two-symbol distinct-model TEST is P3.5;
+  the A5 status flip is deferred to P3.8. Next sub-step: P3.5.
 - P3.3 DONE (code): per-symbol ML training (A5). `app/runners.py::run_train`
   now reads `learning.per_symbol` (default false, read defensively) and branches:
   the default SHARED-model path is byte-identical to before (train the first

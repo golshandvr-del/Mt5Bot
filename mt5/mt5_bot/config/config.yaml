@@ -134,6 +134,16 @@ learning:
   #          "self_supervised", "none"
   active_model: "ml_classifier"
 
+  # Per-symbol ML models (A5 / P3.3-P3.4). Default false = one SHARED model for
+  # every symbol (byte-identical to the original behavior). When true:
+  #   - train (--mode train) trains a SEPARATE learner per symbol and saves each
+  #     as models/<model>_<SYMBOL>.pkl so, e.g., XAUUSD does not dilute EURUSD;
+  #   - the decision engine loads and uses the model for the symbol it is
+  #     deciding on, falling back to the shared model when a per-symbol file is
+  #     missing (e.g. that symbol has not been trained yet). Missing files never
+  #     crash the bot; the learner simply contributes a neutral signal.
+  per_symbol: false
+
   ml_classifier:
     enabled: true
     # backend: "lightgbm" (preferred, light) or "sklearn_gbdt" (fallback)
