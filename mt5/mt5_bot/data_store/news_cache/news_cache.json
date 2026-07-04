@@ -1,5 +1,5 @@
 {
-  "fetched_at": 1783189561.7384229,
+  "fetched_at": 1783192629.2065034,
   "items": [
     {
       "published_ts": 1783181186.0,
@@ -98,6 +98,37 @@
       "url": "https://www.investing.com/news/stock-market-news/sk-hynix-considering-05-fee-payout-in-adr-offering-bloomberg-news-reports-4775339"
     },
     {
+      "published_ts": 1783191660.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "Why it&#x2019;s a good month to save on streaming, despite the return of &#x2018;Enola Holmes&#x2019; to Netflix and &#x2018;Silo&#x2019; to Apple",
+      "symbols": [],
+      "title": "Here&#x2019;s what&#x2019;s worth streaming in July 2026 on Netflix, Hulu, HBO Max and more",
+      "url": "https://www.marketwatch.com/story/heres-whats-worth-streaming-in-july-2026-on-netflix-hulu-hbo-max-and-more-58d07528?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783191360.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "Older workers are fighting ageism by starting their own businesses &#x2014; and they&#x2019;re outperforming younger entrepreneurs",
+      "symbols": [
+        "EURUSD"
+      ],
+      "title": "Why a founder at age 50 is twice as likely to find success as one at age 30",
+      "url": "https://www.marketwatch.com/story/older-workers-are-fighting-ageism-by-starting-their-own-businesses-and-theyre-outperforming-younger-entrepreneurs-5fc701fc?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783190220.0,
+      "score": 0.4875000000000001,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "The new jobs report is worse than many people realize.",
+      "symbols": [
+        "XAUUSD"
+      ],
+      "title": "Why June&#x2019;s jobs and inflation data are bullish for bonds",
+      "url": "https://www.marketwatch.com/story/why-the-jobs-and-inflation-data-are-bullish-for-bonds-fcedffd2?mod=mw_rss_topstories"
+    },
+    {
       "published_ts": 1783189140.0,
       "score": 0.48749999999999993,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
@@ -165,33 +196,6 @@
       "symbols": [],
       "title": "&#x2018;I claimed Social Security at 62&#x2019;: At 76, I&#x2019;m working at Walmart. Why do I still owe payroll taxes?",
       "url": "https://www.marketwatch.com/story/i-claimed-social-security-at-62-at-76-im-working-at-walmart-why-do-i-still-owe-payroll-taxes-8e22a97c?mod=mw_rss_topstories"
-    },
-    {
-      "published_ts": 1783182420.0,
-      "score": 0.0,
-      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Plus: Why you should consider taking a &#x201c;life admin&#x201d; day.",
-      "symbols": [],
-      "title": "What&#x2019;s a &#x2018;soft&#x2019; off day? How to take one without getting in trouble at work.",
-      "url": "https://www.marketwatch.com/story/whats-a-soft-off-day-how-to-take-one-without-getting-in-trouble-at-work-10706631?mod=mw_rss_topstories"
-    },
-    {
-      "published_ts": 1783170600.0,
-      "score": 0.0,
-      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "A new study has found a flaw in how people interpret the very headlines they are seeing.",
-      "symbols": [],
-      "title": "When it comes to beating the stock market, no news really is good news",
-      "url": "https://www.marketwatch.com/story/when-it-comes-to-beating-the-stock-market-no-news-really-is-good-news-43328bf0?mod=mw_rss_topstories"
-    },
-    {
-      "published_ts": 1783108800.0,
-      "score": 0.0,
-      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Why it&#x2019;s a good month to save on streaming, despite the return of &#x2018;Enola Holmes&#x2019; to Netflix and &#x2018;Silo&#x2019; to Apple",
-      "symbols": [],
-      "title": "Here&#x2019;s what&#x2019;s worth streaming in July 2026 on Netflix, Hulu, HBO Max and more",
-      "url": "https://www.marketwatch.com/story/heres-whats-worth-streaming-in-july-2026-on-netflix-hulu-hbo-max-and-more-58d07528?mod=mw_rss_topstories"
     }
   ]
 }

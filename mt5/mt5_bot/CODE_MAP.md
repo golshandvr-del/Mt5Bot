@@ -168,7 +168,9 @@ Top-level sections:
   `signal_weight`, `blackout_minutes` (Phase 4).
 - `decision` : blend `weights` (indicators/learning/news), long/short thresholds,
   `require_agreement`.
-- `backtest` : initial balance, cost model, fixed lot, report dir.
+- `backtest` : initial balance, cost model, fixed lot, report dir, and the
+  A6 / P3.6 weekend-swap + Monday-gap model (`swap_long_pts`, `swap_short_pts`,
+  `swap_triple_day`, `model_weekend_gap`; all default to a no-op).
 
 **loader.py**
 - `load_config(path)` -> `DotDict`. Uses PyYAML if installed, else a built-in
@@ -366,6 +368,25 @@ change, exit on opposite signal / SL / TP (ATR-based). Applies spread + slippage
 + commission. Produces `BacktestResult(metrics, equity_curve, trade_pnls)`. Used
 for RELATIVE ranking during search; final validation happens in the real MT5
 Strategy Tester (see README).
+- Weekend swap + Monday gap (A6 / P3.6): the simulator can optionally charge an
+  overnight swap and model the Monday opening gap so gold/carry-sensitive pairs
+  are ranked more realistically. All controlled by the new `backtest` config
+  keys and default to a NO-OP (behavior byte-identical when unset). SWAP: for
+  every UTC midnight a position is held across, a swap is charged in money =
+  `swap_{long,short}_pts * point * contract * fixed_lot`; the `swap_triple_day`
+  weekday (0=Mon..6=Sun, MT5 default Wednesday=2) is charged 3x to cover the
+  weekend, every other rollover 1x. `_rollovers_between(prev_ts, cur_ts,
+  triple_day)` counts the crossed midnights (each midnight billed to the day it
+  ENTERS, weekday from the epoch-day index) and `_swap_money` converts nights to
+  money; the accrued swap is subtracted from PnL on every close (SL/TP/opposite
+  signal AND the residual close). With both swap rates 0.0 (default) no swap is
+  applied. GAP: when `model_weekend_gap` is true, a bar that OPENS after a pause
+  longer than ~3x the normal bar spacing (`_infer_bar_seconds` via the timeframe
+  helper, else the most-common positive timestamp delta) is a "gap bar"; if a
+  stop sits inside that gap the fill is at the (worse) OPEN price instead of the
+  stop price - a long fills at open when `open < stop`, a short at open when
+  `open > stop`. Config is read defensively (`_cfg_float`/`_cfg_int`/`_cfg_bool`
+  fall back to safe defaults on bad values).
 
 ### walk_forward.py - `WalkForward`
 Splits history into rolling (train, test) windows from `memory.walk_forward`.

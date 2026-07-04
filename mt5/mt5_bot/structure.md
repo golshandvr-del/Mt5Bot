@@ -362,7 +362,7 @@ gold realistically.
       `learning.per_symbol` (default false) to config.yaml.
 - [x] P3.5 (test) Extend `tests/test_learning.py` (or add a test file): two
       symbols train two distinct model files; engine picks the right one.
-- [ ] P3.6 (code+config) `core/strategy/backtester.py`: model weekend/rollover
+- [x] P3.6 (code+config) `core/strategy/backtester.py`: model weekend/rollover
       swap cost and the Monday opening gap (esp. XAUUSD). Add
       `backtest.swap_long_pts`, `backtest.swap_short_pts`,
       `backtest.swap_triple_day`, `backtest.model_weekend_gap` (defaults keep
@@ -472,6 +472,31 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.6 DONE (code+config): weekend/rollover SWAP + Monday GAP model in the
+  internal backtester (Track A / A6). config.yaml gained four `backtest` keys -
+  `swap_long_pts`, `swap_short_pts` (points charged per rollover, money =
+  swap_pts * point * contract * fixed_lot; positive = cost, negative = credit),
+  `swap_triple_day` (0=Mon..6=Sun, MT5 default Wednesday=2, charged 3x to cover
+  the weekend), and `model_weekend_gap` (bool) - all defaulting to a NO-OP so
+  the simulator stays byte-identical when unset. `core/strategy/backtester.py`:
+  `__init__` reads the keys defensively via new static `_cfg_float/_cfg_int/
+  _cfg_bool` helpers. SWAP: `_rollovers_between(prev_ts, cur_ts, triple_day)`
+  counts every UTC midnight crossed while a position is open (each billed to the
+  day it ENTERS, weekday derived from the epoch-day index where 1970-01-01 =
+  Thursday so a Fri->Mon hold correctly bills 3 nights and a rollover into the
+  triple-day is 3x), `_swap_money(direction, nights, point, contract)` converts
+  nights to money using the long/short rate, and the accrued `swap_accum` is
+  subtracted from PnL on EVERY close (SL/TP/opposite-signal and the residual
+  close), reset on entry/close. GAP: `_infer_bar_seconds(times, ohlcv)` finds
+  the normal bar spacing (timeframe helper, else the most-common positive delta)
+  and any bar opening after a pause > 3x that is a "gap bar"; when
+  model_weekend_gap is on and a stop sits inside the gap, the fill is the (worse)
+  OPEN price - long fills at open when open < stop, short when open > stop -
+  instead of the stop price. Verified: rollover math (Fri->Mon=3, Tue->Wed with
+  Wed triple=3, same-day=0), and the full offline suite still 55 tests, all
+  green (defaults unchanged). CODE_MAP.md sections 3 (config backtest block) and
+  8 (backtester.py) updated; Ideas.md logged. The dedicated backtester test is
+  P3.7; the A4/A5/A6 status flips are P3.8. Next sub-step: P3.7.
 - P3.5 DONE (test): added tests/test_per_symbol_learning.py (7 tests) locking in
   the P3.3 per-symbol training + P3.4 per-symbol lookup (Track A / A5). The file
   was recovered from the newer manual backup (it had been written but never

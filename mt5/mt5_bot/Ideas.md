@@ -170,6 +170,25 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.6 (Track A / A6, code+config) [x]. Weekend/rollover SWAP + Monday GAP model
+  in the internal backtester so gold and carry-sensitive pairs are ranked more
+  realistically. New `backtest` config keys - `swap_long_pts`, `swap_short_pts`,
+  `swap_triple_day` (0=Mon..6=Sun, MT5 default Wednesday=2), `model_weekend_gap`
+  - all default to a NO-OP so the simulator is byte-identical when left unset.
+  DECISION/realism notes: (a) SWAP is charged per UTC day-rollover crossed while
+  a position is open (money = swap_pts * point * contract * fixed_lot), with the
+  triple-swap weekday billed 3x to cover the weekend - this matches the standard
+  MT5 convention and correctly bills a Fri->Mon hold as 3 nights. Each crossed
+  midnight is billed to the day it ENTERS; weekday is derived from the epoch-day
+  index (1970-01-01 = Thursday). Accrued swap is subtracted from PnL on every
+  close (SL/TP/opposite-signal and the residual close). (b) The Monday GAP model
+  detects a bar that opens after a pause > ~3x the normal bar spacing and, if a
+  stop sits inside that gap, fills at the (worse) OPEN price rather than the stop
+  price - honest slippage that a naive stop-at-stop model hides. Config is read
+  defensively. Verified: full offline suite still 55 tests, all green (defaults
+  unchanged). The dedicated backtester test (a weekend hold pays swap; a stop in
+  a modeled gap fills at the gapped price) is P3.7; the A4/A5/A6 status flips are
+  P3.8. Next sub-step: P3.7.
 - P3.5 (Track A / A5, test) [x]. Added `tests/test_per_symbol_learning.py`
   (7 tests) that locks in the P3.3 per-symbol TRAINING + P3.4 per-symbol LOOKUP.
   The file was recovered from the newer manual backup (it had been authored but

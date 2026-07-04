@@ -370,3 +370,23 @@ backtest:
   fixed_lot: 0.10
   # Where to store backtest reports.
   report_dir: "backtests"
+  # ---------------------------------------------------------------------- #
+  # Weekend / rollover swap + Monday gap model (A6 / P3.6). All default to a
+  # no-op so the backtester behavior is byte-identical when left untouched.
+  # ---------------------------------------------------------------------- #
+  # Overnight swap charged (in points) for each UTC day-rollover a position is
+  # held over. Positive numbers COST money; use negative to model a credit.
+  # Money impact per rollover = swap_pts * point * contract * fixed_lot.
+  # 0.0 (default) = no swap modeled = old behavior. Gold/carry pairs benefit
+  # most from setting realistic values here.
+  swap_long_pts: 0.0
+  swap_short_pts: 0.0
+  # Day of week (0=Mon .. 6=Sun, UTC) that is charged TRIPLE swap to cover the
+  # weekend (MT5 convention is Wednesday = 2). Any other value disables the
+  # triple-charge and every rollover costs a single swap.
+  swap_triple_day: 2
+  # When true, model the Monday opening GAP: if a stop-loss sits inside a
+  # weekend gap, the position fills at the gapped OPEN price (worse than the
+  # stop) instead of at the stop price. false (default) = old behavior where a
+  # stop always fills exactly at the stop price.
+  model_weekend_gap: false
