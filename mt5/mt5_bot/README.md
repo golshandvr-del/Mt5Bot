@@ -266,7 +266,8 @@ python main.py --mode paper               # dry-run decisions
   multiples, lot limits, magic number.
 - `indicators.*`: per-indicator `{enabled, params}` toggles.
 - `learning.active_model` + per-learner blocks.
-- `memory.*`: walk-forward windows, search settings, `ensemble_top_k`.
+- `memory.*`: walk-forward windows (incl. `min_segments` / `holdout_bars`),
+  search settings (incl. the `significance` promotion filter), `ensemble_top_k`.
 - `news.*`: sources, sentiment backend, `signal_weight`, `blackout_minutes`.
 - `decision.weights` (indicators / learning / news) and entry thresholds.
 - `backtest.*`: initial balance, cost model, fixed lot, report dir.
@@ -354,6 +355,20 @@ lost. Tune the effort/breadth in `config/config.yaml` under `memory.search`
 > registry if it ALSO passes on this untouched holdout, which is the strongest
 > guard against picking strategies that only looked good in-sample. The default
 > `0` disables the holdout and keeps the previous behavior.
+
+> Statistical-significance filter (on by default): with real multi-year data the
+> search evaluates each strategy across many walk-forward segments, so it can
+> tell a genuine edge from a lucky streak. Under `memory.search.significance`
+> the bot computes a bootstrap p-value on the trade PnLs (and a Wilson lower
+> bound on the win-rate) and only PROMOTES a strategy to
+> `strategy_registry.json` when its averaged p-value is `<= max_pvalue`
+> (default `0.05` = 95% confidence). A strategy that cannot be statistically
+> separated from random is still RECORDED in `data_store/memory.sqlite` (so the
+> memory keeps growing) but is never promoted, so the live decision engine only
+> ever blends strategies that passed this filter. Set
+> `memory.search.significance.enabled: false` to keep the previous behavior, or
+> raise `min_winrate_ci_low` (default `0.0` = off) to also require a minimum
+> win-rate lower bound.
 
 **Step 3 - sanity-check, then train and dry-run:**
 

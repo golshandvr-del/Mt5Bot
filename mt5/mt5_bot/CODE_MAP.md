@@ -723,13 +723,19 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   the EA (supertrend/bbands) so the exporter can pass them through; optional
   annualized/risk-adjusted metrics; a self-contained CI workflow file; dedicated
   unit tests for the timing layer; expose timing session windows in the EA.
-- ROADMAP PROGRESS: Phase P1 of `structure.md` (Track A items A1 + A2 - honest
-  evaluation: multi-year real-data workflow documented, more walk-forward
-  segments via `min_segments` auto-shrink, and a locked holdout gate wired into
-  search + registry promotion, all locked in by `tests/test_walk_forward.py`) is
-  now COMPLETE. The actual multi-year export + long search (A1) is a user action
-  on the Windows machine. Next up is Phase P2 (statistical-significance filter:
-  Wilson interval + bootstrap p-value in metrics, enforced in the registry).
+- ROADMAP PROGRESS: Phases P1 and P2 of `structure.md` are now COMPLETE.
+  Phase P1 (Track A items A1 + A2 - honest evaluation: multi-year real-data
+  workflow documented, more walk-forward segments via `min_segments`
+  auto-shrink, and a locked holdout gate wired into search + registry promotion,
+  all locked in by `tests/test_walk_forward.py`). The actual multi-year export +
+  long search (A1) is a user action on the Windows machine.
+  Phase P2 (Track A item A3 - statistical-significance filter: `wilson_interval`
+  + `bootstrap_pvalue` in metrics, `win_rate_ci_low` + `pnl_pvalue` in
+  compute_metrics, the `memory.search.significance` config block, and the store
+  record-but-never-promote filter, all locked in by
+  `tests/test_metrics_significance.py`). Next up is Phase P3 (robust context
+  modeling: time-bucket Bayesian shrinkage, per-symbol ML model, weekend
+  swap/gap in the backtester).
 - PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
   biggest current risk as STATISTICAL (small samples), not software. The roadmap
   there sequences Track A (multi-year real data, more walk-forward segments +

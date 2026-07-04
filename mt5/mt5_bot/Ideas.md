@@ -170,6 +170,22 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P2.6 (Track A / A3, docs). Phase P2 documentation sync + status flip. Flipped
+  the structure.md section-3 roadmap item A3 (statistical-significance filter) to
+  done with a dated STATUS note summarizing the full P2.1-P2.6 chain (Wilson
+  interval + bootstrap p-value in metrics, win_rate_ci_low + pnl_pvalue in
+  compute_metrics, the memory.search.significance config block, the store
+  record-but-never-promote registry filter, and the 11-test lock-in). Added a
+  user-facing "significance filter" note to README (parallel to the holdout
+  note): a strategy that cannot be statistically separated from random is kept
+  in data_store/memory.sqlite but never promoted to strategy_registry.json, so
+  the live decision engine only blends strategies that passed the filter; the
+  config-overview memory.* bullet now points at it. Fixed CODE_MAP.md section 17
+  drift (its "Next up is Phase P2" line predated P2 completion) to mark P1+P2
+  done and name P3 as next. Sections 3/8 of CODE_MAP were already in sync from
+  the P2.1-P2.5 commits. This closes Phase P2; the next work is Phase P3 (robust
+  context modeling: time-bucket Bayesian shrinkage, per-symbol ML, weekend
+  swap/gap in the backtester). Offline suite still 40 tests, all green.
 - P2.5 (Track A / A3, test). Added tests/test_metrics_significance.py (11 tests)
   as the formal lock-in for the P2 significance layer: wilson_interval on the
   textbook 50/100 case plus [0,1]/small-n honesty and the n<=0 / z<=0 / clamp

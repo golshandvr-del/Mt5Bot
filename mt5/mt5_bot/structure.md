@@ -143,7 +143,7 @@ bot from an offline learner into a live, adaptive system.
   allowlist gate registry promotion (P1.4); `tests/test_walk_forward.py`
   (8 tests) locks all of this in (P1.5).
 
-- [ ] **A3. Statistical-significance test in metrics.**
+- [x] **A3. Statistical-significance test in metrics.**
   Add, in pure Python: a Wilson confidence interval for win-rate and a simple
   bootstrap p-value over trade PnLs. A strategy that is not statistically
   distinguishable from random must NOT enter the registry. Cheap and light.
@@ -151,6 +151,13 @@ bot from an offline learner into a live, adaptive system.
   extend `compute_metrics`), `core/memory/store.py` (filter in
   `top_strategies`/`update_registry`), `config/config.yaml`
   (`memory.search.significance`), plus tests.
+  STATUS (P2.1-P2.6): DONE. `wilson_interval` (P2.1) + `bootstrap_pvalue`
+  (P2.2) added to metrics; `compute_metrics` now emits `win_rate_ci_low` +
+  `pnl_pvalue` and config gained the `memory.search.significance` block (P2.3);
+  the store now RECORDS but never PROMOTES a non-significant strategy - the
+  filter is enforced in `top_strategies`/`update_registry` (P2.4);
+  `tests/test_metrics_significance.py` (11 tests) locks it all in (P2.5); docs
+  synced here (P2.6). This closes Phase P2.
 
 - [ ] **A4. Time-bucket robustness: higher min_samples + Bayesian shrinkage.**
   Raise the time-bucket `min_samples` to 50+, and instead of a raw threshold,
@@ -333,7 +340,7 @@ never enter the registry.
 - [x] P2.5 (test) Add `tests/test_metrics_significance.py`: Wilson bounds on
       known cases, bootstrap p-value low for a clearly-positive PnL series and
       high for a symmetric-random series, registry rejects non-significant.
-- [ ] P2.6 (docs) Sync all four docs; flip A3 status.
+- [x] P2.6 (docs) Sync all four docs; flip A3 status.
 
 ### Phase P3 - Robust context modeling (covers A4, A5, A6)
 
@@ -465,6 +472,20 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P2.6 DONE (docs): Phase P2 documentation sync + status flip. Flipped the
+  section-3 Track-A item A3 to [x] with a dated STATUS note summarizing the
+  whole P2.1-P2.6 chain (Wilson interval + bootstrap p-value in metrics,
+  win_rate_ci_low + pnl_pvalue in compute_metrics, the
+  memory.search.significance config block, the store record-but-never-promote
+  filter, and the 11-test lock-in). Added a user-facing "significance filter"
+  note to README (parallel to the holdout note) explaining that a strategy
+  which cannot be statistically separated from random is kept in memory but
+  never promoted to the registry, plus a one-line pointer under the
+  config-overview bullet for `memory.*`. Confirmed CODE_MAP.md sections 3, 8,
+  and 17 were already in sync from the P2.1-P2.5 commits (metrics helpers,
+  store filter, and the 40-test count), so no CODE_MAP edits were needed.
+  Added this note plus an Ideas.md entry. Offline suite still 40 tests, all
+  green. This completes Phase P2. Next sub-step: P3.1.
 - P2.5 DONE (test): added tests/test_metrics_significance.py (11 tests) locking
   in the whole P2 significance layer. TestWilsonInterval: the textbook 95%
   interval for 50/100 (~0.4038, 0.5962), bounds stay in [0,1] and are honest for
