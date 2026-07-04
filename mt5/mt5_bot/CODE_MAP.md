@@ -7,6 +7,12 @@
 >
 > RULE: Keep this file in sync with the code on EVERY change. If it drifts from
 > reality, fix it immediately. Standard ASCII English only, everywhere.
+>
+> COMPANION DOCS: `structure.md` holds the forward-looking STRUCTURAL ROADMAP
+> (prioritized next steps from an expert-AI review, mapped to files); `Ideas.md`
+> is the idea backlog log; `README.md` is the user guide. This CODE_MAP describes
+> WHAT exists now; structure.md describes HOW the project should evolve next.
+> Keep all four in sync.
 
 ---
 
@@ -43,6 +49,8 @@ mt5/                              <- required top folder
     main.py                       <- CLI entry point; dispatches run modes
     requirements.txt              <- dependencies pinned for Win7 / Python 3.8
     CODE_MAP.md                   <- THIS FILE (always keep current)
+    structure.md                  <- structure snapshot + prioritized ROADMAP
+    Ideas.md                      <- idea backlog log (write idea before change)
     README.md                     <- user-facing guide (install/run/backtest/VPS)
 
     config/
@@ -647,4 +655,11 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   the EA (supertrend/bbands) so the exporter can pass them through; optional
   annualized/risk-adjusted metrics; a self-contained CI workflow file; dedicated
   unit tests for the timing layer; expose timing session windows in the EA.
+- PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
+  biggest current risk as STATISTICAL (small samples), not software. The roadmap
+  there sequences Track A (multi-year real data, more walk-forward segments +
+  holdout, Wilson/bootstrap significance filter, time-bucket shrinkage,
+  per-symbol ML, weekend swap/gap, CI) before Track B (strategy council, time x
+  regime buckets, decay monitor, overnight training, contrarian sensor, weekly
+  journal, evolutionary search, recency weighting). Follow structure.md order.
 ```
