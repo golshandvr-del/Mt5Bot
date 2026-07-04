@@ -284,7 +284,7 @@ Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
       `python main.py --mode search` afterwards. NOTE: the actual export run
       is a USER action on the Windows machine; the AI only prepares
       docs/scripts and must not block on it. [A1]
-- [ ] P1.2 (config) Add `memory.walk_forward.min_segments` (default 6) and
+- [x] P1.2 (config) Add `memory.walk_forward.min_segments` (default 6) and
       `memory.walk_forward.holdout_bars` (default 0 = off) to config.yaml with
       comments. Unset/zero values must keep today's behavior byte-identical.
       [A2]
@@ -455,6 +455,13 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P1.2 DONE (config only): added `memory.walk_forward.min_segments` (default 6)
+  and `memory.walk_forward.holdout_bars` (default 0 = off) to config.yaml with
+  explanatory comments. No code reads them yet (that lands in P1.3 segments and
+  P1.4 holdout), so with these defaults the walk-forward behavior is byte-
+  identical to before. Verified both keys load via the loader (PyYAML and the
+  minimal fallback parser). CODE_MAP.md section-3 memory description updated to
+  list the new keys. Offline suite still green (21 tests). Next sub-step: P1.3.
 - P1.1 DONE (docs only, no source code changed): added a "Recommended multi-year
   real-data workflow (do this first)" subsection (1a) to README.md under
   "Exporting history and backtesting in MT5". It documents running

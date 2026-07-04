@@ -193,6 +193,18 @@ memory:
     train_bars: 3000
     test_bars: 750
     step_bars: 750
+    # Statistical robustness (Track A / A2). These are read by later steps
+    # (P1.3 segments, P1.4 holdout). Leaving them at the defaults below keeps
+    # today's walk-forward behavior byte-identical.
+    # Target number of rolling walk-forward segments. The segmenter will try to
+    # produce at least this many by shrinking train_bars when the history is
+    # long enough; short history still falls back to the 70/30 split.
+    min_segments: 6
+    # Bars reserved at the END of history as a locked "quarantine" holdout that
+    # the search NEVER sees. 0 = OFF (no holdout, behavior unchanged). When > 0,
+    # a strategy is only promoted to the registry if it also passes on this
+    # untouched holdout.
+    holdout_bars: 0
   # Strategy/parameter search configuration.
   search:
     method: "random"         # "grid" or "random"

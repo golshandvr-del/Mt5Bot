@@ -170,6 +170,12 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P1.2 (Track A / A2, config only). Added two walk-forward knobs to config.yaml:
+  memory.walk_forward.min_segments (default 6) to later request 6-10 rolling
+  segments, and memory.walk_forward.holdout_bars (default 0 = off) to later
+  reserve a locked quarantine holdout. Defaults chosen so current behavior stays
+  byte-identical until the consuming code arrives in P1.3/P1.4. No source code
+  changed; offline suite still green.
 - ROADMAP EXECUTION START - P1.1 (Track A / A1, docs only). Documented the
   multi-year REAL-data workflow in README.md (new subsection 1a): export >= 5
   years of M15 bars per symbol via scripts/export_history.py on Windows with MT5

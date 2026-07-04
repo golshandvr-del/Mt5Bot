@@ -158,8 +158,9 @@ Top-level sections:
   SL/TP ATR multiples, min/max lot, deviation, magic number.
 - `indicators`: per-indicator `{enabled, params}` toggles (Phase 2).
 - `learning` : `active_model` + per-learner config blocks (Phase 1).
-- `memory`   : db/registry files, `walk_forward` windows, `search` settings,
-  `ensemble_top_k` (Phase 3).
+- `memory`   : db/registry files, `walk_forward` windows (train/test/step_bars
+  plus `min_segments` and `holdout_bars` for statistical robustness), `search`
+  settings, `ensemble_top_k` (Phase 3).
 - `news`     : enable, degrade_gracefully, cache, sentiment backend, sources,
   `signal_weight`, `blackout_minutes` (Phase 4).
 - `decision` : blend `weights` (indicators/learning/news), long/short thresholds,
