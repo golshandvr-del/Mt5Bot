@@ -52,6 +52,27 @@ class MemoryStore(object):
         ensure_dir(os.path.dirname(self.db_path))
         ensure_dir(os.path.dirname(self.registry_path))
         self.top_k = int(cfg.get_path("memory.ensemble_top_k", 3))
+        # Statistical-significance registry filter (Track A / A3, P2.4). A
+        # strategy that cannot be separated from randomness is still RECORDED in
+        # SQLite (for memory) but is never PROMOTED to the JSON registry. The
+        # thresholds come from config; defaults keep the filter effectively
+        # permissive-safe so a missing/partial config never crashes.
+        self.sig_enabled = bool(
+            cfg.get_path("memory.search.significance.enabled", True)
+        )
+        try:
+            self.sig_max_pvalue = float(
+                cfg.get_path("memory.search.significance.max_pvalue", 0.05)
+            )
+        except (TypeError, ValueError):
+            self.sig_max_pvalue = 0.05
+        try:
+            self.sig_min_winrate_ci_low = float(
+                cfg.get_path("memory.search.significance.min_winrate_ci_low",
+                             0.0)
+            )
+        except (TypeError, ValueError):
+            self.sig_min_winrate_ci_low = 0.0
         self._init_db()
 
     # ------------------------------------------------------------------ #
@@ -147,7 +168,8 @@ class MemoryStore(object):
     def top_strategies(self, symbol: str, timeframe: str, k: Optional[int] = None,
                        rank_metric: str = "expectancy",
                        min_trades: int = 30,
-                       allowed_fingerprints: Optional[Any] = None
+                       allowed_fingerprints: Optional[Any] = None,
+                       apply_significance: bool = True
                        ) -> List[Dict[str, Any]]:
         """
         Return the top-k strategy specs for a symbol/timeframe ranked by the
@@ -159,6 +181,18 @@ class MemoryStore(object):
         holdout gate so only holdout-passing specs are promoted). When None
         (default) no such filtering happens and behavior is unchanged. An empty
         collection means "nothing passed" and yields no results.
+
+        apply_significance (A3 / P2.4): when True (default) AND the
+        memory.search.significance filter is enabled in config, strategies whose
+        AVERAGE bootstrap p-value across segments exceeds max_pvalue (or whose
+        average Wilson win-rate lower bound is below min_winrate_ci_low, when that
+        gate is > 0) are treated as statistically indistinguishable from random
+        and are NOT promoted, even though their results stay recorded in SQLite.
+        Set apply_significance=False to fetch the raw ranking (e.g. for
+        inspection) regardless of significance. If the stored metrics predate the
+        significance fields (older results), the missing p-value is treated as
+        conservative 1.0 so such legacy specs are filtered out only when the
+        filter is enabled.
         """
         k = k or self.top_k
         allowed = None
@@ -167,16 +201,23 @@ class MemoryStore(object):
             if not allowed:
                 # Nothing passed the holdout gate: promote nothing.
                 return []
-        # We may need more than k rows before the allowlist filter, so fetch a
-        # generous window and trim after filtering.
-        fetch_limit = int(k) if allowed is None else max(int(k) * 20, 200)
+        sig_on = bool(apply_significance) and bool(self.sig_enabled)
+        # We may need more than k rows before the allowlist/significance filters,
+        # so fetch a generous window and trim after filtering.
+        if allowed is None and not sig_on:
+            fetch_limit = int(k)
+        else:
+            fetch_limit = max(int(k) * 20, 200)
         try:
             conn = self._connect()
             cur = conn.cursor()
             cur.execute(
                 "SELECT fingerprint, AVG(score) AS avg_score, "
                 "       COUNT(*) AS n_segments, "
-                "       AVG(json_extract(metrics_json, '$.num_trades')) AS avg_trades "
+                "       AVG(json_extract(metrics_json, '$.num_trades')) AS avg_trades, "
+                "       AVG(json_extract(metrics_json, '$.pnl_pvalue')) AS avg_pvalue, "
+                "       AVG(json_extract(metrics_json, '$.win_rate_ci_low')) "
+                "           AS avg_ci_low "
                 "FROM results WHERE symbol=? AND timeframe=? AND rank_metric=? "
                 "GROUP BY fingerprint "
                 "HAVING avg_trades >= ? "
@@ -189,6 +230,10 @@ class MemoryStore(object):
             for row in rows:
                 fp = row["fingerprint"]
                 if allowed is not None and fp not in allowed:
+                    continue
+                if sig_on and not self._is_significant(
+                    row["avg_pvalue"], row["avg_ci_low"]
+                ):
                     continue
                 if len(results) >= int(k):
                     break
@@ -205,6 +250,8 @@ class MemoryStore(object):
                         "avg_score": row["avg_score"],
                         "n_segments": row["n_segments"],
                         "avg_trades": row["avg_trades"],
+                        "avg_pvalue": row["avg_pvalue"],
+                        "avg_ci_low": row["avg_ci_low"],
                         "spec": json.loads(srow["spec_json"]),
                     }
                 )
@@ -213,6 +260,29 @@ class MemoryStore(object):
         except Exception as exc:
             self.log.error("top_strategies failed: %s", exc)
             return []
+
+    def _is_significant(self, avg_pvalue: Any, avg_ci_low: Any) -> bool:
+        """
+        Return True if a strategy's averaged significance stats clear the
+        configured thresholds (A3 / P2.4). A missing/None p-value is treated as
+        the conservative 1.0 (fails the gate) so legacy results without the
+        P2.3 fields are not silently promoted. The win-rate lower-bound gate is
+        only applied when min_winrate_ci_low > 0.
+        """
+        try:
+            pvalue = 1.0 if avg_pvalue is None else float(avg_pvalue)
+        except (TypeError, ValueError):
+            pvalue = 1.0
+        if pvalue > self.sig_max_pvalue:
+            return False
+        if self.sig_min_winrate_ci_low > 0.0:
+            try:
+                ci_low = 0.0 if avg_ci_low is None else float(avg_ci_low)
+            except (TypeError, ValueError):
+                ci_low = 0.0
+            if ci_low < self.sig_min_winrate_ci_low:
+                return False
+        return True
 
     # ------------------------------------------------------------------ #
     def update_registry(self, symbol: str, timeframe: str,
@@ -227,6 +297,12 @@ class MemoryStore(object):
         allowed_fingerprints (A2 / P1.4): forwarded to top_strategies so the
         locked-holdout gate can restrict promotion to holdout-passing specs.
         None (default) keeps the previous unfiltered behavior.
+
+        Statistical-significance filter (A3 / P2.4): top_strategies applies the
+        memory.search.significance gate by default, so a strategy that is not
+        statistically distinguishable from random is recorded in SQLite but is
+        never promoted into this registry. Disable it via config
+        (memory.search.significance.enabled: false).
         """
         best = self.top_strategies(symbol, timeframe, self.top_k,
                                    rank_metric, min_trades,

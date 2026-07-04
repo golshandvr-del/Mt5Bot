@@ -327,7 +327,7 @@ never enter the registry.
       `win_rate_ci_low`, `pnl_pvalue`. Add `memory.search.significance`
       block to config.yaml (`enabled` default true, `max_pvalue` 0.05,
       `min_winrate_ci_low` optional).
-- [ ] P2.4 (code) Enforce the filter in `core/memory/store.py`
+- [x] P2.4 (code) Enforce the filter in `core/memory/store.py`
       (`update_registry` and/or `top_strategies`): non-significant strategies
       are recorded (for memory) but never promoted to the registry.
 - [ ] P2.5 (test) Add `tests/test_metrics_significance.py`: Wilson bounds on
@@ -465,6 +465,30 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P2.4 DONE (code): the statistical-significance filter is now ENFORCED at the
+  registry-promotion boundary in core/memory/store.py. `MemoryStore.__init__`
+  reads the `memory.search.significance` block (enabled default true,
+  max_pvalue 0.05, min_winrate_ci_low 0.0) defensively (non-numeric config
+  falls back to the safe defaults). `top_strategies` now also computes the
+  per-strategy AVERAGE of `pnl_pvalue` and `win_rate_ci_low` across its stored
+  segments (via json_extract) and, when significance is enabled and the new
+  `apply_significance` flag is True (default), drops any strategy whose average
+  p-value > max_pvalue (or, when min_winrate_ci_low > 0, whose average Wilson
+  lower bound < min_winrate_ci_low) using a new `_is_significant` helper. A
+  missing p-value (legacy results from before P2.3) is treated as the
+  conservative 1.0 so it is filtered out only while the gate is enabled - never
+  silently promoted. `update_registry` inherits the filter automatically since
+  it delegates to top_strategies; its docstring documents this. Non-significant
+  strategies remain fully RECORDED in SQLite (memory) - only PROMOTION to the
+  JSON registry is blocked, exactly as A3 requires. The two persistence tests
+  (test_memory, test_walk_forward) were updated to record the P2.3 significance
+  fields (win_rate_ci_low, pnl_pvalue), since real compute_metrics output now
+  always carries them. Verified with a manual smoke test: a non-significant
+  strategy with a HIGHER score stays in memory but is excluded from the
+  registry-eligible list, while the significant one is promoted; raw fetch
+  (apply_significance=False) still returns both. CODE_MAP.md section 8 (store)
+  updated. Offline suite still 29 tests, all green. The dedicated significance
+  test file (including a registry-rejection case) is P2.5. Next sub-step: P2.5.
 - P2.3 DONE (code+config): compute_metrics now also emits `win_rate_ci_low`
   (Wilson 95% lower bound via P2.1's wilson_interval) and `pnl_pvalue`
   (P2.2's seeded bootstrap p-value for "mean trade PnL <= 0"), with optional

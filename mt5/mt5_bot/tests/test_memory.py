@@ -49,7 +49,8 @@ class TestMemoryStore(unittest.TestCase):
         self.store.record_strategy(spec)
         metrics = {"win_rate": 0.55, "profit_factor": 1.4,
                    "expectancy": 5.0, "max_drawdown": -100.0,
-                   "num_trades": 40, "sharpe": 0.5, "net_profit": 200.0}
+                   "num_trades": 40, "sharpe": 0.5, "net_profit": 200.0,
+                   "win_rate_ci_low": 0.45, "pnl_pvalue": 0.01}
         self.store.record_result(spec, metrics, segment=0, rank_metric="expectancy")
         stats = self.store.stats()
         self.assertGreaterEqual(stats.get("strategies", 0), 1)
@@ -62,7 +63,8 @@ class TestMemoryStore(unittest.TestCase):
         for seg in range(3):
             metrics = {"win_rate": 0.6, "profit_factor": 1.5,
                        "expectancy": 6.0, "max_drawdown": -80.0,
-                       "num_trades": 45, "sharpe": 0.6, "net_profit": 300.0}
+                       "num_trades": 45, "sharpe": 0.6, "net_profit": 300.0,
+                       "win_rate_ci_low": 0.5, "pnl_pvalue": 0.01}
             self.store.record_result(spec, metrics, segment=seg,
                                      rank_metric="expectancy")
         self.store.update_registry(spec.symbol, spec.timeframe,

@@ -395,6 +395,19 @@ SQLite DB (`data_store/memory.sqlite`) + JSON registry
   A2 / P1.4), `update_registry(...)` (writes top-K per symbol|timeframe; forwards
   `allowed_fingerprints`), `load_registry_top(...)` (fast read for the decision
   engine), `stats()`.
+- Statistical-significance registry filter (A3 / P2.4): `__init__` reads
+  `memory.search.significance` (`enabled` default true, `max_pvalue` 0.05,
+  `min_winrate_ci_low` 0.0) defensively. `top_strategies` now also averages the
+  per-result `pnl_pvalue` and `win_rate_ci_low` (P2.3) across a strategy's
+  segments (via `json_extract`) and, via the `_is_significant` helper, drops any
+  strategy whose average p-value > `max_pvalue` (or, when `min_winrate_ci_low`
+  > 0, whose average Wilson lower bound < it) when the filter is enabled and the
+  new `apply_significance` flag is True (default). A missing p-value (legacy
+  results predating P2.3) is treated as the conservative 1.0. `update_registry`
+  inherits the filter since it delegates to `top_strategies`, so a strategy that
+  cannot be separated from random is still RECORDED in SQLite but is never
+  PROMOTED to the JSON registry. `apply_significance=False` fetches the raw
+  ranking.
 
 The more the bot searches, the richer this memory; strategy SELECTION improves
 over time. It does NOT rewrite its own source code.

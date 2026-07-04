@@ -158,7 +158,8 @@ class TestHoldoutRegistryGate(unittest.TestCase):
     def _record(self, store, spec, score):
         metrics = {"win_rate": 0.55, "profit_factor": 1.3, "expectancy": score,
                    "max_drawdown": -50.0, "num_trades": 50, "sharpe": 0.4,
-                   "net_profit": 100.0}
+                   "net_profit": 100.0,
+                   "win_rate_ci_low": 0.45, "pnl_pvalue": 0.01}
         store.record_result(spec, metrics, segment="seg_0",
                             rank_metric="expectancy")
         store.record_result(spec, metrics, segment="seg_1",

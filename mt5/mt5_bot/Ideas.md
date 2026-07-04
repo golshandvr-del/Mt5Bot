@@ -170,6 +170,27 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P2.4 (Track A / A3, code). Enforced the statistical-significance filter in
+  the memory store so a strategy that cannot be separated from randomness is
+  RECORDED (for memory) but never PROMOTED to the JSON registry.
+  `MemoryStore.__init__` now reads `memory.search.significance` (enabled,
+  max_pvalue, min_winrate_ci_low) defensively (bad values fall back to safe
+  defaults). `top_strategies` now also averages `pnl_pvalue` and
+  `win_rate_ci_low` across a strategy's segments (via json_extract) and, when
+  the filter is enabled, drops any strategy whose average p-value exceeds
+  max_pvalue (or whose average Wilson lower bound is below min_winrate_ci_low
+  when that gate is > 0) through a new `_is_significant` helper. Added an
+  `apply_significance` flag (default True) so callers can still fetch the raw
+  ranking. `update_registry` inherits the filter because it calls
+  top_strategies. Decision: a missing p-value (legacy results predating P2.3)
+  is treated as the conservative 1.0 so such specs are only filtered out when
+  the significance filter is enabled - never silently promoted. Also updated
+  the two persistence tests (test_memory, test_walk_forward) to record the new
+  P2.3 significance fields, since real compute_metrics output always carries
+  them now. Verified: a non-significant strategy with a HIGHER score is kept in
+  SQLite but excluded from the registry-eligible list, while the significant one
+  is promoted; offline suite still 29 tests, all green. The formal dedicated
+  significance test is P2.5.
 - P2.3 (Track A / A3, code+config). Wired the two P2.1/P2.2 significance
   helpers into compute_metrics: every backtest metric dict now carries
   `win_rate_ci_low` (Wilson 95% lower bound on the win-rate) and `pnl_pvalue`
