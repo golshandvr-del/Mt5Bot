@@ -569,6 +569,11 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
     NeutralModel fallback.
   - `test_memory.py`: record/aggregate/rank + JSON registry persist and reload
     (restart simulation) using a temp DB.
+  - `test_walk_forward.py`: segment count grows with history (P1.3 auto-shrink);
+    the locked holdout tail (P1.4) never appears in any train/test segment;
+    `evaluate_holdout` is a no-op when disabled and blocks a spec that fails on
+    the untouched holdout; the store `allowed_fingerprints` allowlist restricts
+    registry promotion (none/subset/empty).
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.
@@ -662,11 +667,11 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   `scripts/export_strategy_for_ea.py` exporter that feeds it the learned
   strategy.
 - A formal, offline, stdlib-only TEST SUITE is now INCLUDED under `tests/`
-  (21 tests covering config, indicators, learning, memory, news, and the full
-  pipeline). All pass offline without MT5 or a network.
+  (29 tests covering config, indicators, learning, memory, news, walk-forward /
+  holdout, and the full pipeline). All pass offline without MT5 or a network.
 - Verified: the offline pipeline runs (`python main.py --mode paper/train/
   backtest/search`) using CSV data, a loaded ML model, the memory ensemble, and
-  the news layer; and `python tests/run_all.py` is green (21 tests).
+  the news layer; and `python tests/run_all.py` is green (29 tests).
 - Phase 5 TIMING layer (user-update-request) is IMPLEMENTED under `core/timing/`
   (SessionCalendar/TimeContext, TimeStats learned per-bucket edge, and
   TimeContextProvider/TimeSignal). It is wired (optional, default OFF) into the

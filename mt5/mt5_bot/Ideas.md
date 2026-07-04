@@ -170,6 +170,12 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P1.5 (Track A / A2, test). Added tests/test_walk_forward.py (8 stdlib-only
+  tests) locking in the P1.3 segmentation and P1.4 holdout behavior: segment
+  count grows with history and reaches min_segments; the holdout tail never
+  leaks into any train/test window; evaluate_holdout is a no-op when disabled and
+  blocks a spec that fails on the untouched holdout; the store allowlist
+  restricts registry promotion. Full offline suite is now 29 tests, all green.
 - P1.4 (Track A / A2, code). Locked "quarantine" holdout: the final
   memory.walk_forward.holdout_bars of history are now reserved and NEVER seen by
   the search (walk_forward.searchable_bars() bounds segments() and the 70/30

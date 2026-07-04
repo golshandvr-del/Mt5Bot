@@ -297,7 +297,7 @@ Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
       ohlcv)`; in `core/strategy/search.py` + `core/memory/store.py::
       update_registry`, only promote a strategy to the registry if it also
       passes on the untouched holdout. [A2]
-- [ ] P1.5 (test) Add `tests/test_walk_forward.py`: segment count grows with
+- [x] P1.5 (test) Add `tests/test_walk_forward.py`: segment count grows with
       history, holdout bars never appear in any train/test segment, holdout
       gate blocks a failing spec.
 - [ ] P1.6 (docs) Sync CODE_MAP.md sections 8/17, Ideas.md, README.md; flip
@@ -455,6 +455,19 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P1.5 DONE (test): added tests/test_walk_forward.py (8 tests) covering P1.3 +
+  P1.4. TestWalkForwardSegments: segment count grows with history and reaches
+  min_segments (auto-shrink), all segment windows in range. TestWalkForwardHoldout:
+  searchable_bars() = n - holdout_bars (and =n when OFF), the quarantined holdout
+  tail never appears in any train/test segment, evaluate_holdout() is a no-op when
+  disabled (enabled=False, passed=True), the gate BLOCKS a spec that cannot make
+  enough holdout trades (high min_trades -> passed=False), and a well-formed pass
+  case honors the documented conditions. TestHoldoutRegistryGate: the store
+  allowed_fingerprints allowlist promotes both with None, only the subset when a
+  set is given, and nothing for an empty set. Tests use in-memory config overrides
+  and a temp DB so real data_store/config are untouched; stdlib-only. Full offline
+  suite now 29 tests, all green. CODE_MAP.md tests section + test-count references
+  (21 -> 29) updated. Next sub-step: P1.6.
 - P1.4 DONE (code): locked holdout gate. walk_forward.py now reads
   `memory.walk_forward.holdout_bars` (default 0 = OFF), added
   `searchable_bars(n) = n - holdout_bars` and made `segments()` + the 70/30
