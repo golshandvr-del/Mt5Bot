@@ -8,7 +8,9 @@ lightweight and pure-Python friendly so it runs comfortably on weak machines.
 
 > This README is the user-facing guide. For the full internal architecture
 > (every module, function, and data-flow between phases) read
-> [`CODE_MAP.md`](CODE_MAP.md). Keep both files in sync on every change.
+> [`CODE_MAP.md`](CODE_MAP.md). For the prioritized development ROADMAP (the
+> expert-reviewed plan for what to build next and in which order) read
+> [`structure.md`](structure.md). Keep these files in sync on every change.
 
 ---
 
@@ -137,6 +139,8 @@ mt5/
     requirements.txt      Dependencies pinned for Windows 7 / Python 3.8
     README.md             This file
     CODE_MAP.md           Full internal architecture map (read this for details)
+    structure.md          Structure snapshot + prioritized development roadmap
+    Ideas.md              Idea backlog log
 
     config/               config.yaml (master config) + loader
     app/                  BotContext (assembly) + runners (one per mode)

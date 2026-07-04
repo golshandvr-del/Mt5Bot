@@ -14,6 +14,12 @@
 
 Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/deferred
 
+> NOTE: A prioritized STRUCTURAL ROADMAP derived from an external expert-AI
+> review now lives in `structure.md`. It groups the next steps into Track A
+> (statistical robustness - TOP priority) and Track B (living/adaptive bot
+> ideas), each mapped to the exact files to touch. Read `structure.md` for the
+> execution order; keep it in sync with this file, `CODE_MAP.md`, and `README.md`.
+
 ---
 
 ## 0. Context snapshot
@@ -164,6 +170,24 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- EXPERT-AI REVIEW captured as a prioritized roadmap in the new `structure.md`.
+  Headline finding: the biggest current risk is STATISTICAL (small samples: ~2
+  walk-forward segments, ~20 trades per time bucket), not software. Roadmap is
+  split into two tracks, each task mapped to real files (no code changed yet):
+    Track A (statistical robustness, do first): A1 export multi-year real data +
+    long search; A2 more walk-forward segments (6-10) + a locked holdout; A3
+    Wilson CI + bootstrap p-value significance filter in metrics/registry; A4
+    higher time-bucket min_samples (50+) + Bayesian shrinkage; A5 per-symbol (or
+    per-asset-class) ML model; A6 weekend swap + gap in the backtester (esp.
+    XAUUSD); A7 GitHub Actions CI running the offline suite.
+    Track B (living, adaptive bot): B1 strategy "council" (bandit live
+    credibility) instead of static ensemble; B2 time-calendar x market-regime 2D
+    buckets; B3 self-doubting strategy-decay monitor (KS/mean-std drift ->
+    "suspect", weight 0); B4 automatic overnight training when market is closed;
+    B5 contrarian strategies as a regime-change sensor; B6 human-readable weekly
+    journal; B7 evolutionary search (GA over registry parents) vs pure random;
+    B8 recency weighting in walk-forward score aggregation.
+  Execution order and file-by-file targets are in structure.md section 3-5.
 - USER-UPDATE-REQUEST (time/session/season awareness) PLANNED then STARTED:
   added Ideas section 4b; building a new decoupled `core/timing/` layer
   (session detector + empirical time-bucket learning persisted to memory +
