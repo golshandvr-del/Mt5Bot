@@ -170,6 +170,22 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.7 (Track A / A6, test) [x]. Added `tests/test_backtester_swap_gap.py`
+  (9 tests) locking in the P3.6 weekend-swap + Monday-gap backtester model. The
+  file was recovered from the newer manual backup (written but never committed,
+  like the P3.5 file) and MERGED IN FIRST so nothing is lost, then validated
+  line-for-line against the currently committed backtester and run green.
+  DECISION: keeping the test lightweight and deterministic via a `_StubStrategy`
+  (caller-supplied decision + ATR series) is the right call - it isolates the
+  swap/gap arithmetic from any indicator noise, so the asserted PnL is exactly
+  the modeled swap or the exact stop/gap fill difference. Coverage: a flat-price
+  Friday->Monday hold pays exactly 3 nights of swap (and 0 swap is a no-op, and
+  a negative rate is a credit); `_rollovers_between` counts Fri->Mon=3, ordinary
+  night=1, Tue->Wed-into-triple-day=3, same-day=0; and a long stopped by a
+  Monday bar gapping DOWN through the stop fills at the stop (98.0) with the gap
+  model OFF and at the worse gapped open (96.0) with it ON. Full offline suite
+  now 64 tests (was 55), all green, ASCII-only. Next: P3.8 (docs-only status
+  flips of A4/A5/A6 in structure.md section 3).
 - P3.6 (Track A / A6, code+config) [x]. Weekend/rollover SWAP + Monday GAP model
   in the internal backtester so gold and carry-sensitive pairs are ranked more
   realistically. New `backtest` config keys - `swap_long_pts`, `swap_short_pts`,

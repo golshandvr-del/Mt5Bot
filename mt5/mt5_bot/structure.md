@@ -367,7 +367,7 @@ gold realistically.
       `backtest.swap_long_pts`, `backtest.swap_short_pts`,
       `backtest.swap_triple_day`, `backtest.model_weekend_gap` (defaults keep
       old behavior). [A6]
-- [ ] P3.7 (test) Backtester test: a position held over a weekend pays swap;
+- [x] P3.7 (test) Backtester test: a position held over a weekend pays swap;
       a stop inside a modeled Monday gap fills at the gapped price, not the
       stop price.
 - [ ] P3.8 (docs) Sync all four docs; flip A4/A5/A6 statuses.
@@ -472,6 +472,30 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.7 DONE (test): added tests/test_backtester_swap_gap.py (9 tests) locking in
+  the P3.6 weekend/rollover SWAP + Monday GAP model (Track A / A6). The file was
+  recovered from the newer manual backup (it had been written but never
+  committed, exactly like the P3.5 file) and merged in BEFORE any new work so
+  nothing is lost; it was then validated line-for-line against the CURRENTLY
+  committed core/strategy/backtester.py and run green (all API assumptions -
+  strategy.decision_series/atr_series, run(strat, ohlcv, warmup=...),
+  Backtester._rollovers_between, OHLCV.append_row/.open, and the
+  symbol_offline_specs("EURUSD") point 0.0001 / contract 100000 - verified).
+  Coverage: (1) TestWeekendSwap uses a deterministic _StubStrategy (fixed
+  decision + ATR series) on a flat-priced Friday->Monday series so the ONLY PnL
+  is the accrued swap: swap 0.0 (default) is a byte-identical break-even no-op;
+  a 10-pt long swap held Fri->Mon is charged exactly 3 nights
+  (swap_pts * point * contract * lot * 3); and a negative swap rate is a CREDIT
+  (positive PnL). (2) TestRolloverCounting unit-checks _rollovers_between:
+  Fri->Mon = 3, an ordinary Mon->Tue midnight = 1, a Tue->Wed midnight into the
+  triple day (2=Wed) = 3, and a same-day span = 0. (3) TestMondayGapFill builds
+  a long stopped by a Monday bar that gaps DOWN through the stop: with
+  model_weekend_gap OFF (default) the stop fills exactly at the stop price
+  (98.0), and with it ON the fill is the (worse) gapped OPEN (96.0) and strictly
+  more negative than the stop fill. Stdlib-only, ASCII-only. Full offline suite
+  now 64 tests (was 55), all green. CODE_MAP.md tests section + the 55->64
+  test-count references updated; Ideas.md logged. The A4/A5/A6 status flips are
+  P3.8. Next sub-step: P3.8.
 - P3.6 DONE (code+config): weekend/rollover SWAP + Monday GAP model in the
   internal backtester (Track A / A6). config.yaml gained four `backtest` keys -
   `swap_long_pts`, `swap_short_pts` (points charged per rollover, money =
