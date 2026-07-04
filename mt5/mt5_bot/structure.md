@@ -360,7 +360,7 @@ gold realistically.
 - [x] P3.4 (code+config) `app/context.py` per-symbol learner cache/lookup and
       `core/decision/engine.py` selects the deciding symbol's learner. Add
       `learning.per_symbol` (default false) to config.yaml.
-- [ ] P3.5 (test) Extend `tests/test_learning.py` (or add a test file): two
+- [x] P3.5 (test) Extend `tests/test_learning.py` (or add a test file): two
       symbols train two distinct model files; engine picks the right one.
 - [ ] P3.6 (code+config) `core/strategy/backtester.py`: model weekend/rollover
       swap cost and the Monday opening gap (esp. XAUUSD). Add
@@ -472,6 +472,27 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.5 DONE (test): added tests/test_per_symbol_learning.py (7 tests) locking in
+  the P3.3 per-symbol training + P3.4 per-symbol lookup (Track A / A5). The file
+  was recovered from the newer manual backup (it had been written but never
+  committed) and merged in BEFORE any new work so nothing is lost. Coverage:
+  (1) TestPerSymbolModelFileNaming proves BotContext._per_symbol_model_file and
+  app.runners._per_symbol_model_file produce byte-identical paths for several
+  symbols (incl. a broker-style "EURUSD.m" and a "weird/sym"), and that two
+  distinct symbols map to two distinct files ending ml_classifier_EURUSD.pkl /
+  ml_classifier_XAUUSD.pkl. (2) TestPerSymbolLookup trains two learners on two
+  clearly-different synthetic datasets (seeds 11 / 99), saves them into a private
+  temp dir via an ABSOLUTE model_file override (real models/ untouched), then
+  verifies learner_for returns a DISTINCT, ready, CACHED learner per trained
+  symbol; that an untrained symbol falls back to the shared learner; that default
+  mode (per_symbol=false) always returns the shared learner AND leaves the engine
+  with NO provider (light path unchanged); and that per_symbol=true gives the
+  engine a provider. (3) TestEngineSelectsPerSymbolLearner injects two sentinel
+  learners through a provider and proves the engine's _learning_signal routes the
+  right symbol to the right model (0.9 vs -0.9), while an unknown symbol yields a
+  neutral 0.0. Verified: full offline suite now 55 tests (was 48), all green;
+  file is standard ASCII only. The A5 status flip stays deferred to P3.8. Next
+  sub-step: P3.6.
 - P3.4 DONE (code+config): per-symbol learner LOOKUP wired into the live path
   (A5). config.yaml gained `learning.per_symbol` (default false) with an
   explanatory comment: false = one SHARED model for every symbol (byte-identical

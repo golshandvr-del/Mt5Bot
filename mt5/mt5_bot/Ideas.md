@@ -170,6 +170,23 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.5 (Track A / A5, test) [x]. Added `tests/test_per_symbol_learning.py`
+  (7 tests) that locks in the P3.3 per-symbol TRAINING + P3.4 per-symbol LOOKUP.
+  The file was recovered from the newer manual backup (it had been authored but
+  never committed to GitHub) and merged in BEFORE new work so nothing is lost.
+  It proves: the two `_per_symbol_model_file` helpers (context + runners) agree
+  byte-for-byte and give distinct symbols distinct files; two symbols trained on
+  clearly-different synthetic data produce two distinct on-disk models (written
+  to a temp dir so real models/ is untouched); `learner_for` returns a distinct,
+  ready, cached learner per symbol and falls back to the shared learner for an
+  untrained symbol; default (per_symbol=false) keeps the shared learner and gives
+  the engine NO provider (light path unchanged) while per_symbol=true supplies
+  one; and a sentinel-learner provider proves the engine routes each symbol to
+  the right model (0.9 vs -0.9), unknown -> neutral 0.0. Full offline suite is
+  now 55 tests (was 48), all green, ASCII-only. Decision: this satisfies P3.5 as
+  a dedicated new test file (the sub-step allowed "or add a test file") rather
+  than bloating test_learning.py. The A5 status flip stays deferred to P3.8 per
+  the plan. Next: P3.6 (weekend/rollover swap + gap in the backtester).
 - P3.4 (Track A / A5, code+config). Per-symbol learner LOOKUP is now wired into
   the live decision path, completing the training-side work from P3.3. Added
   `learning.per_symbol` (default false) to config.yaml. `app/context.py` gained

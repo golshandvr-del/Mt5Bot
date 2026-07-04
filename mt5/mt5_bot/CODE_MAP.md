@@ -653,6 +653,17 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
     empty bucket is neutral. The full record_trades -> bucket_edge round-trip
     against a temp DB shows the shrinkage gap end to end, survives a fresh
     TimeStats instance (restart simulation), and honors config shrinkage=0.
+  - `test_per_symbol_learning.py` (A5 / P3.5): per-symbol ML lock-in.
+    `BotContext._per_symbol_model_file` and `app.runners._per_symbol_model_file`
+    produce byte-identical, distinct paths per symbol (incl. broker "EURUSD.m").
+    Two symbols train on two clearly-different synthetic datasets and save into a
+    private temp dir (real models/ untouched); `learner_for` then returns a
+    DISTINCT, ready, CACHED learner per trained symbol, falls back to the shared
+    learner for an untrained symbol, and default mode keeps the shared learner
+    with NO engine provider (light path unchanged) while per_symbol=true supplies
+    one. A sentinel-learner provider proves the engine's `_learning_signal`
+    routes each symbol to the right model (0.9 vs -0.9) and an unknown symbol
+    yields a neutral 0.0.
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.
@@ -746,12 +757,12 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   `scripts/export_strategy_for_ea.py` exporter that feeds it the learned
   strategy.
 - A formal, offline, stdlib-only TEST SUITE is now INCLUDED under `tests/`
-  (48 tests covering config, indicators, learning, memory, news, walk-forward /
-  holdout, statistical significance, time-bucket shrinkage, and the full
-  pipeline). All pass offline without MT5 or a network.
+  (55 tests covering config, indicators, learning, memory, news, walk-forward /
+  holdout, statistical significance, time-bucket shrinkage, per-symbol ML, and
+  the full pipeline). All pass offline without MT5 or a network.
 - Verified: the offline pipeline runs (`python main.py --mode paper/train/
   backtest/search`) using CSV data, a loaded ML model, the memory ensemble, and
-  the news layer; and `python tests/run_all.py` is green (48 tests).
+  the news layer; and `python tests/run_all.py` is green (55 tests).
 - Phase 5 TIMING layer (user-update-request) is IMPLEMENTED under `core/timing/`
   (SessionCalendar/TimeContext, TimeStats learned per-bucket edge, and
   TimeContextProvider/TimeSignal). It is wired (optional, default OFF) into the
@@ -778,9 +789,9 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   P3.2 its test, P3.3 per-symbol ML TRAINING (run_train writes
   models/<model>_<SYMBOL>.pkl), and P3.4 the per-symbol learner LOOKUP
   (`BotContext.learner_for` + `DecisionEngine.learner_provider`, config key
-  `learning.per_symbol` default false) are done. Remaining in P3: P3.5 the
-  two-symbol distinct-model test, P3.6/P3.7 weekend swap+gap in the backtester,
-  P3.8 the A4/A5/A6 status flips.
+  `learning.per_symbol` default false), and P3.5 the two-symbol distinct-model
+  test (`tests/test_per_symbol_learning.py`) are done. Remaining in P3:
+  P3.6/P3.7 weekend swap+gap in the backtester, P3.8 the A4/A5/A6 status flips.
 - PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
   biggest current risk as STATISTICAL (small samples), not software. The roadmap
   there sequences Track A (multi-year real data, more walk-forward segments +
