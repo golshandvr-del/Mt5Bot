@@ -352,7 +352,7 @@ gold realistically.
       `timing.learning.shrinkage` (Bayesian shrinkage pulling a bucket's edge
       toward zero in proportion to sample scarcity, e.g.
       edge * n / (n + shrinkage_k)). [A4]
-- [ ] P3.2 (test) Add `tests/test_timing_stats.py`: a 5-sample bucket's edge is
+- [x] P3.2 (test) Add `tests/test_timing_stats.py`: a 5-sample bucket's edge is
       heavily shrunk; a 500-sample bucket's edge is nearly raw.
 - [ ] P3.3 (code) Per-symbol ML: `app/runners.py::run_train` loops per symbol
       and saves `models/ml_classifier_<SYMBOL>.pkl`; keep the shared-model path
@@ -472,6 +472,24 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.2 DONE (test): added tests/test_timing_stats.py (8 tests) locking in the
+  P3.1 time-bucket Bayesian shrinkage. TestEdgeShrinkageMath drives the pure
+  static formula `TimeStats._edge_from_row`: for a fixed strongly-positive
+  per-trade profile, a 5-sample bucket keeps < 15% of its raw base edge while a
+  500-sample bucket keeps > 85% (and big edge > 5x small edge); the `trusted`
+  flag is governed by min_samples only (5 -> False, 50/500 -> True) independent
+  of shrinkage; `shrinkage=None` reproduces the pre-P3.1 n/(n+min_samples)
+  formula to 12 places; `shrinkage <= 0` disables damping so 5- and 500-sample
+  edges are equal; an empty (n=0) bucket returns a neutral 0 edge. TestRecordAnd
+  ServeShrinkage exercises the full public path record_trades -> bucket_edge
+  against a TEMP SQLite DB (memory.db_file overridden in memory, so the real
+  data_store/memory.sqlite is untouched): 5- vs 500-sample buckets on the same
+  UTC hour ("h12_15", Monday 2026-01-05 12:00) show the shrinkage gap end to
+  end; the learned edge reloads on a fresh TimeStats instance (restart
+  simulation); and config `timing.learning.shrinkage=0` gives the raw edge.
+  Stdlib-only, ASCII-only. Full offline suite now 48 tests (was 40), all green.
+  CODE_MAP.md tests section + the 40->48 test-count references updated. The A4
+  status flip stays deferred to P3.8. Next sub-step: P3.3.
 - P3.1 DONE (code+config): time-bucket Bayesian shrinkage + higher trust
   threshold (A4). config.yaml `timing.learning.min_samples` default raised from
   20 to 50 (a ~20-trade bucket is too noisy to trust) and a new

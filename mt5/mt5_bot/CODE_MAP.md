@@ -622,6 +622,14 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
     pnl_pvalue; and the memory store PROMOTION filter (P2.4) records a
     non-significant strategy but never promotes it, promotes the significant one,
     honors the optional win-rate lower-bound gate, and is a no-op when disabled.
+  - `test_timing_stats.py` (A4 / P3.2): time-bucket Bayesian shrinkage lock-in.
+    The pure `TimeStats._edge_from_row` formula heavily shrinks a 5-sample
+    bucket (< 15% of raw edge) while a 500-sample bucket stays near raw (> 85%);
+    the `trusted` flag tracks min_samples only; `shrinkage=None` reproduces the
+    pre-P3.1 n/(n+min_samples) formula and `shrinkage <= 0` disables damping; an
+    empty bucket is neutral. The full record_trades -> bucket_edge round-trip
+    against a temp DB shows the shrinkage gap end to end, survives a fresh
+    TimeStats instance (restart simulation), and honors config shrinkage=0.
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.
@@ -715,12 +723,12 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   `scripts/export_strategy_for_ea.py` exporter that feeds it the learned
   strategy.
 - A formal, offline, stdlib-only TEST SUITE is now INCLUDED under `tests/`
-  (40 tests covering config, indicators, learning, memory, news, walk-forward /
-  holdout, statistical significance, and the full pipeline). All pass offline
-  without MT5 or a network.
+  (48 tests covering config, indicators, learning, memory, news, walk-forward /
+  holdout, statistical significance, time-bucket shrinkage, and the full
+  pipeline). All pass offline without MT5 or a network.
 - Verified: the offline pipeline runs (`python main.py --mode paper/train/
   backtest/search`) using CSV data, a loaded ML model, the memory ensemble, and
-  the news layer; and `python tests/run_all.py` is green (40 tests).
+  the news layer; and `python tests/run_all.py` is green (48 tests).
 - Phase 5 TIMING layer (user-update-request) is IMPLEMENTED under `core/timing/`
   (SessionCalendar/TimeContext, TimeStats learned per-bucket edge, and
   TimeContextProvider/TimeSignal). It is wired (optional, default OFF) into the

@@ -170,6 +170,20 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.2 (Track A / A4, test). Added tests/test_timing_stats.py (8 tests) locking
+  in the P3.1 time-bucket Bayesian shrinkage. TestEdgeShrinkageMath exercises
+  the pure formula core.timing.time_stats.TimeStats._edge_from_row: a 5-sample
+  bucket keeps < 15% of its raw base edge while a 500-sample bucket keeps > 85%
+  (and the big bucket's edge is > 5x the small one's); the trust flag tracks
+  min_samples only (not shrinkage); shrinkage=None reproduces the pre-P3.1
+  n/(n+min_samples) formula exactly; shrinkage <= 0 disables damping (5- and
+  500-sample edges become equal); an empty bucket is neutral. TestRecordAndServe
+  Shrinkage drives the full public record_trades -> bucket_edge round-trip
+  against a TEMP SQLite DB (real data_store untouched): a 5-sample vs 500-sample
+  bucket on the same UTC hour shows the shrinkage gap end to end, the learned
+  edge survives a fresh TimeStats instance (restart simulation), and config
+  timing.learning.shrinkage=0 yields the raw edge. Stdlib-only, ASCII-only.
+  Offline suite grew 40 -> 48 tests, all green. Next: P3.3 (per-symbol ML train).
 - P3.1 (Track A / A4, code+config). Time-bucket Bayesian shrinkage. Raised the
   timing.learning.min_samples default from 20 to 50 (a ~20-trade time bucket is
   too noisy to trust) and added timing.learning.shrinkage (default 50, <= 0
