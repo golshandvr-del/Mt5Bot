@@ -109,7 +109,12 @@ def run_search(ctx: BotContext) -> Dict[str, Any]:
     log = get_logger("app.runners.search", ctx.cfg)
     ctx.connect_mt5()
     tf = _timeframe(ctx)
-    search = StrategySearch(ctx.cfg, ctx.memory)
+    # Phase 5 (user-update-request): when timing is enabled, feed the TimeStats
+    # into the search so every out-of-sample trade also teaches the time/session/
+    # season layer. When timing is disabled, ctx.timing is None and search runs
+    # exactly as before (light path unchanged).
+    time_stats = ctx.time_stats if ctx.timing is not None else None
+    search = StrategySearch(ctx.cfg, ctx.memory, time_stats=time_stats)
 
     summary: Dict[str, Any] = {"symbols": {}}
     for symbol in _symbols(ctx):
@@ -120,10 +125,13 @@ def run_search(ctx: BotContext) -> Dict[str, Any]:
             continue
         log.info("Searching strategies for %s %s ...", symbol, tf)
         res = search.run(ohlcv, symbol, tf)
-        summary["symbols"][symbol] = {
+        entry = {
             "evaluated": res.get("evaluated", 0),
             "top": len(res.get("registry", {}).get("top", [])),
         }
+        if time_stats is not None:
+            entry["time_stats"] = time_stats.summary(symbol, tf)
+        summary["symbols"][symbol] = entry
     summary["memory_stats"] = ctx.memory.stats()
     log.info("Search finished. Memory now holds: %s", summary["memory_stats"])
     ctx.shutdown()

@@ -29,10 +29,20 @@ from core.utils.logger import get_logger
 
 
 class WalkForward(object):
-    def __init__(self, cfg: Any, memory: Optional[object] = None):
+    def __init__(self, cfg: Any, memory: Optional[object] = None,
+                 time_stats: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("strategy.walk_forward", cfg)
         self.memory = memory
+        # Phase 5 (user-update-request): optional TimeStats to learn which time
+        # buckets were favorable from every out-of-sample trade. Only active
+        # when timing is enabled AND a TimeStats is supplied, so the light
+        # search path is unchanged by default.
+        self.time_stats = time_stats
+        self.learn_time = (
+            time_stats is not None
+            and bool(cfg.get_path("timing.enabled", False))
+        )
         self.backtester = Backtester(cfg)
         wf = cfg.get_path("memory.walk_forward", {})
         self.train_bars = int(wf.get("train_bars", 3000)) if hasattr(wf, "get") else 3000
@@ -79,15 +89,28 @@ class WalkForward(object):
         strategy = Strategy(spec)
         seg_metrics: List[Dict[str, Any]] = []
         scores: List[float] = []
+        want_trades = bool(persist and self.learn_time and self.time_stats is not None)
         for idx, seg in enumerate(segs):
             test_slice = ohlcv.slice(seg["test_start"], seg["test_end"])
-            result = self.backtester.run(strategy, test_slice, warmup=60, point=point)
+            result = self.backtester.run(
+                strategy, test_slice, warmup=60, point=point,
+                record_trades=want_trades,
+            )
             seg_metrics.append(result.metrics)
             if persist and self.memory is not None:
                 self.memory.record_result(
                     spec, result.metrics, segment="seg_%d" % idx,
                     rank_metric=self.rank_metric,
                 )
+            # Phase 5: attribute this segment's trades to their time buckets so
+            # the bot LEARNS which sessions/days/seasons were favorable.
+            if want_trades and result.trades:
+                try:
+                    self.time_stats.record_trades(
+                        spec.symbol, spec.timeframe, result.trades
+                    )
+                except Exception as exc:
+                    self.log.error("time_stats.record_trades failed: %s", exc)
             from core.strategy.metrics import rank_value
             scores.append(rank_value(result.metrics, self.rank_metric))
 

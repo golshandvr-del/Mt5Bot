@@ -87,11 +87,60 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 - [ ] **Source reliability weighting.** Weight sources by a configurable trust
   score when aggregating.
 
+## 4b. USER-UPDATE-REQUEST - Time / Session / Season awareness (Phase 5, new)
+
+> The user asked: the robot should pay attention to the time frame and SEASON
+> (trading sessions such as London/New York), and to WHICH DAY OF THE WEEK it is
+> trading, because the best strategy can depend on these. These effects are NOT
+> guaranteed, so the bot must RECOGNIZE this itself from data rather than assume.
+>
+> Design decision: build a new, decoupled `core/timing/` layer that (a) detects
+> the time context of any bar (session, day-of-week, hour bucket, month/quarter
+> season) with pure-Python stdlib only, and (b) LEARNS from historical trade
+> outcomes which time buckets were actually favorable per symbol/timeframe, then
+> feeds a light time-context signal + a "favorable window" flag into the decision
+> engine. Everything is config-driven and default-safe so the live-light path on
+> Windows 7 is unchanged. This is the honest, realistic version of the request:
+> the edge is discovered empirically and only used when statistically supported.
+
+- [x] **Session/time-context detector (`core/timing/session.py`).** Pure-Python,
+  no deps. Given a bar UTC timestamp -> TimeContext(session set incl. overlaps,
+  day_of_week, hour, hour_bucket, month, quarter, season label). Session hours
+  are config-driven (`timing.sessions`) with sensible FX defaults (Sydney/Tokyo/
+  London/New York, plus London-NY and Tokyo-London overlaps). Handles the input
+  timezone from `general.timezone` offset (config `timing.utc_offset_hours`).
+- [x] **Empirical time-bucket learning (`core/timing/time_stats.py`).** Aggregate
+  historical trade PnL into per-(symbol, timeframe, bucket_type, bucket_value)
+  edge statistics (count, win_rate, avg_pnl, expectancy, an edge score in
+  [-1,+1]). Persist to the memory SQLite as a new `time_stats` table so it
+  survives restarts. Only trust a bucket once it has >= min_samples trades; below
+  that it stays neutral. This is the "recognize it itself" requirement.
+- [x] **Time-context provider + signal (`core/timing/time_context.py`).**
+  Combine live session detection with the learned stats to produce, for the
+  latest bar: a `time_signal` in [-1,+1] (directionless confidence -> applied as
+  a size/threshold modifier), a `favorable` flag, and a `blackout` flag for
+  historically bad windows. Degrades to neutral when stats are insufficient or
+  the feature is disabled.
+- [x] **Search integration.** During strategy search / walk-forward, record each
+  trade's entry-bar time buckets so `time_stats` gets populated automatically the
+  more the bot explores (ties into Phase 3 memory / self-improvement).
+- [x] **Decision engine integration.** Add an optional time component to the
+  blend: a `timing` weight, plus a "favorable-window gate" (raise threshold or
+  scale size down in historically weak windows). All config-gated, default light.
+- [x] **Config additions (`timing:` section).** enabled, utc_offset_hours,
+  sessions map, learning min_samples, weight, gating options; default OFF/safe.
+- [x] **Tests** (`tests/test_timing.py`) for session detection boundaries,
+  day/season labeling, stats aggregation + persistence, and neutral degradation.
+- [x] **Features:** expose session/day/season as optional learner features so the
+  ML model can also use them (config `timing.as_features`, default off).
+
 ## 5. Phase 5 - cross-cutting upgrades
 
 - [x] **Decision engine: confidence + regime awareness + calendar blackout.**
   Blend upgrades from phases above into the engine, all config-gated so the
   default light path is unchanged.
+- [x] **Decision engine: time/session awareness.** Optional `timing` component +
+  favorable-window gating, all config-gated (see section 4b).
 - [x] **Config additions** for every new feature, defaulting to safe/off where
   heavier.
 - [x] **Tests** for all new modules (calibration, new indicators, regime,
@@ -115,6 +164,13 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- USER-UPDATE-REQUEST (time/session/season awareness) PLANNED then STARTED:
+  added Ideas section 4b; building a new decoupled `core/timing/` layer
+  (session detector + empirical time-bucket learning persisted to memory +
+  time-context provider) and wiring an optional, config-gated `timing` component
+  into the decision engine and (optionally) the learner features. Default OFF so
+  the Windows 7 live-light path is unchanged. Realistic framing: the time edge is
+  discovered from historical trade outcomes, not assumed.
 - Phase 1 upgrade DONE: added core/learning/calibration.py (pure-Python Platt
   calibrator); MLClassifier now optionally calibrates P(up) on a held-out tail
   (learning.ml_classifier.calibrate, default true), persists the calibrator, and

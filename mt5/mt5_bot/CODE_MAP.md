@@ -86,8 +86,14 @@ mt5/                              <- required top folder
         sentiment.py              <- lexicon (offline) + optional VADER backends
         sources.py                <- RSS (stdlib) + optional NewsAPI sources
         aggregator.py             <- NewsAnalyzer: fetch/score/cache/aggregate
+      timing/                     <- Phase 5 (user-update-request): time/season awareness
+        session.py                <- SessionCalendar + TimeContext (session/day/season)
+        time_stats.py             <- TimeStats: learned per-bucket edge (persisted)
+        time_context.py           <- TimeContextProvider: combine buckets -> TimeSignal
+        __init__.py               <- exports the timing public API
       decision/
         engine.py                 <- DecisionEngine: fuse all signals -> Decision
+                                     (optionally gated/sized by the timing layer)
       execution/
         risk_manager.py           <- position sizing + risk limits
         order_manager.py          <- Decision -> MT5 order (paper logs / live sends)
@@ -397,8 +403,55 @@ Constructed with cfg + optional `learner`, `feature_builder`, `news_analyzer`,
    indicator/learning agreement rule. Threshold into an action; size_hint scales
    with how far score exceeds the threshold.
 
+5. **Timing signal** (Phase 5, optional): if a `timing` provider is supplied and
+   `timing.enabled=true`, `_timing_signal` computes a `TimeSignal` (learned edge +
+   size multiplier + favorable/blackout flags) for the current bar's
+   session/day/season. Depending on config it can (a) act as a CONFIDENCE / SIZE
+   modifier, (b) add a directional vote (`timing.as_directional`, weight
+   `decision.weights.timing`), and/or (c) GATE new entries in unfavorable windows
+   (`timing.gate_unfavorable`). Default OFF, so the live-light path is unchanged.
+
 Defensive: any missing/failed component contributes 0.0 and is dropped from the
 blend, so the bot still decides on weak hardware with most features off.
+
+---
+
+## 10b. Phase 5 - Timing / session / season layer (core/timing)
+
+Motivation (user-update-request): trading edge can depend on the active FX
+session (Sydney/Tokyo/London/New York and their overlaps), the day of week, the
+hour, and the season. The bot must DISCOVER whether such an edge exists from its
+own historical trade outcomes rather than assume it. Pure-Python stdlib only
+(datetime), so it runs on a minimal Windows 7 Python install. Default OFF.
+
+### session.py - `SessionCalendar` + `TimeContext`
+- `TimeContext`: value object for one bar - active `sessions`, a `session_label`
+  (prefers overlaps: `london_newyork_overlap`, `tokyo_london_overlap`),
+  `day_of_week` (0=Mon..6=Sun), `hour` (UTC), `month`, `quarter`, `season`.
+- `SessionCalendar(cfg)`: converts a bar epoch to UTC using
+  `timing.timestamp_is_utc` / `timing.utc_offset_hours`, then maps it to a
+  `TimeContext`. Session windows are config-driven (`timing.sessions`) and may
+  wrap past midnight.
+
+### time_stats.py - `TimeStats`
+- Learns and PERSISTS a per-bucket edge from realized trade outcomes. Buckets are
+  keyed by type (session/day/hour/month/quarter/season) and value. Each bucket
+  aggregates trade count + mean outcome -> an edge in [-1,+1]. Trusts a bucket
+  only after `timing.learning.min_samples` trades. Survives restarts via the
+  memory store.
+
+### time_context.py - `TimeContextProvider` + `TimeSignal`
+- `evaluate(ohlcv, symbol, tf) -> TimeSignal`: builds the `TimeContext`, looks up
+  each bucket's learned edge in `TimeStats`, combines them using
+  `timing.bucket_weights`, and returns a `TimeSignal` with the combined `edge`,
+  an `enabled` flag, a position-`size_mult` (mapped from the edge into
+  `[min_size_mult, max_size_mult]`), and favorable/blackout flags derived from
+  `timing.favorable_threshold` / `timing.blackout_threshold`.
+
+Wiring: built lazily by `BotContext.timing` only when enabled; passed into
+`DecisionEngine`; `FeatureBuilder` can optionally add session/day/season columns
+when `timing.as_features=true`; `StrategySearch`/`WalkForward` feed realized
+trade outcomes back into `TimeStats` so the time edge is learned empirically.
 
 ---
 
@@ -582,8 +635,16 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   pipeline). All pass offline without MT5 or a network.
 - Verified: the offline pipeline runs (`python main.py --mode paper/train/
   backtest/search`) using CSV data, a loaded ML model, the memory ensemble, and
-  the news layer; and `python tests/run_all.py` is green.
+  the news layer; and `python tests/run_all.py` is green (21 tests).
+- Phase 5 TIMING layer (user-update-request) is IMPLEMENTED under `core/timing/`
+  (SessionCalendar/TimeContext, TimeStats learned per-bucket edge, and
+  TimeContextProvider/TimeSignal). It is wired (optional, default OFF) into the
+  decision engine (confidence/size modifier + optional directional vote + entry
+  gate), the feature builder (`timing.as_features`), and the search/walk-forward
+  outcome feedback. Session/day/season awareness is discovered empirically.
+  Verified offline: timing context + signal compute correctly and all tests pass.
 - Possible future work: richer per-currency news attribution; more indicators in
   the EA (supertrend/bbands) so the exporter can pass them through; optional
-  annualized/risk-adjusted metrics; a self-contained CI workflow file.
+  annualized/risk-adjusted metrics; a self-contained CI workflow file; dedicated
+  unit tests for the timing layer; expose timing session windows in the EA.
 ```

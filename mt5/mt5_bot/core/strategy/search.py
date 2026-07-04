@@ -39,11 +39,15 @@ _DIRECTIONAL = [
 
 
 class StrategySearch(object):
-    def __init__(self, cfg: Any, memory: object):
+    def __init__(self, cfg: Any, memory: object,
+                 time_stats: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("strategy.search", cfg)
         self.memory = memory
-        self.wf = WalkForward(cfg, memory)
+        # Phase 5 (user-update-request): pass the TimeStats down so every
+        # out-of-sample trade also teaches the time/session/season layer.
+        self.time_stats = time_stats
+        self.wf = WalkForward(cfg, memory, time_stats=time_stats)
         s = cfg.get_path("memory.search", {})
         self.method = s.get("method", "random") if hasattr(s, "get") else "random"
         self.max_trials = int(s.get("max_trials", 200)) if hasattr(s, "get") else 200
