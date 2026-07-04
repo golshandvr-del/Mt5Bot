@@ -170,6 +170,17 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.8 (Track A / A4+A5+A6, docs) [x]. Phase P3 documentation sync + status
+  flips. Flipped structure.md section-3 items A4 (time-bucket shrinkage +
+  higher min_samples, P3.1-P3.2), A5 (per-symbol ML training + lookup + engine
+  routing, P3.3-P3.5), and A6 (weekend swap + Monday gap in the backtester,
+  P3.6-P3.7) to [x] with dated (2026-07-04) STATUS notes. CODE_MAP.md section 17
+  updated to mark Phase P3 COMPLETE and point at P4.1 next. DECISION: this is a
+  pure docs-consistency step - no source code changed - so the offline suite is
+  unchanged (still 64 tests, all green). This closes Phase P3; the whole
+  statistics-first Track A (A1-A6) is now done except the CI safety net A7,
+  which is Phase P4. Next: P4.1 (add `.github/workflows/ci.yml` running the
+  offline suite on push/PR).
 - P3.7 (Track A / A6, test) [x]. Added `tests/test_backtester_swap_gap.py`
   (9 tests) locking in the P3.6 weekend-swap + Monday-gap backtester model. The
   file was recovered from the newer manual backup (written but never committed,

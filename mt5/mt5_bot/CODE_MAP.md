@@ -806,7 +806,7 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   the EA (supertrend/bbands) so the exporter can pass them through; optional
   annualized/risk-adjusted metrics; a self-contained CI workflow file; dedicated
   unit tests for the timing layer; expose timing session windows in the EA.
-- ROADMAP PROGRESS: Phases P1 and P2 of `structure.md` are now COMPLETE.
+- ROADMAP PROGRESS: Phases P1, P2, and P3 of `structure.md` are now COMPLETE.
   Phase P1 (Track A items A1 + A2 - honest evaluation: multi-year real-data
   workflow documented, more walk-forward segments via `min_segments`
   auto-shrink, and a locked holdout gate wired into search + registry promotion,
@@ -817,15 +817,16 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   compute_metrics, the `memory.search.significance` config block, and the store
   record-but-never-promote filter, all locked in by
   `tests/test_metrics_significance.py`). Phase P3 (robust context modeling) is
-  IN PROGRESS: P3.1 time-bucket Bayesian shrinkage + higher trust threshold,
+  now COMPLETE: P3.1 time-bucket Bayesian shrinkage + higher trust threshold,
   P3.2 its test, P3.3 per-symbol ML TRAINING (run_train writes
-  models/<model>_<SYMBOL>.pkl), and P3.4 the per-symbol learner LOOKUP
+  models/<model>_<SYMBOL>.pkl), P3.4 the per-symbol learner LOOKUP
   (`BotContext.learner_for` + `DecisionEngine.learner_provider`, config key
   `learning.per_symbol` default false), P3.5 the two-symbol distinct-model
   test (`tests/test_per_symbol_learning.py`), P3.6 the weekend-swap + Monday-gap
-  model in the backtester, and P3.7 its test
-  (`tests/test_backtester_swap_gap.py`) are done. Remaining in P3:
-  P3.8 the A4/A5/A6 status flips (docs-only).
+  model in the backtester, P3.7 its test
+  (`tests/test_backtester_swap_gap.py`), and P3.8 the A4/A5/A6 status flips
+  (docs-only) are all done. NEXT: Phase P4 (CI safety net, A7): add
+  `.github/workflows/ci.yml` running the offline suite on push (P4.1).
 - PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
   biggest current risk as STATISTICAL (small samples), not software. The roadmap
   there sequences Track A (multi-year real data, more walk-forward segments +

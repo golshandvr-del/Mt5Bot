@@ -159,27 +159,52 @@ bot from an offline learner into a live, adaptive system.
   `tests/test_metrics_significance.py` (11 tests) locks it all in (P2.5); docs
   synced here (P2.6). This closes Phase P2.
 
-- [ ] **A4. Time-bucket robustness: higher min_samples + Bayesian shrinkage.**
+- [x] **A4. Time-bucket robustness: higher min_samples + Bayesian shrinkage.**
   Raise the time-bucket `min_samples` to 50+, and instead of a raw threshold,
   apply Bayesian shrinkage that pulls a bucket's edge toward zero in proportion
   to how few samples it has. A few lines that stop hallucinated time patterns.
   Files: `core/timing/time_stats.py` (shrinkage in the edge calc),
   `config/config.yaml` (`timing.learning.min_samples`,
   `timing.learning.shrinkage`), plus a test.
+  STATUS (P3.1-P3.2 / P3.8, 2026-07-04): DONE. `timing.learning.min_samples`
+  default raised from 20 to 50 and a new `timing.learning.shrinkage` knob added
+  (default = min_samples; <= 0 disables). `TimeStats._edge_from_row` multiplies
+  the bounded edge by `n / (n + shrinkage)` so small buckets are pulled toward a
+  neutral 0 edge in proportion to sample scarcity, decoupled from the trust
+  threshold; `shrinkage=None` reproduces the pre-P3.1 formula (P3.1).
+  `tests/test_timing_stats.py` (8 tests) locks it in - a 5-sample bucket keeps
+  < 15% of its raw edge while a 500-sample bucket keeps > 85% (P3.2).
 
-- [ ] **A5. Per-symbol (or per-asset-class) ML model.**
+- [x] **A5. Per-symbol (or per-asset-class) ML model.**
   Train a separate ML model per symbol (at minimum per asset class: FX vs gold)
   instead of one shared model, so XAUUSD does not dilute EURUSD and vice versa.
   Files: `app/runners.py::run_train` (loop per symbol, per-symbol model files),
   `app/context.py` (per-symbol learner cache / lookup),
   `core/decision/engine.py` (select the symbol's learner),
   `config/config.yaml` (`learning.per_symbol: true`).
+  STATUS (P3.3-P3.5 / P3.8, 2026-07-04): DONE. `learning.per_symbol` (default
+  false = one SHARED model, byte-identical to before) added to config.
+  `run_train` loops per symbol and saves `models/<model>_<SYMBOL>.pkl` in
+  per-symbol mode (P3.3); `BotContext.learner_for` caches one learner per symbol
+  and loads that symbol's file (falling back to the shared learner for an
+  untrained symbol), wired into the engine via
+  `DecisionEngine.learner_provider` only when per_symbol is on (P3.4);
+  `tests/test_per_symbol_learning.py` (7 tests) proves two symbols train two
+  distinct files and the engine routes each symbol to its own model (P3.5).
 
-- [ ] **A6. Weekend swap + gap in the backtester (esp. XAUUSD).**
+- [x] **A6. Weekend swap + gap in the backtester (esp. XAUUSD).**
   Model weekend/rollover swap and the Monday gap in the internal backtester so
   gold and carry-sensitive pairs are ranked more realistically.
   Files: `core/strategy/backtester.py` (swap/gap in the PnL + exit logic),
   `config/config.yaml` (`backtest.swap_*`, `backtest.model_weekend_gap`).
+  STATUS (P3.6-P3.7 / P3.8, 2026-07-04): DONE. Four `backtest` config keys
+  (`swap_long_pts`, `swap_short_pts`, `swap_triple_day`, `model_weekend_gap`),
+  all defaulting to a NO-OP. `Backtester` charges a per-rollover swap (money =
+  swap_pts * point * contract * fixed_lot, triple-day billed 3x for the weekend)
+  subtracted from PnL on every close, and, when `model_weekend_gap` is on, fills
+  a stop that sits inside a modeled Monday gap at the (worse) OPEN price (P3.6).
+  `tests/test_backtester_swap_gap.py` (9 tests) locks in the 3-night Fri->Mon
+  swap and the gap-vs-stop fill difference (P3.7).
 
 - [ ] **A7. GitHub Actions CI (offline only).**
   A ~15-line workflow that runs `python tests/run_all.py` on push. Zero effect
@@ -370,7 +395,7 @@ gold realistically.
 - [x] P3.7 (test) Backtester test: a position held over a weekend pays swap;
       a stop inside a modeled Monday gap fills at the gapped price, not the
       stop price.
-- [ ] P3.8 (docs) Sync all four docs; flip A4/A5/A6 statuses.
+- [x] P3.8 (docs) Sync all four docs; flip A4/A5/A6 statuses.
 
 ### Phase P4 - CI safety net (covers A7)
 
@@ -472,6 +497,20 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.8 DONE (docs): Phase P3 documentation sync + status flips. Flipped the
+  section-3 Track-A items A4, A5, and A6 to [x] with dated (2026-07-04) STATUS
+  notes summarizing their whole sub-step chains: A4 = time-bucket higher
+  min_samples + Bayesian shrinkage (P3.1-P3.2), A5 = per-symbol ML training +
+  lookup + engine routing (P3.3-P3.5), A6 = weekend swap + Monday gap in the
+  backtester (P3.6-P3.7). Confirmed CODE_MAP.md sections 3/4/8/10b and 17 and
+  README were already in sync from the P3.1-P3.7 commits (the config keys,
+  time_stats shrinkage, per-symbol run_train/context/engine, backtester
+  swap/gap, and the test suite - now 64 tests - are all already documented), and
+  the CODE_MAP section-17 ROADMAP-PROGRESS note was updated in the P3.7 commit to
+  list P3.6/P3.7 done and only P3.8 remaining, so no further CODE_MAP/README
+  edits were needed for this docs-only step. Added this note plus an Ideas.md
+  entry. Offline suite still 64 tests, all green. This completes Phase P3. Next
+  sub-step: P4.1.
 - P3.7 DONE (test): added tests/test_backtester_swap_gap.py (9 tests) locking in
   the P3.6 weekend/rollover SWAP + Monday GAP model (Track A / A6). The file was
   recovered from the newer manual backup (it had been written but never
