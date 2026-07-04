@@ -1,0 +1,253 @@
+# =============================================================================
+# MT5 Trading Bot - Master Configuration File
+# =============================================================================
+# This single file controls the ENTIRE bot. Enable/disable heavy features here
+# depending on your hardware. On a weak CPU-only Windows 7 machine, keep the
+# heavy ML/DL/RL modules disabled and rely on the lightweight ML + indicator
+# strategies.
+#
+# IMPORTANT: Only standard English (ASCII) characters are allowed in this file.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# General runtime settings
+# -----------------------------------------------------------------------------
+general:
+  bot_name: "MT5SmartBot"
+  # Operating mode: "live", "paper", "backtest", "search", "train"
+  #   live     -> connect to MT5 and place real orders
+  #   paper    -> connect to MT5, generate signals, but do NOT place orders
+  #   backtest -> run internal walk-forward backtest on historical data
+  #   search   -> run strategy/parameter search (Phase 3 memory builder)
+  #   train    -> run the offline ML training pipeline (Phase 1)
+  mode: "paper"
+  # Master switch for heavy compute. On Windows 7 + weak CPU keep this false.
+  enable_heavy_compute: false
+  # Random seed for reproducibility across the whole project.
+  random_seed: 42
+  # Timezone used for logging and news alignment (IANA name).
+  timezone: "UTC"
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"            # DEBUG, INFO, WARNING, ERROR
+  log_to_file: true
+  log_dir: "logs"
+  max_bytes: 5242880       # 5 MB per log file before rotation
+  backup_count: 5
+
+# -----------------------------------------------------------------------------
+# MT5 connection (Phase: execution layer)
+# -----------------------------------------------------------------------------
+# These are read by core/data/mt5_connector.py and core/execution/*.
+# Leave login/password/server empty to attach to an already-running terminal.
+mt5:
+  enabled: true
+  # Full path to terminal64.exe. Leave empty to auto-detect a running terminal.
+  terminal_path: ""
+  login: 0                 # account number (0 = use running terminal session)
+  password: ""
+  server: ""
+  # How long to wait for the terminal connection (milliseconds).
+  connect_timeout_ms: 60000
+  # Symbols the bot is allowed to trade / analyze.
+  symbols:
+    - "EURUSD"
+    - "GBPUSD"
+    - "XAUUSD"
+  # Default working timeframe for live decisions.
+  timeframe: "M15"
+  # Timeframes the data layer should fetch for multi-timeframe analysis.
+  timeframes:
+    - "M5"
+    - "M15"
+    - "H1"
+    - "H4"
+  # Number of historical bars to pull for analysis.
+  history_bars: 5000
+
+# -----------------------------------------------------------------------------
+# Risk and order management (execution layer)
+# -----------------------------------------------------------------------------
+risk:
+  # Risk per trade as a fraction of account equity (0.01 = 1%).
+  risk_per_trade: 0.01
+  # Hard cap on simultaneous open positions.
+  max_open_positions: 3
+  # Maximum daily loss as fraction of equity before the bot stops trading.
+  max_daily_loss: 0.05
+  # Default stop-loss / take-profit in ATR multiples (used if strategy omits).
+  default_sl_atr_mult: 2.0
+  default_tp_atr_mult: 3.0
+  # Minimum and maximum lot sizes (broker-dependent; adjust per symbol).
+  min_lot: 0.01
+  max_lot: 1.0
+  # Slippage tolerance in points.
+  deviation_points: 20
+  # Magic number to tag this bot's orders inside MT5.
+  magic_number: 990011
+
+# -----------------------------------------------------------------------------
+# Indicator layer (Phase 2)
+# -----------------------------------------------------------------------------
+# Each indicator is pluggable. "enabled" toggles it. "params" override defaults.
+indicators:
+  # Trend
+  sma:        { enabled: true,  params: { period: 50 } }
+  ema:        { enabled: true,  params: { period: 21 } }
+  macd:       { enabled: true,  params: { fast: 12, slow: 26, signal: 9 } }
+  adx:        { enabled: true,  params: { period: 14 } }
+  ichimoku:   { enabled: false, params: { tenkan: 9, kijun: 26, senkou: 52 } }
+  supertrend: { enabled: true,  params: { period: 10, multiplier: 3.0 } }
+  # Momentum
+  rsi:        { enabled: true,  params: { period: 14 } }
+  stoch:      { enabled: true,  params: { k: 14, d: 3, smooth: 3 } }
+  cci:        { enabled: false, params: { period: 20 } }
+  williams_r: { enabled: false, params: { period: 14 } }
+  roc:        { enabled: false, params: { period: 12 } }
+  # Volatility
+  atr:        { enabled: true,  params: { period: 14 } }
+  bbands:     { enabled: true,  params: { period: 20, std: 2.0 } }
+  keltner:    { enabled: false, params: { period: 20, atr_mult: 2.0 } }
+  donchian:   { enabled: false, params: { period: 20 } }
+  # Volume
+  obv:        { enabled: false, params: {} }
+  mfi:        { enabled: false, params: { period: 14 } }
+  vwap:       { enabled: false, params: {} }
+  # Pattern detection
+  candle_patterns: { enabled: true, params: {} }
+
+# -----------------------------------------------------------------------------
+# Learning core (Phase 1) - each module optional and swappable
+# -----------------------------------------------------------------------------
+learning:
+  # Which learner the decision engine should ask for predictions.
+  # Options: "ml_classifier", "rl_agent", "dl_classifier", "transfer",
+  #          "self_supervised", "none"
+  active_model: "ml_classifier"
+
+  ml_classifier:
+    enabled: true
+    # backend: "lightgbm" (preferred, light) or "sklearn_gbdt" (fallback)
+    backend: "lightgbm"
+    model_file: "models/ml_classifier.pkl"
+    # Forward horizon in bars used to build the training label.
+    label_horizon: 5
+    # Threshold (in ATR units) for labeling up/down/flat.
+    label_threshold_atr: 0.5
+    n_estimators: 300
+    learning_rate: 0.05
+    max_depth: 6
+
+  rl_agent:
+    enabled: false           # HEAVY-ish; keep off on weak hardware
+    backend: "tabular_q"     # "tabular_q" is CPU-light; avoid deep RL on Win7
+    model_file: "models/rl_qtable.pkl"
+    episodes: 50
+    gamma: 0.95
+    alpha: 0.1
+    epsilon: 0.1
+
+  dl_classifier:
+    enabled: false           # HEAVY; requires tensorflow/torch, off by default
+    backend: "keras_mlp"
+    model_file: "models/dl_classifier.h5"
+    epochs: 20
+    batch_size: 64
+
+  transfer:
+    enabled: false           # depends on dl_classifier; off by default
+    source_model_file: "models/dl_classifier.h5"
+    target_model_file: "models/transfer_model.h5"
+    freeze_layers: 2
+    epochs: 10
+
+  self_supervised:
+    enabled: false           # off by default; CPU-light pretext task
+    backend: "autoencoder_sklearn"
+    model_file: "models/ssl_encoder.pkl"
+    code_size: 8
+
+# -----------------------------------------------------------------------------
+# Memory & self-improvement (Phase 3)
+# -----------------------------------------------------------------------------
+memory:
+  # SQLite database that persists every backtest result and chosen strategies.
+  db_file: "data_store/memory.sqlite"
+  # JSON snapshot of the current best-strategy registry (human readable).
+  registry_file: "data_store/strategy_registry.json"
+  # Walk-forward configuration.
+  walk_forward:
+    train_bars: 3000
+    test_bars: 750
+    step_bars: 750
+  # Strategy/parameter search configuration.
+  search:
+    method: "random"         # "grid" or "random"
+    max_trials: 200
+    # Metric used to rank strategies in memory.
+    rank_metric: "expectancy"   # win_rate, profit_factor, max_drawdown,
+                                #   expectancy, sharpe
+    # Minimum trades a strategy must produce to be trusted.
+    min_trades: 30
+  # How many top strategies to blend in the ensemble decision.
+  ensemble_top_k: 3
+
+# -----------------------------------------------------------------------------
+# News analysis (Phase 4)
+# -----------------------------------------------------------------------------
+news:
+  enabled: true
+  # If true and no network/keys available, bot still runs (signal = neutral).
+  degrade_gracefully: true
+  # Cache directory for downloaded news (avoids hammering sources).
+  cache_dir: "data_store/news_cache"
+  cache_ttl_minutes: 30
+  # Sentiment backend: "lexicon" (offline, no deps) or "vader" (optional dep).
+  sentiment_backend: "lexicon"
+  # Configurable sources. Each can be toggled. RSS needs no API key.
+  sources:
+    rss:
+      enabled: true
+      feeds:
+        - "https://www.investing.com/rss/news_25.rss"
+        - "https://feeds.marketwatch.com/marketwatch/topstories/"
+    newsapi:
+      enabled: false
+      api_key: ""            # put your https://newsapi.org key here
+      query: "forex OR currency OR central bank"
+  # Weight of the news signal inside the final decision (0..1).
+  signal_weight: 0.2
+  # How many minutes around a high-impact event to avoid new trades.
+  blackout_minutes: 15
+
+# -----------------------------------------------------------------------------
+# Decision engine - how signals are combined
+# -----------------------------------------------------------------------------
+decision:
+  # Weights for blending the different signal sources. They are normalized.
+  weights:
+    indicators: 0.5
+    learning: 0.3
+    news: 0.2
+  # Probability/score threshold to open a long or short.
+  long_threshold: 0.60
+  short_threshold: 0.60
+  # If true, require indicator and learning signals to agree in direction.
+  require_agreement: false
+
+# -----------------------------------------------------------------------------
+# Backtest engine (internal, for "backtest" mode)
+# -----------------------------------------------------------------------------
+backtest:
+  initial_balance: 10000.0
+  # Cost model.
+  spread_points: 10
+  commission_per_lot: 7.0
+  slippage_points: 2
+  # Position sizing for internal backtests.
+  fixed_lot: 0.10
+  # Where to store backtest reports.
+  report_dir: "backtests"

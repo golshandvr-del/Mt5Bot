@@ -1,0 +1,100 @@
+# =============================================================================
+# MT5 Smart Trading Bot - Python dependencies (Windows 7, 64-bit, Python 3.8.x)
+# =============================================================================
+# HARD CONSTRAINTS
+#   - Target OS : Windows 7 (64-bit)
+#   - Python    : 3.8.x  (the LAST CPython line with official Windows 7 wheels)
+#   - Hardware  : mid-range CPU (Intel 4th gen), DDR3 RAM, NO GPU
+#
+# WHY THESE PINS
+#   Every version below is the newest release that still ships a pre-built
+#   cp38 win_amd64 wheel that is known to run on Windows 7. Newer releases
+#   commonly require the Universal C Runtime / api-ms-win-* DLLs or drop
+#   Windows 7 support entirely, which causes "DLL load failed" errors.
+#
+#   Keep this file in sync with installer/install_helper.py, which installs
+#   these exact pins with retries and offline-friendly fallbacks.
+#
+# IMPORTANT
+#   - Nothing here requires a GPU.
+#   - The bot is designed to RUN even if the OPTIONAL packages fail to install
+#     (see the [OPTIONAL] sections). The code degrades gracefully to pure-Python
+#     implementations. Do NOT let an optional wheel failure block you.
+#   - Only standard ASCII English characters appear in this file.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CORE / REQUIRED for a useful live+backtest experience on Windows.
+# -----------------------------------------------------------------------------
+
+# MetaTrader5 official Python bridge. 5.0.45 has cp38 win_amd64 wheels and
+# works with the 64-bit MT5 terminal on Windows 7. REQUIRED for live/paper data
+# and order execution. (On non-Windows dev boxes it will not install; the bot
+# still runs offline from CSV data - see core/data/mt5_connector.py.)
+MetaTrader5==5.0.45 ; platform_system == "Windows"
+
+# NumPy: the last 1.x line with solid cp38 Windows 7 wheels. Many other wheels
+# (pandas, scikit-learn, lightgbm) are built against NumPy 1.x, so DO NOT jump
+# to NumPy 2.x on this platform.
+numpy==1.24.4
+
+# pandas: convenient dataframes for data handling. 1.5.3 has cp38 win wheels.
+# The bot's indicator math is pure-Python, so pandas is used only where handy.
+pandas==1.5.3
+
+# PyYAML: parse config/config.yaml. If this fails to install, config/loader.py
+# has a built-in minimal YAML-subset parser fallback, so the bot still boots.
+PyYAML==6.0.1
+
+# python-dateutil: robust date parsing for news timestamps / logs.
+python-dateutil==2.8.2
+
+# requests + certificates: HTTP client for the news layer (RSS/NewsAPI).
+# The news layer also has a urllib-only fallback, so this is "core-optional".
+requests==2.31.0
+certifi==2024.2.2
+urllib3==1.26.18
+charset-normalizer==3.3.2
+idna==3.6
+
+# -----------------------------------------------------------------------------
+# [OPTIONAL - LIGHTWEIGHT ML]  Strongly recommended, still CPU-only + Win7 OK.
+# -----------------------------------------------------------------------------
+# scikit-learn: powers the ML classifier fallback backend and the
+# self-supervised autoencoder. 1.3.2 has cp38 win_amd64 wheels.
+scikit-learn==1.3.2
+scipy==1.10.1
+joblib==1.3.2
+threadpoolctl==3.2.0
+
+# LightGBM: the PREFERRED ML backend (fast gradient boosting, tiny, CPU-only).
+# 3.3.5 has cp38 win_amd64 wheels compatible with Windows 7. If it fails to
+# install, the ML classifier automatically falls back to scikit-learn and then
+# to a pure-Python logistic regression - the bot never breaks.
+lightgbm==3.3.5
+
+# -----------------------------------------------------------------------------
+# [OPTIONAL - NEWS SENTIMENT]  Small, pure-Python, safe on Win7.
+# -----------------------------------------------------------------------------
+# VADER lexicon sentiment (only used if news.sentiment_backend == "vader").
+# The default backend is our own offline "lexicon" scorer with NO dependency,
+# so this is purely optional.
+vaderSentiment==3.3.2
+
+# feedparser: nicer RSS/Atom parsing (optional). The news source has a
+# regex/stdlib fallback parser, so this is not required.
+feedparser==6.0.11
+
+# =============================================================================
+# [OPTIONAL - HEAVY DEEP LEARNING / TRANSFER]  NOT installed by default.
+# -----------------------------------------------------------------------------
+# TensorFlow/Keras generally DO NOT support Windows 7 and are HEAVY. The
+# dl_classifier and transfer modules are OFF by default and clearly isolated.
+# If, and ONLY if, you train on a separate capable machine (train-offline /
+# run-light architecture), you may install a compatible TensorFlow there:
+#
+#     tensorflow==2.10.0      # last line commonly usable without newer OS
+#
+# Do NOT add TensorFlow to a Windows 7 live/execution machine. It is left
+# commented out on purpose. The bot detects its absence and keeps running.
+# =============================================================================

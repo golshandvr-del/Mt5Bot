@@ -1,0 +1,194 @@
+{
+  "fetched_at": 1783137123.197395,
+  "items": [
+    {
+      "published_ts": 1783132873.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Will a DT/TMUS merger really go ahead?",
+      "url": "https://www.investing.com/news/stock-market-news/will-a-dttmus-merger-really-go-ahead-4775334"
+    },
+    {
+      "published_ts": 1783122063.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Which Retailer Can Deliver My Order the Fastest?",
+      "url": "https://www.investing.com/news/stock-market-news/which-retailer-can-deliver-my-order-the-fastest-4775326"
+    },
+    {
+      "published_ts": 1783114203.0,
+      "score": -0.5777777777777778,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Mexico stocks lower at close of trade; SandP/BMV IPC down 0.02%",
+      "url": "https://www.investing.com/news/stock-market-news/mexico-stocks-lower-at-close-of-trade-spbmv-ipc-down-002-4775321"
+    },
+    {
+      "published_ts": 1783113903.0,
+      "score": 0.5777777777777778,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Colombia stocks higher at close of trade; COLCAP up 1.57%",
+      "url": "https://www.investing.com/news/stock-market-news/colombia-stocks-higher-at-close-of-trade-colcap-up-157-4775320"
+    },
+    {
+      "published_ts": 1783113603.0,
+      "score": -0.5777777777777778,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Russia stocks lower at close of trade; MOEX Russia Index down 0.62%",
+      "url": "https://www.investing.com/news/stock-market-news/russia-stocks-lower-at-close-of-trade-moex-russia-index-down-062-4775319"
+    },
+    {
+      "published_ts": 1783110629.0,
+      "score": 0.5777777777777778,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [
+        "USDCAD"
+      ],
+      "title": "Canada stocks higher at close of trade; SandP/TSX Composite up 0.88%",
+      "url": "https://www.investing.com/news/stock-market-news/canada-stocks-higher-at-close-of-trade-sptsx-composite-up-088-4775317"
+    },
+    {
+      "published_ts": 1783110604.0,
+      "score": 0.5777777777777778,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Brazil stocks higher at close of trade; Bovespa up 0.74%",
+      "url": "https://www.investing.com/news/stock-market-news/brazil-stocks-higher-at-close-of-trade-bovespa-up-074-4775316"
+    },
+    {
+      "published_ts": 1783105230.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Soccer-Texas Attorney General launches investigation into StubHub amid World Cup complaints",
+      "url": "https://www.investing.com/news/stock-market-news/soccertexas-attorney-general-launches-investigation-into-stubhub-amid-world-cup-complaints-4775306"
+    },
+    {
+      "published_ts": 1783103432.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "China\u2019s Chery takes over former Nissan car factory in South Africa",
+      "url": "https://www.investing.com/news/stock-market-news/chinas-chery-takes-over-former-nissan-car-factory-in-south-africa-4775305"
+    },
+    {
+      "published_ts": 1783102707.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Ferrari appeals to traditionalists with new V12 manual gearbox limited edition",
+      "url": "https://www.investing.com/news/stock-market-news/ferrari-appeals-to-traditionalists-with-new-v12-manual-gearbox-limited-edition-4775304"
+    },
+    {
+      "published_ts": 1783108800.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "Why it&#x2019;s a good month to save on streaming, despite the return of &#x2018;Enola Holmes&#x2019; to Netflix and &#x2018;Silo&#x2019; to Apple",
+      "symbols": [],
+      "title": "Here&#x2019;s what&#x2019;s worth streaming in July 2026 on Netflix, Hulu, HBO Max and more",
+      "url": "https://www.marketwatch.com/story/heres-whats-worth-streaming-in-july-2026-on-netflix-hulu-hbo-max-and-more-58d07528?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783107240.0,
+      "score": 0.65,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "Beef prices are sizzling and Washington&#x2019;s recipe for high costs &#x2014; import more meat &#x2014; only grills your wallet.",
+      "symbols": [],
+      "title": "Record beef imports are flooding the U.S. &#x2014; so why is your Fourth of July BBQ so expensive?",
+      "url": "https://www.marketwatch.com/story/your-fourth-of-july-hamburger-meat-was-likely-imported-and-youre-right-to-have-a-beef-with-that-c25d7c31?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783107120.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "Before your single mom or dad remarries, talk with them about estate-planning issues.",
+      "symbols": [],
+      "title": "Your aging parent has a new romance. Here&#x2019;s how to protect your inheritance &#x2014; without looking greedy.",
+      "url": "https://www.marketwatch.com/story/your-aging-parent-has-a-new-romance-heres-how-to-protect-your-inheritance-without-looking-greedy-cbc219ab?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783105800.0,
+      "score": -0.5777777777777778,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "The new accounts ban bonds and international stocks, forcing parents to bet their children&#x2019;s financial future entirely on U.S. equities.",
+      "symbols": [],
+      "title": "Opening a &#x2018;Trump account&#x2019; for your children? Here is the risk you need to reckon with first.",
+      "url": "https://www.marketwatch.com/story/opening-a-trump-account-for-your-children-here-is-the-risk-you-need-to-recognize-first-fe206bc0?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783105200.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "&#x201c;I&#x2019;m torn between these two options.&#x201d;",
+      "symbols": [],
+      "title": "&#x2018;I don&#x2019;t think I&#x2019;ll make it to 80&#x2019;: I&#x2019;m 70 and single. Do I take out a reverse mortgage or a home-equity agreement?",
+      "url": "https://www.marketwatch.com/story/i-dont-think-ill-make-it-to-80-im-70-and-single-do-i-take-out-a-reverse-mortgage-or-a-home-equity-agreement-3b623ee8?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783104720.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "CEO Jensen Huang has called humanoid robots a &#x201c;multitrillion-dollar economic opportunity.&#x201d;",
+      "symbols": [
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "XAUUSD",
+        "USDCAD",
+        "AUDUSD"
+      ],
+      "title": "Nvidia is betting on a trillion-dollar robotics boom. Here is the hidden way to trade it.",
+      "url": "https://www.marketwatch.com/story/nvidia-is-betting-on-a-trillion-dollar-robotics-boom-here-is-the-hidden-way-to-trade-it-c5b10c4e?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783104120.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "A secure retirement portfolio acts like a health shield, calming market anxiety that can actually shorten life expectancy.",
+      "symbols": [],
+      "title": "Want to live longer in retirement? This one money move could add years to your life.",
+      "url": "https://www.marketwatch.com/story/want-to-live-longer-in-retirement-this-one-money-move-could-add-years-to-your-life-e8f2b4ba?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783103520.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "Grabbing an employer match is essential, but prioritizing high-interest debt and emergency cash can bring much better near-term results.",
+      "symbols": [],
+      "title": "Before you max out your 401(k) this year, consider a much better use for your next paycheck",
+      "url": "https://www.marketwatch.com/story/why-maxing-out-your-401-k-is-a-major-financial-mistake-if-you-have-credit-card-and-other-punishing-debt-4c25beab?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783103100.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "&#x201c;It seems like half of the workforce at our local Walmart is over 65.&#x201d;",
+      "symbols": [],
+      "title": "&#x2018;I claimed Social Security at 62&#x2019;: At 76, I&#x2019;m working at Walmart. Why do I still owe payroll taxes?",
+      "url": "https://www.marketwatch.com/story/i-claimed-social-security-at-62-at-76-im-working-at-walmart-why-do-i-still-owe-payroll-taxes-8e22a97c?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783095840.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "As Cape Verde faces off against Lionel Messi and Argentina tonight, here&#x2019;s a look at what could be next for the breakout World Cup star",
+      "symbols": [],
+      "title": "The World Cup has made Cape Verde goalkeeper Vozinha a $17 million social-media star",
+      "url": "https://www.marketwatch.com/story/the-world-cup-has-made-cape-verde-goalkeeper-vozinha-a-17-million-star-15af0138?mod=mw_rss_topstories"
+    }
+  ]
+}
