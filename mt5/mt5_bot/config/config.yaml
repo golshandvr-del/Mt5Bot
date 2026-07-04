@@ -101,12 +101,18 @@ indicators:
   adx:        { enabled: true,  params: { period: 14 } }
   ichimoku:   { enabled: false, params: { tenkan: 9, kijun: 26, senkou: 52 } }
   supertrend: { enabled: true,  params: { period: 10, multiplier: 3.0 } }
+  # Phase 5 additional trend indicators (pure Python, CPU-light)
+  psar:       { enabled: false, params: { step: 0.02, max_step: 0.2 } }
+  vwma:       { enabled: false, params: { period: 20 } }
   # Momentum
   rsi:        { enabled: true,  params: { period: 14 } }
   stoch:      { enabled: true,  params: { k: 14, d: 3, smooth: 3 } }
   cci:        { enabled: false, params: { period: 20 } }
   williams_r: { enabled: false, params: { period: 14 } }
   roc:        { enabled: false, params: { period: 12 } }
+  # Phase 5 additional momentum indicators
+  stochrsi:   { enabled: false, params: { rsi_period: 14, stoch_period: 14 } }
+  dpo:        { enabled: false, params: { period: 20 } }
   # Volatility
   atr:        { enabled: true,  params: { period: 14 } }
   bbands:     { enabled: true,  params: { period: 20, std: 2.0 } }

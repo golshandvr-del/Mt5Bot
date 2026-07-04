@@ -94,6 +94,34 @@ class Indicator:
             return 0.0
         return self._signal_at(result, ohlcv, n - 1)
 
+    def safe_signal(self, ohlcv: Any) -> float:
+        """
+        Phase 5: robust wrapper around signal() with health guards.
+
+        Returns a neutral 0.0 (instead of noise) when the input is degenerate:
+          - too few bars to be meaningful,
+          - a flat/constant close series (no information),
+          - a non-finite (NaN/inf) signal value.
+        This protects the decision blend from garbage-in situations while never
+        raising. Callers that want raw behaviour can still use signal() directly.
+        """
+        close = getattr(ohlcv, "close", None)
+        n = len(close) if close is not None else 0
+        if n < 2:
+            return 0.0
+        # Detect a completely flat series (all values equal) -> no information.
+        first = close[0]
+        if all(abs(c - first) < 1e-12 for c in close):
+            return 0.0
+        try:
+            value = float(self.signal(ohlcv))
+        except Exception:
+            return 0.0
+        # Guard against NaN / inf (NaN != NaN is the classic test).
+        if value != value or value in (float("inf"), float("-inf")):
+            return 0.0
+        return max(-1.0, min(1.0, value))
+
     def _signal_at(self, result: "IndicatorResult", ohlcv: Any, i: int) -> float:
         """
         Return the signal in [-1, +1] for bar index i, given a PRE-COMPUTED

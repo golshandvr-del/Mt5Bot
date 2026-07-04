@@ -115,4 +115,8 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- Phase 2 upgrade DONE: added 4 pluggable indicators (psar, stochrsi, dpo, vwma)
+  in core/indicators/extra.py; added Indicator.safe_signal() health guard; wired
+  it into the decision engine fallback blend; added the new indicators to
+  config.yaml (default OFF).
 - Init: created Ideas.md and planned Phase 5 upgrades (this entry).

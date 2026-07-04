@@ -159,7 +159,9 @@ class DecisionEngine(object):
         n = 0
         for name, ind in self._indicators.items():
             try:
-                acc += ind.signal(ohlcv)
+                # Phase 5: use the health-guarded wrapper so degenerate/NaN
+                # series contribute a neutral 0.0 instead of noise.
+                acc += ind.safe_signal(ohlcv)
                 n += 1
             except Exception:
                 continue

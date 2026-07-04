@@ -18,3 +18,4 @@ from core.indicators import momentum  # noqa: F401
 from core.indicators import volatility  # noqa: F401
 from core.indicators import volume  # noqa: F401
 from core.indicators import patterns  # noqa: F401
+from core.indicators import extra  # noqa: F401  (Phase 5 extra indicators)
