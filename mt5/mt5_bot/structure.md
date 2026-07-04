@@ -323,7 +323,7 @@ never enter the registry.
 - [x] P2.2 (code) `core/strategy/metrics.py`: add `bootstrap_pvalue(trade_pnls,
       n_boot=1000, seed=...)` -> p-value that mean PnL <= 0, via seeded
       resampling. Pure Python, deterministic under the global seed.
-- [ ] P2.3 (code+config) Extend `compute_metrics` to include
+- [x] P2.3 (code+config) Extend `compute_metrics` to include
       `win_rate_ci_low`, `pnl_pvalue`. Add `memory.search.significance`
       block to config.yaml (`enabled` default true, `max_pvalue` 0.05,
       `min_winrate_ci_low` optional).
@@ -465,6 +465,22 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P2.3 DONE (code+config): compute_metrics now also emits `win_rate_ci_low`
+  (Wilson 95% lower bound via P2.1's wilson_interval) and `pnl_pvalue`
+  (P2.2's seeded bootstrap p-value for "mean trade PnL <= 0"), with optional
+  `n_boot`/`seed` parameters defaulting to (1000, 42) so results stay
+  deterministic under the project global seed; n_boot<=0 or an empty trade
+  list yields the conservative p-value 1.0. Added the
+  `memory.search.significance` config block (`enabled: true`,
+  `max_pvalue: 0.05`, `min_winrate_ci_low: 0.0` = optional win-rate gate off
+  by default because profitable strategies can have sub-0.5 win-rates) with
+  explanatory comments; nothing READS the block yet - enforcement in the
+  store is P2.4, so registry behavior is unchanged this commit. Verified:
+  both keys parse under PyYAML AND the minimal fallback parser; a clearly
+  positive PnL series gets ci_low>0 and p~0.0, a symmetric series gets
+  p~0.5-0.7, empty -> (0.0, 1.0), and repeat calls are identical. CODE_MAP
+  sections 3 and 8 updated. Offline suite still 29 tests, all green. Formal
+  tests arrive in P2.5. Next sub-step: P2.4.
 - P1.5 DONE (test): added tests/test_walk_forward.py (8 tests) covering P1.3 +
   P1.4. TestWalkForwardSegments: segment count grows with history and reaches
   min_segments (auto-shrink), all segment windows in range. TestWalkForwardHoldout:

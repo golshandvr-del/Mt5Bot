@@ -1,6 +1,73 @@
 {
-  "fetched_at": 1783146061.6759777,
+  "fetched_at": 1783169327.0243735,
   "items": [
+    {
+      "published_ts": 1783166842.0,
+      "score": -0.7090909090909091,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [
+        "USDCAD"
+      ],
+      "title": "Iran conflict strengthens case for power, metals over oil: strategist",
+      "url": "https://www.investing.com/news/stock-market-news/iran-conflict-strengthens-case-for-power-metals-over-oil-strategist-4775367"
+    },
+    {
+      "published_ts": 1783165344.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "UK\u2019s Next plans takeover bid for Harvey Nichols, Sky News reports",
+      "url": "https://www.investing.com/news/stock-market-news/uks-next-plans-takeover-bid-for-harvey-nichols-sky-news-reports-4775353"
+    },
+    {
+      "published_ts": 1783161880.0,
+      "score": -0.7347826086956523,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Korea\u2019s KOSPI P/E valuation falls to lowest since global financial crisis",
+      "url": "https://www.investing.com/news/stock-market-news/koreas-kospi-pe-valuation-falls-to-lowest-since-global-financial-crisis-4775362"
+    },
+    {
+      "published_ts": 1783159592.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Trump Accounts to debut as US kicks off 250th Independence Day celebrations",
+      "url": "https://www.investing.com/news/stock-market-news/trump-accounts-to-debut-as-us-kicks-off-250th-independence-day-celebrations-4775357"
+    },
+    {
+      "published_ts": 1783159412.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Continental sells ContiTech to Lone Star Funds for \u20ac4 bln",
+      "url": "https://www.investing.com/news/stock-market-news/continental-sells-contitech-to-lone-star-funds-for-4-bln-4775356"
+    },
+    {
+      "published_ts": 1783158952.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [
+        "EURUSD"
+      ],
+      "title": "Morgan Stanley shifts to defensive European energy stocks, upgrades Galp",
+      "url": "https://www.investing.com/news/stock-market-news/morgan-stanley-shifts-to-defensive-european-energy-stocks-upgrades-galp-4775214"
+    },
+    {
+      "published_ts": 1783158885.0,
+      "score": -0.65,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Continental to sell ContiTech unit to Lone Star Funds for $4.6 billion",
+      "url": "https://www.investing.com/news/stock-market-news/continental-to-sell-contitech-unit-to-lone-star-funds-for-46-billion-4775355"
+    },
     {
       "published_ts": 1783142356.0,
       "score": 0.0,
@@ -27,71 +94,6 @@
       "symbols": [],
       "title": "SK Hynix weighs 0.5% underwriting fee for blockbuster U.S. share sale",
       "url": "https://www.investing.com/news/stock-market-news/sk-hynix-weighs-05-underwriting-fee-for-blockbuster-us-share-sale-4775338"
-    },
-    {
-      "published_ts": 1783132873.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Will a DT/TMUS merger really go ahead?",
-      "url": "https://www.investing.com/news/stock-market-news/will-a-dttmus-merger-really-go-ahead-4775334"
-    },
-    {
-      "published_ts": 1783122063.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Which Retailer Can Deliver My Order the Fastest?",
-      "url": "https://www.investing.com/news/stock-market-news/which-retailer-can-deliver-my-order-the-fastest-4775326"
-    },
-    {
-      "published_ts": 1783114203.0,
-      "score": -0.5777777777777778,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Mexico stocks lower at close of trade; SandP/BMV IPC down 0.02%",
-      "url": "https://www.investing.com/news/stock-market-news/mexico-stocks-lower-at-close-of-trade-spbmv-ipc-down-002-4775321"
-    },
-    {
-      "published_ts": 1783113903.0,
-      "score": 0.5777777777777778,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Colombia stocks higher at close of trade; COLCAP up 1.57%",
-      "url": "https://www.investing.com/news/stock-market-news/colombia-stocks-higher-at-close-of-trade-colcap-up-157-4775320"
-    },
-    {
-      "published_ts": 1783113603.0,
-      "score": -0.5777777777777778,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Russia stocks lower at close of trade; MOEX Russia Index down 0.62%",
-      "url": "https://www.investing.com/news/stock-market-news/russia-stocks-lower-at-close-of-trade-moex-russia-index-down-062-4775319"
-    },
-    {
-      "published_ts": 1783110629.0,
-      "score": 0.5777777777777778,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [
-        "USDCAD"
-      ],
-      "title": "Canada stocks higher at close of trade; SandP/TSX Composite up 0.88%",
-      "url": "https://www.investing.com/news/stock-market-news/canada-stocks-higher-at-close-of-trade-sptsx-composite-up-088-4775317"
-    },
-    {
-      "published_ts": 1783110604.0,
-      "score": 0.5777777777777778,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Brazil stocks higher at close of trade; Bovespa up 0.74%",
-      "url": "https://www.investing.com/news/stock-market-news/brazil-stocks-higher-at-close-of-trade-bovespa-up-074-4775316"
     },
     {
       "published_ts": 1783108800.0,

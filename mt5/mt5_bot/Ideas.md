@@ -170,6 +170,18 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P2.3 (Track A / A3, code+config). Wired the two P2.1/P2.2 significance
+  helpers into compute_metrics: every backtest metric dict now carries
+  `win_rate_ci_low` (Wilson 95% lower bound on the win-rate) and `pnl_pvalue`
+  (seeded bootstrap p-value for "mean trade PnL <= 0", deterministic under the
+  global seed; conservative 1.0 on empty/n_boot<=0). Added the
+  `memory.search.significance` block to config.yaml (enabled: true,
+  max_pvalue: 0.05, min_winrate_ci_low: 0.0 = optional gate off by default
+  since a profitable strategy can win less than half the time). Decision: keep
+  the win-rate CI gate opt-in and rely on the p-value as the primary filter,
+  because expectancy (not win-rate) is what the search ranks by. No behavior
+  change to the registry yet; P2.4 enforces the filter in the memory store and
+  P2.5 adds the formal tests.
 - P2.2 (Track A / A3, code). Added bootstrap_pvalue(trade_pnls, n_boot=1000,
   seed=42) to core/strategy/metrics.py: a pure-Python, seeded (deterministic)
   bootstrap p-value for "mean trade PnL <= 0". Uses a private random.Random so

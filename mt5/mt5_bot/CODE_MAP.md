@@ -160,7 +160,8 @@ Top-level sections:
 - `learning` : `active_model` + per-learner config blocks (Phase 1).
 - `memory`   : db/registry files, `walk_forward` windows (train/test/step_bars
   plus `min_segments` and `holdout_bars` for statistical robustness), `search`
-  settings, `ensemble_top_k` (Phase 3).
+  settings incl. the `significance` block (A3 / P2.3: `enabled`, `max_pvalue`,
+  `min_winrate_ci_low` - gates registry promotion), `ensemble_top_k` (Phase 3).
 - `news`     : enable, degrade_gracefully, cache, sentiment backend, sources,
   `signal_weight`, `blackout_minutes` (Phase 4).
 - `decision` : blend `weights` (indicators/learning/news), long/short thresholds,
@@ -316,23 +317,30 @@ and indicator layers consistent.
   (weighted [-1,+1]), `decision` (+1/-1/0 via thresholds), `atr_value` for SL/TP.
 
 ### metrics.py
-- `compute_metrics(trade_pnls, equity_curve)` -> num_trades, win_rate,
-  profit_factor, expectancy, net_profit, max_drawdown, sharpe (per-trade),
-  average_win/loss.
+- `compute_metrics(trade_pnls, equity_curve, n_boot=1000, seed=42)` ->
+  num_trades, win_rate, profit_factor, expectancy, net_profit, max_drawdown,
+  sharpe (per-trade), average_win/loss, plus the significance fields (A3 /
+  P2.3): `win_rate_ci_low` (Wilson 95% lower bound on the win-rate) and
+  `pnl_pvalue` (seeded bootstrap p-value that mean trade PnL <= 0; n_boot<=0
+  or an empty series -> conservative 1.0). These feed the
+  `memory.search.significance` registry filter (P2.4).
 - `rank_value(metrics, rank_metric)` -> single comparable score (max_drawdown is
   negated so "higher is better" holds for ranking).
 - Statistical significance (A3 / P2.1): `wilson_interval(wins, n, z=1.96)` ->
   pure-Python Wilson score confidence interval (low, high) for the win-rate.
   Stays inside [0, 1] and is honest for small `n`. Edge cases: n<=0 -> (0,0),
   z<=0 -> (p_hat, p_hat), wins clamped to [0, n], bounds clamped to [0, 1].
-  Feeds the upcoming P2.3 `win_rate_ci_low` metric and the P2.4 registry filter.
+  Feeds the `win_rate_ci_low` metric (P2.3) and the P2.4 registry filter.
 - Statistical significance (A3 / P2.2): `bootstrap_pvalue(trade_pnls,
   n_boot=1000, seed=42)` -> pure-Python bootstrap p-value for H0 "mean trade
   PnL <= 0". Resamples the PnLs with replacement `n_boot` times and returns the
   fraction of resample means that are <= 0 (small = real edge, large = no edge).
   Deterministic via a private `random.Random(seed)` aligned with the project's
   `general.random_seed`. Conservative edge cases (empty / n_boot<=0 -> 1.0).
-  Feeds the upcoming P2.3 `pnl_pvalue` metric and the P2.4 registry filter.
+  Since P2.3 both helpers are wired into `compute_metrics` (see above) and the
+  config gained the `memory.search.significance` block (`enabled` default true,
+  `max_pvalue` 0.05, `min_winrate_ci_low` 0.0 = optional gate off); the actual
+  registry enforcement lands in P2.4.
 
 ### backtester.py - `Backtester`
 Fast bar-by-bar single-position simulator (NOT the MT5 tester). Enter on signal

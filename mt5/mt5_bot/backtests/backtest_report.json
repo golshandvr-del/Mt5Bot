@@ -8,9 +8,11 @@
         "max_drawdown": 0.0342,
         "net_profit": 872.3793,
         "num_trades": 179,
+        "pnl_pvalue": 0.002,
         "profit_factor": 1.6963,
         "sharpe": 0.2274,
-        "win_rate": 0.7486
+        "win_rate": 0.7486,
+        "win_rate_ci_low": 0.6803
       },
       "source": "memory_top",
       "spec": {
@@ -46,9 +48,11 @@
         "max_drawdown": 0.0807,
         "net_profit": 2601.7516,
         "num_trades": 172,
+        "pnl_pvalue": 0.028,
         "profit_factor": 1.4274,
         "sharpe": 0.1467,
-        "win_rate": 0.4419
+        "win_rate": 0.4419,
+        "win_rate_ci_low": 0.3697
       },
       "source": "memory_top",
       "spec": {
@@ -95,9 +99,11 @@
         "max_drawdown": 0.311,
         "net_profit": 3108.0852,
         "num_trades": 214,
+        "pnl_pvalue": 0.115,
         "profit_factor": 1.2203,
         "sharpe": 0.0813,
-        "win_rate": 0.3925
+        "win_rate": 0.3925,
+        "win_rate_ci_low": 0.3295
       },
       "source": "memory_top",
       "spec": {

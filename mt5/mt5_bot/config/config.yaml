@@ -214,6 +214,22 @@ memory:
                                 #   expectancy, sharpe
     # Minimum trades a strategy must produce to be trusted.
     min_trades: 30
+    # Statistical-significance filter (Track A / A3, P2.3-P2.4). A strategy
+    # that cannot be statistically separated from randomness is still RECORDED
+    # in memory but is NEVER promoted to the registry. Uses the pure-Python
+    # win_rate_ci_low (Wilson 95% lower bound) and pnl_pvalue (bootstrap
+    # p-value that mean PnL <= 0) fields emitted by compute_metrics.
+    significance:
+      # Master switch for the registry-promotion filter.
+      enabled: true
+      # Promote only if the bootstrap p-value (averaged across walk-forward
+      # segments) is <= this. 0.05 = classic 95% confidence.
+      max_pvalue: 0.05
+      # Optional extra gate: promote only if the Wilson 95% LOWER bound on the
+      # win-rate (averaged across segments) is >= this. 0.0 disables the gate
+      # (a profitable strategy can have a win-rate below 0.5, so this is OFF
+      # by default; raise it only for win-rate-driven styles).
+      min_winrate_ci_low: 0.0
   # How many top strategies to blend in the ensemble decision.
   ensemble_top_k: 3
 

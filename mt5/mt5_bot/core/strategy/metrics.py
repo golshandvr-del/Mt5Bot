@@ -11,13 +11,18 @@ curve, compute the standard set of metrics used to rank strategies in memory:
   - sharpe             = mean(returns) / std(returns) (per-trade, unannualized)
   - net_profit
   - average_win / average_loss
+  - win_rate_ci_low     = Wilson 95% lower confidence bound on the win-rate
+  - pnl_pvalue          = bootstrap p-value that the mean trade PnL is <= 0
 
-It also provides two pure-Python building blocks for the statistical-
-significance filter (Phase P2 / A3), used to keep small-sample strategies
-honest:
+The last two are the statistical-significance signals (Phase P2 / A3) used to
+keep small-sample strategies honest. They are built from two pure-Python
+building blocks also exported here:
   - `wilson_interval(wins, n, z)`  Wilson score confidence interval for win-rate
   - `bootstrap_pvalue(trade_pnls, n_boot, seed)`  seeded bootstrap p-value that
     the mean trade PnL is <= 0 (no positive edge)
+The registry-promotion filter that consumes them (via the
+`memory.search.significance` config block) is enforced in the memory store
+(P2.4).
 
 All pure Python.
 
@@ -110,8 +115,17 @@ def bootstrap_pvalue(trade_pnls: List[float], n_boot: int = 1000,
 
 
 def compute_metrics(trade_pnls: List[float],
-                    equity_curve: List[float]) -> Dict[str, Any]:
-    """Compute the metric dictionary for a finished backtest."""
+                    equity_curve: List[float],
+                    n_boot: int = 1000,
+                    seed: int = 42) -> Dict[str, Any]:
+    """
+    Compute the metric dictionary for a finished backtest.
+
+    n_boot / seed feed the `pnl_pvalue` bootstrap (P2.3). The defaults match
+    `bootstrap_pvalue` (deterministic under the project global seed 42);
+    callers on very weak hardware may lower `n_boot`. Passing n_boot <= 0
+    yields the conservative p-value 1.0 (no evidence of an edge).
+    """
     n = len(trade_pnls)
     wins = [p for p in trade_pnls if p > 0]
     losses = [p for p in trade_pnls if p < 0]
@@ -146,6 +160,15 @@ def compute_metrics(trade_pnls: List[float],
         std = var ** 0.5
         sharpe = (mean / std) if std > 0 else 0.0
 
+    # Statistical significance (Track A / A3, P2.3):
+    #   win_rate_ci_low : Wilson 95% LOWER bound on the true win-rate. Honest
+    #                     for small n (10/10 wins does NOT give a bound near 1).
+    #   pnl_pvalue      : bootstrap p-value for "mean trade PnL <= 0". Small
+    #                     (e.g. <= 0.05) = the positive edge is unlikely luck.
+    # Both are consumed by the memory.search.significance registry filter (P2.4).
+    ci_low, _ci_high = wilson_interval(len(wins), n)
+    pnl_pvalue = bootstrap_pvalue(trade_pnls, n_boot=n_boot, seed=seed)
+
     return {
         "num_trades": n,
         "win_rate": round(win_rate, 4),
@@ -156,6 +179,8 @@ def compute_metrics(trade_pnls: List[float],
         "sharpe": round(sharpe, 4),
         "average_win": round(average_win, 4),
         "average_loss": round(average_loss, 4),
+        "win_rate_ci_low": round(ci_low, 4),
+        "pnl_pvalue": round(pnl_pvalue, 4),
     }
 
 
