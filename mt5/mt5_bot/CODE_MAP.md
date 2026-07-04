@@ -199,9 +199,17 @@ LAZILY builds and caches shared singletons via properties:
 - `shutdown()` closes the MT5 connection.
 
 ### app/runners.py - one function per mode
-- `run_train(ctx)`  : Phase 1. For each symbol, build (X, y) via FeatureBuilder,
-  `learner.fit`, then persist the model file. Trains on the first symbol with
-  enough data (single shared model).
+- `run_train(ctx)`  : Phase 1. Two modes selected by `learning.per_symbol`
+  (A5 / P3.3, default false). Shared mode (default): build (X, y) via
+  FeatureBuilder for the first symbol with enough data, `learner.fit`, and
+  persist ONE shared model file (unchanged behavior). Per-symbol mode
+  (`learning.per_symbol=true`): loop every symbol, build a FRESH learner each
+  via the factory (so their fitted state never mixes), fit, and save each to
+  `models/<model>_<SYMBOL>.pkl` (via `_per_symbol_model_file`, which sanitizes
+  the symbol and inserts it before the extension) so, e.g., XAUUSD does not
+  dilute EURUSD. Degrades gracefully (a symbol with too little data is skipped).
+  The engine's per-symbol learner LOOKUP is wired in P3.4; P3.3 only produces
+  the files.
 - `run_search(ctx)` : Phase 3. For each symbol, load history and run
   `StrategySearch.run`, persisting results + updating the registry.
 - `run_backtest(ctx)`: Phase 3. Backtest the memory-top strategy (or a default

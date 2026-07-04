@@ -170,6 +170,21 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.3 (Track A / A5, code). Per-symbol ML training. app/runners.py::run_train
+  gained a `learning.per_symbol` branch (default false, read defensively). Off =
+  the original single shared-model behavior, byte-identical. On = the new
+  _run_train_per_symbol loops every symbol, builds a FRESH learner per symbol
+  (via build_active_model so their fitted state never mixes) and saves each to
+  models/<model>_<SYMBOL>.pkl via the new _per_symbol_model_file helper (safe
+  filename, symbol inserted before the extension). Realism note: this is the fix
+  for the expert review's cross-symbol dilution risk - training one model on
+  EURUSD + GBPUSD + XAUUSD together lets gold's very different volatility regime
+  distort the FX signal and vice versa; separate models keep each asset's edge
+  clean. Windows-7-safe: no new deps, pure orchestration, graceful when a symbol
+  has too little data. The engine per-symbol LOOKUP + the config.yaml key are
+  P3.4; the distinct-model test is P3.5; A5 status flip is P3.8. Verified: default
+  path keeps 48 tests green; a per_symbol=true smoke run on the three sample CSVs
+  produced three distinct model files. Next: P3.4.
 - P3.2 (Track A / A4, test). Added tests/test_timing_stats.py (8 tests) locking
   in the P3.1 time-bucket Bayesian shrinkage. TestEdgeShrinkageMath exercises
   the pure formula core.timing.time_stats.TimeStats._edge_from_row: a 5-sample

@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 from app.context import BotContext
 from config.loader import resolve_path
 from core.data.data_feed import OHLCV
+from core.learning.factory import build_active_model
 from core.strategy.strategy import Strategy, StrategySpec
 from core.strategy.backtester import Backtester
 from core.strategy.search import StrategySearch
@@ -53,20 +54,58 @@ def _load_history(ctx: BotContext, symbol: str, timeframe: str,
     return ctx.data_feed.get_ohlcv(symbol, timeframe, count)
 
 
+def _per_symbol_model_file(base_model_file: str, symbol: str) -> str:
+    """
+    Derive a per-symbol model filename from the shared model_file (A5 / P3.3).
+
+    Inserts the symbol before the extension so a shared "models/ml_classifier.pkl"
+    becomes "models/ml_classifier_<SYMBOL>.pkl". The symbol is sanitized to keep
+    only ASCII letters/digits/_/-/. so a broker symbol like "EURUSD.m" yields a
+    safe filename. Falls back to appending when there is no extension.
+    """
+    safe = "".join(
+        ch for ch in str(symbol) if ch.isalnum() or ch in ("_", "-", ".")
+    ) or "SYMBOL"
+    root, ext = os.path.splitext(base_model_file)
+    if ext:
+        return "%s_%s%s" % (root, safe, ext)
+    return "%s_%s" % (base_model_file, safe)
+
+
 # --------------------------------------------------------------------------- #
 # TRAIN (Phase 1)
 # --------------------------------------------------------------------------- #
 def run_train(ctx: BotContext) -> Dict[str, Any]:
-    """Train the active learner offline on historical bars and save it."""
+    """
+    Train the active learner offline on historical bars and save it.
+
+    Two modes, chosen by `learning.per_symbol` (A5 / P3.3, default false):
+      - per_symbol=false (default): the original SHARED-model behavior. Train on
+        the first symbol with enough data and persist a single model file
+        (byte-identical to before).
+      - per_symbol=true: train a SEPARATE learner per symbol so, e.g., XAUUSD
+        does not dilute EURUSD, and save each as
+        `models/<model>_<SYMBOL>.pkl` (see _per_symbol_model_file). The engine's
+        per-symbol lookup is wired in P3.4; this sub-step only produces the
+        per-symbol model files.
+    """
     log = get_logger("app.runners.train", ctx.cfg)
     ctx.connect_mt5()  # optional; CSV works too
     tf = _timeframe(ctx)
     name = ctx.cfg.get_path("learning.active_model", "ml_classifier")
     model_file = ctx.cfg.get_path("learning.%s.model_file" % name,
                                   "models/%s.pkl" % name)
-    out_path = resolve_path(ctx.cfg, model_file)
 
-    results: Dict[str, Any] = {"model": name, "trained_symbols": []}
+    # Read the per-symbol toggle defensively so a bad/missing value degrades to
+    # the safe shared-model path (config.yaml key + docs land in P3.4).
+    per_symbol = bool(ctx.cfg.get_path("learning.per_symbol", False))
+
+    if per_symbol:
+        return _run_train_per_symbol(ctx, log, tf, name, model_file)
+
+    out_path = resolve_path(ctx.cfg, model_file)
+    results: Dict[str, Any] = {"model": name, "per_symbol": False,
+                               "trained_symbols": []}
     for symbol in _symbols(ctx):
         ohlcv = _load_history(ctx, symbol, tf)
         if len(ohlcv) < 200:
@@ -97,6 +136,64 @@ def run_train(ctx: BotContext) -> Dict[str, Any]:
     else:
         results["saved"] = False
         log.warning("Learner not ready after training; nothing saved.")
+    ctx.shutdown()
+    return results
+
+
+def _run_train_per_symbol(ctx: BotContext, log: Any, tf: str, name: str,
+                          model_file: str) -> Dict[str, Any]:
+    """
+    Train and persist one learner PER symbol (A5 / P3.3).
+
+    A fresh learner is built for each symbol via the factory so their fitted
+    state never mixes, and each is saved to `_per_symbol_model_file`. The shared
+    `ctx.learner` is intentionally NOT reused here so the default light path and
+    any already-loaded shared model stay untouched. Degrades gracefully: a symbol
+    with too little data is skipped, not fatal.
+    """
+    results: Dict[str, Any] = {"model": name, "per_symbol": True,
+                               "trained_symbols": [], "saved": False,
+                               "model_files": {}}
+    any_saved = False
+    for symbol in _symbols(ctx):
+        ohlcv = _load_history(ctx, symbol, tf)
+        if len(ohlcv) < 200:
+            log.warning("Not enough data for %s (%d bars); skipping.",
+                        symbol, len(ohlcv))
+            continue
+        X, y, feat_names = ctx.feature_builder.build_training(ohlcv)
+        if not X:
+            log.warning("No training samples for %s; skipping.", symbol)
+            continue
+        # Build a dedicated learner for THIS symbol only.
+        learner = build_active_model(ctx.cfg)
+        log.info("Training per-symbol %s on %s with %d samples...",
+                 name, symbol, len(X))
+        if hasattr(learner, "set_feature_names"):
+            try:
+                learner.set_feature_names(feat_names)
+            except Exception:
+                pass
+        learner.fit(X, y)
+        entry = {"symbol": symbol, "samples": len(X), "saved": False}
+        if learner.is_ready():
+            sym_file = _per_symbol_model_file(model_file, symbol)
+            out_path = resolve_path(ctx.cfg, sym_file)
+            ok = bool(learner.save(out_path))
+            entry["saved"] = ok
+            entry["model_file"] = out_path
+            results["model_files"][symbol] = out_path
+            any_saved = any_saved or ok
+            log.info("Saved per-symbol model for %s: %s (%s)",
+                     symbol, out_path, ok)
+        else:
+            log.warning("Learner not ready for %s; nothing saved.", symbol)
+        results["trained_symbols"].append(entry)
+
+    results["saved"] = any_saved
+    if not any_saved:
+        log.warning("Per-symbol training saved no models "
+                    "(insufficient data for every symbol?).")
     ctx.shutdown()
     return results
 

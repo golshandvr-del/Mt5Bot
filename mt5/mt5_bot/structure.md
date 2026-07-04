@@ -354,7 +354,7 @@ gold realistically.
       edge * n / (n + shrinkage_k)). [A4]
 - [x] P3.2 (test) Add `tests/test_timing_stats.py`: a 5-sample bucket's edge is
       heavily shrunk; a 500-sample bucket's edge is nearly raw.
-- [ ] P3.3 (code) Per-symbol ML: `app/runners.py::run_train` loops per symbol
+- [x] P3.3 (code) Per-symbol ML: `app/runners.py::run_train` loops per symbol
       and saves `models/ml_classifier_<SYMBOL>.pkl`; keep the shared-model path
       as fallback when `learning.per_symbol` is false. [A5]
 - [ ] P3.4 (code+config) `app/context.py` per-symbol learner cache/lookup and
@@ -472,6 +472,26 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.3 DONE (code): per-symbol ML training (A5). `app/runners.py::run_train`
+  now reads `learning.per_symbol` (default false, read defensively) and branches:
+  the default SHARED-model path is byte-identical to before (train the first
+  symbol with >= 200 bars, save one model file), while `per_symbol=true` calls
+  the new `_run_train_per_symbol`, which loops every symbol, builds a FRESH
+  learner per symbol via `build_active_model` (so EURUSD and XAUUSD never share
+  fitted state), fits, and saves each to `models/<model>_<SYMBOL>.pkl` using the
+  new `_per_symbol_model_file(base, symbol)` helper (splits on the extension and
+  inserts a sanitized symbol, e.g. ml_classifier.pkl -> ml_classifier_EURUSD.pkl;
+  a broker symbol like "EURUSD.m" is sanitized to safe filename characters).
+  Graceful: a symbol with too little data / no samples is skipped, and if NO
+  symbol trains, `saved=False` is returned without raising. The shared
+  `ctx.learner` is intentionally not reused in per-symbol mode so the light path
+  and any loaded shared model stay untouched. Verified: the default path keeps
+  the 48-test suite green; a manual smoke run with per_symbol=true on the three
+  sample CSVs produced three distinct model files
+  (ml_classifier_{EURUSD,GBPUSD,XAUUSD}.pkl). The per-symbol learner LOOKUP in
+  the context/engine and the config.yaml `learning.per_symbol` key + docs are
+  P3.4; the two-symbol distinct-model test is P3.5; the A5 status flip is
+  deferred to P3.8. CODE_MAP.md section 4 (run_train) updated. Next sub-step: P3.4.
 - P3.2 DONE (test): added tests/test_timing_stats.py (8 tests) locking in the
   P3.1 time-bucket Bayesian shrinkage. TestEdgeShrinkageMath drives the pure
   static formula `TimeStats._edge_from_row`: for a fixed strongly-positive
