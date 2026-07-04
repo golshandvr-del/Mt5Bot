@@ -1,0 +1,324 @@
+{
+  "EURUSD|M15": {
+    "rank_metric": "expectancy",
+    "top": [
+      {
+        "avg_score": 6.092091,
+        "avg_trades": 30.0,
+        "fingerprint": "d3e6d3a7e0fcc153",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "keltner": {
+              "atr_mult": 1.5,
+              "period": 14
+            },
+            "obv": {},
+            "sma": {
+              "period": 200
+            }
+          },
+          "long_threshold": 0.2,
+          "name": "d3e6d3a7e0fcc153",
+          "short_threshold": 0.15,
+          "sl_atr_mult": 2.7,
+          "symbol": "EURUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 4.9,
+          "weights": {
+            "keltner": 1.19,
+            "obv": 1.71,
+            "sma": 1.62
+          }
+        }
+      },
+      {
+        "avg_score": 1.929701,
+        "avg_trades": 37.0,
+        "fingerprint": "fae90e6e69b03971",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "adx": {
+              "period": 10
+            },
+            "donchian": {
+              "period": 55
+            },
+            "ema": {
+              "period": 55
+            },
+            "macd": {
+              "fast": 16,
+              "signal": 7,
+              "slow": 34
+            }
+          },
+          "long_threshold": 0.35,
+          "name": "fae90e6e69b03971",
+          "short_threshold": 0.18,
+          "sl_atr_mult": 2.0,
+          "symbol": "EURUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 4.3,
+          "weights": {
+            "adx": 0.75,
+            "donchian": 0.81,
+            "ema": 1.16,
+            "macd": 1.36
+          }
+        }
+      },
+      {
+        "avg_score": 1.201396,
+        "avg_trades": 37.0,
+        "fingerprint": "ed05c2f0fd923f08",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "ichimoku": {
+              "kijun": 26,
+              "senkou": 52,
+              "tenkan": 9
+            },
+            "macd": {
+              "fast": 16,
+              "signal": 11,
+              "slow": 34
+            },
+            "roc": {
+              "period": 12
+            }
+          },
+          "long_threshold": 0.48,
+          "name": "ed05c2f0fd923f08",
+          "short_threshold": 0.26,
+          "sl_atr_mult": 1.8,
+          "symbol": "EURUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 4.3,
+          "weights": {
+            "ichimoku": 1.39,
+            "macd": 1.09,
+            "roc": 0.97
+          }
+        }
+      }
+    ],
+    "updated_at": 1782882901.123334
+  },
+  "GBPUSD|M15": {
+    "rank_metric": "expectancy",
+    "top": [
+      {
+        "avg_score": 8.410708,
+        "avg_trades": 31.0,
+        "fingerprint": "33cceb66fba83424",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "bbands": {
+              "period": 20,
+              "std": 2.0
+            },
+            "candle_patterns": {},
+            "ichimoku": {
+              "kijun": 26,
+              "senkou": 52,
+              "tenkan": 9
+            },
+            "keltner": {
+              "atr_mult": 2.5,
+              "period": 20
+            },
+            "sma": {
+              "period": 100
+            }
+          },
+          "long_threshold": 0.3,
+          "name": "33cceb66fba83424",
+          "short_threshold": 0.21,
+          "sl_atr_mult": 2.5,
+          "symbol": "GBPUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 4.6,
+          "weights": {
+            "bbands": 0.96,
+            "candle_patterns": 1.59,
+            "ichimoku": 1.12,
+            "keltner": 0.63,
+            "sma": 1.61
+          }
+        }
+      },
+      {
+        "avg_score": 2.896231,
+        "avg_trades": 42.0,
+        "fingerprint": "d9e47e3e1b67c88f",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "macd": {
+              "fast": 12,
+              "signal": 7,
+              "slow": 26
+            },
+            "williams_r": {
+              "period": 7
+            }
+          },
+          "long_threshold": 0.29,
+          "name": "d9e47e3e1b67c88f",
+          "short_threshold": 0.2,
+          "sl_atr_mult": 2.2,
+          "symbol": "GBPUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 4.2,
+          "weights": {
+            "macd": 0.83,
+            "williams_r": 1.17
+          }
+        }
+      },
+      {
+        "avg_score": -0.961852,
+        "avg_trades": 56.0,
+        "fingerprint": "da27af040e581dce",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "macd": {
+              "fast": 8,
+              "signal": 11,
+              "slow": 26
+            },
+            "vwap": {}
+          },
+          "long_threshold": 0.5,
+          "name": "da27af040e581dce",
+          "short_threshold": 0.25,
+          "sl_atr_mult": 1.9,
+          "symbol": "GBPUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 1.8,
+          "weights": {
+            "macd": 0.85,
+            "vwap": 1.59
+          }
+        }
+      }
+    ],
+    "updated_at": 1782882903.7446446
+  },
+  "XAUUSD|M15": {
+    "rank_metric": "expectancy",
+    "top": [
+      {
+        "avg_score": 57451.475425,
+        "avg_trades": 35.0,
+        "fingerprint": "3c2bcde5619b6d4b",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "candle_patterns": {},
+            "ema": {
+              "period": 12
+            }
+          },
+          "long_threshold": 0.27,
+          "name": "3c2bcde5619b6d4b",
+          "short_threshold": 0.36,
+          "sl_atr_mult": 2.3,
+          "symbol": "XAUUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 4.3,
+          "weights": {
+            "candle_patterns": 0.58,
+            "ema": 1.21
+          }
+        }
+      },
+      {
+        "avg_score": 22685.98665,
+        "avg_trades": 30.0,
+        "fingerprint": "701fa74bfad4dfdf",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "donchian": {
+              "period": 20
+            },
+            "ema": {
+              "period": 34
+            },
+            "macd": {
+              "fast": 12,
+              "signal": 7,
+              "slow": 34
+            },
+            "roc": {
+              "period": 9
+            },
+            "williams_r": {
+              "period": 21
+            }
+          },
+          "long_threshold": 0.44,
+          "name": "701fa74bfad4dfdf",
+          "short_threshold": 0.15,
+          "sl_atr_mult": 1.1,
+          "symbol": "XAUUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 3.9,
+          "weights": {
+            "donchian": 1.72,
+            "ema": 1.55,
+            "macd": 1.9,
+            "roc": 1.98,
+            "williams_r": 1.67
+          }
+        }
+      },
+      {
+        "avg_score": 21916.889224,
+        "avg_trades": 52.0,
+        "fingerprint": "ff689151029af665",
+        "n_segments": 1,
+        "spec": {
+          "indicators": {
+            "ichimoku": {
+              "kijun": 26,
+              "senkou": 52,
+              "tenkan": 9
+            },
+            "mfi": {
+              "period": 21
+            },
+            "sma": {
+              "period": 50
+            },
+            "stoch": {
+              "d": 3,
+              "k": 9,
+              "smooth": 1
+            }
+          },
+          "long_threshold": 0.46,
+          "name": "ff689151029af665",
+          "short_threshold": 0.3,
+          "sl_atr_mult": 1.0,
+          "symbol": "XAUUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 2.3,
+          "weights": {
+            "ichimoku": 1.44,
+            "mfi": 1.54,
+            "sma": 0.65,
+            "stoch": 0.65
+          }
+        }
+      }
+    ],
+    "updated_at": 1782882906.0075848
+  }
+}
