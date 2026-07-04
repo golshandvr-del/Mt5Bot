@@ -254,20 +254,187 @@ bot from an offline learner into a live, adaptive system.
 
 ---
 
-## 5. Execution order (recommended)
+## 5. PHASED EXECUTION PLAN (authoritative work order)
 
-1. **A1** - export multi-year real data + long search (prerequisite for all).
-2. **A2, A3** - more segments + holdout + significance filter (kills overfitting).
-3. **A4** - time-bucket min_samples + Bayesian shrinkage.
-4. **A5, A6** - per-symbol model + weekend swap/gap realism.
-5. **A7** - CI to lock in the gains.
-6. **B1 + B3** - live council + decay monitor (offline learner -> living system).
-7. **B8, B2** - recency weighting, then time x regime matrix.
-8. **B7** - evolutionary search.
-9. **B4, B6, B5** - overnight training, weekly journal, contrarian sensor.
+> This section turns the Track A / Track B roadmap above into concrete,
+> commit-sized sub-steps. It is the AUTHORITATIVE work order: any AI or human
+> continuing this project MUST execute phases strictly in order (P1 -> P7) and
+> sub-steps strictly in order inside each phase.
+>
+> DEFINITION OF DONE for EVERY sub-step (no exceptions):
+>   1. Code/doc change implemented and consistent with the invariants (sec. 6).
+>   2. Offline test suite passes: `python tests/run_all.py` (stdlib-only, fast).
+>   3. Status checkbox below flipped to [x] and the change-log (sec. 7) updated.
+>   4. CODE_MAP.md / Ideas.md / README.md updated if affected.
+>   5. `git commit` AND `git push` executed for THIS sub-step alone.
+> A sub-step without its own pushed commit is NOT done, and the next sub-step
+> MUST NOT be started.
 
-Rationale: statistics first (Track A) so later adaptive ideas (Track B) learn
-from trustworthy signal, not noise.
+Rationale for the order: statistics first (Track A -> P1..P4) so the later
+adaptive ideas (Track B -> P5..P7) learn from trustworthy signal, not noise.
+
+### Phase P1 - Real data + honest evaluation (covers A1, A2)
+
+Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
+
+- [ ] P1.1 (docs) Document the multi-year REAL-data workflow in README.md:
+      how to run `scripts/export_history.py` on Windows with MT5 open,
+      recommended >= 5 years of M15 bars per symbol, expected CSV names in
+      `data_store/history/`, and how to launch a long
+      `python main.py --mode search` afterwards. NOTE: the actual export run
+      is a USER action on the Windows machine; the AI only prepares
+      docs/scripts and must not block on it. [A1]
+- [ ] P1.2 (config) Add `memory.walk_forward.min_segments` (default 6) and
+      `memory.walk_forward.holdout_bars` (default 0 = off) to config.yaml with
+      comments. Unset/zero values must keep today's behavior byte-identical.
+      [A2]
+- [ ] P1.3 (code) Upgrade `core/strategy/walk_forward.py::segments()` to
+      produce `min_segments` (6-10) rolling segments by auto-shrinking
+      train_bars when history length allows; keep the existing 70/30 fallback
+      for short history. [A2]
+- [ ] P1.4 (code) Locked holdout: reserve the FINAL `holdout_bars` of history
+      that the search NEVER sees. Add `WalkForward.evaluate_holdout(spec,
+      ohlcv)`; in `core/strategy/search.py` + `core/memory/store.py::
+      update_registry`, only promote a strategy to the registry if it also
+      passes on the untouched holdout. [A2]
+- [ ] P1.5 (test) Add `tests/test_walk_forward.py`: segment count grows with
+      history, holdout bars never appear in any train/test segment, holdout
+      gate blocks a failing spec.
+- [ ] P1.6 (docs) Sync CODE_MAP.md sections 8/17, Ideas.md, README.md; flip
+      A1/A2 statuses in section 3 above.
+
+### Phase P2 - Statistical significance filter (covers A3)
+
+Goal: a strategy that cannot be statistically separated from randomness must
+never enter the registry.
+
+- [ ] P2.1 (code) `core/strategy/metrics.py`: add `wilson_interval(wins, n,
+      z=1.96)` returning (low, high) for win-rate. Pure Python.
+- [ ] P2.2 (code) `core/strategy/metrics.py`: add `bootstrap_pvalue(trade_pnls,
+      n_boot=1000, seed=...)` -> p-value that mean PnL <= 0, via seeded
+      resampling. Pure Python, deterministic under the global seed.
+- [ ] P2.3 (code+config) Extend `compute_metrics` to include
+      `win_rate_ci_low`, `pnl_pvalue`. Add `memory.search.significance`
+      block to config.yaml (`enabled` default true, `max_pvalue` 0.05,
+      `min_winrate_ci_low` optional).
+- [ ] P2.4 (code) Enforce the filter in `core/memory/store.py`
+      (`update_registry` and/or `top_strategies`): non-significant strategies
+      are recorded (for memory) but never promoted to the registry.
+- [ ] P2.5 (test) Add `tests/test_metrics_significance.py`: Wilson bounds on
+      known cases, bootstrap p-value low for a clearly-positive PnL series and
+      high for a symmetric-random series, registry rejects non-significant.
+- [ ] P2.6 (docs) Sync all four docs; flip A3 status.
+
+### Phase P3 - Robust context modeling (covers A4, A5, A6)
+
+Goal: stop hallucinated time patterns, stop cross-symbol dilution, and rank
+gold realistically.
+
+- [ ] P3.1 (code+config) `core/timing/time_stats.py`: raise
+      `timing.learning.min_samples` default to 50 and add
+      `timing.learning.shrinkage` (Bayesian shrinkage pulling a bucket's edge
+      toward zero in proportion to sample scarcity, e.g.
+      edge * n / (n + shrinkage_k)). [A4]
+- [ ] P3.2 (test) Add `tests/test_timing_stats.py`: a 5-sample bucket's edge is
+      heavily shrunk; a 500-sample bucket's edge is nearly raw.
+- [ ] P3.3 (code) Per-symbol ML: `app/runners.py::run_train` loops per symbol
+      and saves `models/ml_classifier_<SYMBOL>.pkl`; keep the shared-model path
+      as fallback when `learning.per_symbol` is false. [A5]
+- [ ] P3.4 (code+config) `app/context.py` per-symbol learner cache/lookup and
+      `core/decision/engine.py` selects the deciding symbol's learner. Add
+      `learning.per_symbol` (default false) to config.yaml.
+- [ ] P3.5 (test) Extend `tests/test_learning.py` (or add a test file): two
+      symbols train two distinct model files; engine picks the right one.
+- [ ] P3.6 (code+config) `core/strategy/backtester.py`: model weekend/rollover
+      swap cost and the Monday opening gap (esp. XAUUSD). Add
+      `backtest.swap_long_pts`, `backtest.swap_short_pts`,
+      `backtest.swap_triple_day`, `backtest.model_weekend_gap` (defaults keep
+      old behavior). [A6]
+- [ ] P3.7 (test) Backtester test: a position held over a weekend pays swap;
+      a stop inside a modeled Monday gap fills at the gapped price, not the
+      stop price.
+- [ ] P3.8 (docs) Sync all four docs; flip A4/A5/A6 statuses.
+
+### Phase P4 - CI safety net (covers A7)
+
+- [ ] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
+      set up Python 3.8, run `python tests/run_all.py`. Zero impact on the
+      Windows 7 runtime. [A7]
+- [ ] P4.2 (docs) Add the CI badge/note to README.md; flip A7 status; sync docs.
+
+### Phase P5 - Living adaptive core (covers B1, B3)
+
+Goal: upgrade from "offline learner" to "live, self-doubting system".
+
+- [ ] P5.1 (code) New `core/strategy/council.py`: per-strategy LIVE credibility
+      from its recent (~30) trade outcomes via a light bandit rule (tabular UCB
+      or Exp3, pure Python). [B1]
+- [ ] P5.2 (code) Persist live credibility in `core/memory/store.py` (new
+      table or column) so it survives restarts.
+- [ ] P5.3 (code+config) Consume council weights in the
+      `core/decision/engine.py` ensemble blend instead of the static average.
+      Add `decision.council.*` to config.yaml, default OFF.
+- [ ] P5.4 (test) Council test: a strategy that keeps losing sees its weight
+      decay toward zero; weights persist across a simulated restart.
+- [ ] P5.5 (code) New `core/strategy/decay_monitor.py`: per-registry-strategy
+      "statistical expiry" - compare recent live/paper PnL distribution vs its
+      walk-forward distribution (simple KS or mean/std drift); mark drifted
+      strategies "suspect". [B3]
+- [ ] P5.6 (code+config) Wire it: `core/execution/order_manager.py` +
+      `core/memory/store.py` capture realized PnL per strategy; engine skips /
+      zero-weights suspect strategies until the next search. Add
+      `decision.decay_monitor.*`, default OFF.
+- [ ] P5.7 (test) Decay test: a strategy whose recent PnL distribution flips
+      gets flagged suspect and excluded from the blend.
+- [ ] P5.8 (docs) Sync all four docs; flip B1/B3 statuses.
+
+### Phase P6 - Smarter evaluation and search (covers B8, B2, B7)
+
+- [ ] P6.1 (code+config) Recency weighting: newer walk-forward segments count
+      more in the final score (`memory.walk_forward.recency_decay`, default
+      1.0 = today's behavior) in `walk_forward.py` aggregate and
+      `store.py::top_strategies`. [B8]
+- [ ] P6.2 (test) Recency test: with decay < 1, a recently-good strategy
+      outranks an anciently-good one with identical raw averages.
+- [ ] P6.3 (code+config) Time x regime 2D buckets: extend the
+      `core/timing/time_stats.py` bucket key with a `regime` component
+      (trend/range) fed from the regime tagger at trade-record time; apply the
+      STRONG shrinkage from P3.1 (combined buckets are small). Add
+      `timing.use_regime_buckets`, default OFF. [B2]
+- [ ] P6.4 (test) Regime-bucket test: composite key recorded/loaded correctly;
+      shrinkage keeps tiny buckets near zero edge.
+- [ ] P6.5 (code+config) Evolutionary search: `core/strategy/search.py` gains
+      `memory.search.method: "evolution"` - take registry top specs as parents,
+      mutate/crossover parameters, keep random immigrants for diversity; eval
+      cost per spec is unchanged. [B7]
+- [ ] P6.6 (test) Evolution test: children stay inside each param space and
+      differ from parents; the method plugs into the existing search loop.
+- [ ] P6.7 (docs) Sync all four docs; flip B8/B2/B7 statuses.
+
+### Phase P7 - Autonomy and human-in-the-loop (covers B4, B6, B5)
+
+- [ ] P7.1 (code+config) Overnight training: make `app/runners.py::run_loop`
+      schedule-aware via `core/timing/session.py` - when the market is closed
+      (weekend) or the session is dead, run a TIME-BOXED search so the bot
+      "dreams and practices in its sleep". Add
+      `general.overnight_training.*` (enabled, budget_minutes), default OFF.
+      [B4]
+- [ ] P7.2 (test) Scheduler test: closed-market detection triggers the
+      budgeted-search branch; open market never does.
+- [ ] P7.3 (code) New `scripts/weekly_journal.py`: read logs + memory/registry
+      and emit a plain-text human report to `data_store/reports/YYYY-Www.txt`
+      ("This week I took 12 trades, won 7. Best session: London. News blocked
+      entry twice, both correctly."). Optional hook from run_loop. [B6]
+- [ ] P7.4 (code+config) Contrarian sensor: new `core/strategy/contrarian.py`
+      paper-trades INVERTED copies of the top strategies virtually; if an
+      inverted strategy starts profiting, raise a regime-change warning flag
+      consumed by the decision engine. Add `decision.contrarian_sensor.*`,
+      default OFF. [B5]
+- [ ] P7.5 (test) Contrarian test: inverted spec produces mirrored signals;
+      sustained inverted profit sets the warning flag.
+- [ ] P7.6 (docs+final) Sync all four docs; flip B4/B6/B5 statuses; final
+      consistency pass over CODE_MAP.md / structure.md / Ideas.md / README.md
+      (a "Phase 5-style" polish review of everything added in P1-P7).
 
 ---
 
@@ -288,6 +455,14 @@ from trustworthy signal, not noise.
 
 ## 7. Change log (append newest at top)
 
+- Rewrote section 5 into the PHASED EXECUTION PLAN: the two-track roadmap
+  (A1-A7, B1-B8) is now broken into 7 ordered phases (P1-P7) of small,
+  commit-sized sub-steps, each with an explicit definition-of-done that
+  REQUIRES a passing offline test run plus a dedicated `git commit` AND
+  `git push` before the next sub-step may start. Phase order: P1 real data +
+  segments/holdout, P2 significance filter, P3 shrinkage/per-symbol/swap-gap,
+  P4 CI, P5 council + decay monitor, P6 recency/regime-buckets/evolution,
+  P7 overnight training + journal + contrarian sensor. No source code changed.
 - Created `structure.md`: recorded the as-built structure snapshot and captured
   the expert-AI review as a prioritized two-track roadmap - Track A (statistical
   robustness: multi-year real data, more walk-forward segments + holdout,
