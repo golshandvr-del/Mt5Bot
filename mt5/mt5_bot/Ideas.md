@@ -170,6 +170,14 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P2.2 (Track A / A3, code). Added bootstrap_pvalue(trade_pnls, n_boot=1000,
+  seed=42) to core/strategy/metrics.py: a pure-Python, seeded (deterministic)
+  bootstrap p-value for "mean trade PnL <= 0". Uses a private random.Random so
+  it is reproducible under the project global seed and never disturbs global RNG
+  state. Together with P2.1's Wilson interval this gives the two significance
+  signals; P2.3 wires them into compute_metrics + a memory.search.significance
+  config block, and P2.4 enforces the filter so non-significant strategies are
+  recorded but never promoted.
 - P2.1 (Track A / A3, code). Added wilson_interval(wins, n, z=1.96) to
   core/strategy/metrics.py: a pure-Python Wilson score confidence interval for
   the win-rate that stays in [0, 1] and is honest for small samples. This is the

@@ -12,9 +12,12 @@ curve, compute the standard set of metrics used to rank strategies in memory:
   - net_profit
   - average_win / average_loss
 
-It also provides `wilson_interval(wins, n, z)`, a pure-Python Wilson score
-confidence interval for the win-rate, used by the statistical-significance
-filter (Phase P2 / A3) to keep small-sample strategies honest.
+It also provides two pure-Python building blocks for the statistical-
+significance filter (Phase P2 / A3), used to keep small-sample strategies
+honest:
+  - `wilson_interval(wins, n, z)`  Wilson score confidence interval for win-rate
+  - `bootstrap_pvalue(trade_pnls, n_boot, seed)`  seeded bootstrap p-value that
+    the mean trade PnL is <= 0 (no positive edge)
 
 All pure Python.
 
@@ -23,6 +26,7 @@ All text is standard ASCII English only.
 
 from __future__ import annotations
 
+import random
 from typing import Any, Dict, List, Tuple
 
 
@@ -67,6 +71,42 @@ def wilson_interval(wins: int, n: int, z: float = 1.96) -> Tuple[float, float]:
     if low > high:
         low, high = high, low
     return (low, high)
+
+
+def bootstrap_pvalue(trade_pnls: List[float], n_boot: int = 1000,
+                     seed: int = 42) -> float:
+    """
+    Bootstrap p-value for the null hypothesis "mean trade PnL <= 0".
+
+    We resample the observed trade PnLs WITH REPLACEMENT `n_boot` times, each
+    resample the same size as the original series, and compute each resample's
+    mean. The p-value is the fraction of bootstrap means that are <= 0, i.e. how
+    often the strategy shows NO positive edge under resampling. A small p-value
+    (e.g. <= 0.05) means the positive edge is unlikely to be a fluke; a large
+    p-value means the strategy is not distinguishable from break-even/random.
+
+    Deterministic: uses a private `random.Random(seed)` so results never depend
+    on global RNG state and are reproducible under the project's global seed
+    (config `general.random_seed`, default 42). Pure Python.
+
+    Edge cases (conservative - "cannot prove an edge" -> p-value 1.0):
+      - empty series or n_boot <= 0 -> 1.0.
+      - a single non-positive trade  -> 1.0 (never < 0.5 without evidence).
+    """
+    n = len(trade_pnls)
+    if n == 0 or n_boot <= 0:
+        return 1.0
+
+    rng = random.Random(seed)
+    pnls = list(trade_pnls)
+    le_zero = 0
+    for _ in range(n_boot):
+        total = 0.0
+        for _ in range(n):
+            total += pnls[rng.randrange(n)]
+        if (total / n) <= 0.0:
+            le_zero += 1
+    return le_zero / n_boot
 
 
 def compute_metrics(trade_pnls: List[float],

@@ -326,6 +326,13 @@ and indicator layers consistent.
   Stays inside [0, 1] and is honest for small `n`. Edge cases: n<=0 -> (0,0),
   z<=0 -> (p_hat, p_hat), wins clamped to [0, n], bounds clamped to [0, 1].
   Feeds the upcoming P2.3 `win_rate_ci_low` metric and the P2.4 registry filter.
+- Statistical significance (A3 / P2.2): `bootstrap_pvalue(trade_pnls,
+  n_boot=1000, seed=42)` -> pure-Python bootstrap p-value for H0 "mean trade
+  PnL <= 0". Resamples the PnLs with replacement `n_boot` times and returns the
+  fraction of resample means that are <= 0 (small = real edge, large = no edge).
+  Deterministic via a private `random.Random(seed)` aligned with the project's
+  `general.random_seed`. Conservative edge cases (empty / n_boot<=0 -> 1.0).
+  Feeds the upcoming P2.3 `pnl_pvalue` metric and the P2.4 registry filter.
 
 ### backtester.py - `Backtester`
 Fast bar-by-bar single-position simulator (NOT the MT5 tester). Enter on signal

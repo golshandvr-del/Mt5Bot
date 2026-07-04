@@ -320,7 +320,7 @@ never enter the registry.
 
 - [x] P2.1 (code) `core/strategy/metrics.py`: add `wilson_interval(wins, n,
       z=1.96)` returning (low, high) for win-rate. Pure Python.
-- [ ] P2.2 (code) `core/strategy/metrics.py`: add `bootstrap_pvalue(trade_pnls,
+- [x] P2.2 (code) `core/strategy/metrics.py`: add `bootstrap_pvalue(trade_pnls,
       n_boot=1000, seed=...)` -> p-value that mean PnL <= 0, via seeded
       resampling. Pure Python, deterministic under the global seed.
 - [ ] P2.3 (code+config) Extend `compute_metrics` to include
@@ -478,6 +478,18 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
   and a temp DB so real data_store/config are untouched; stdlib-only. Full offline
   suite now 29 tests, all green. CODE_MAP.md tests section + test-count references
   (21 -> 29) updated. Next sub-step: P1.6.
+- P2.2 DONE (code): added `bootstrap_pvalue(trade_pnls, n_boot=1000, seed=42)`
+  to core/strategy/metrics.py - a pure-Python bootstrap p-value for the null
+  "mean trade PnL <= 0". It resamples the PnLs with replacement n_boot times and
+  returns the fraction of resample means that are <= 0 (small -> a real positive
+  edge, large -> indistinguishable from break-even/random). Determinism comes
+  from a private random.Random(seed) so it never touches global RNG state and is
+  reproducible under the project global seed (config general.random_seed=42, the
+  default). Conservative edge cases: empty series or n_boot<=0 -> 1.0. Verified:
+  clearly-positive series -> ~0.0, symmetric series -> ~0.5, negative series ->
+  1.0, and repeat calls are identical. No behavior change to compute_metrics yet
+  (P2.3); formal test is P2.5. CODE_MAP section 8 metrics.py entry updated.
+  Offline suite still 29 tests, all green. Next sub-step: P2.3.
 - P2.1 DONE (code): added `wilson_interval(wins, n, z=1.96)` to
   core/strategy/metrics.py - a pure-Python Wilson score confidence interval
   (low, high) for the win-rate. It stays inside [0, 1] and is honest for small
