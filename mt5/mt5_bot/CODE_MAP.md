@@ -102,6 +102,17 @@ mt5/                              <- required top folder
     scripts/
       run_bot.bat                 <- run launcher (finds Python, runs main.py)
       export_history.py           <- export live MT5 history to CSV for offline use
+      export_strategy_for_ea.py   <- flatten best learned strategy -> EA .params
+
+    experts/                      <- native MT5 Strategy Tester validation
+      Mt5SmartBotEA.mq5           <- Expert Advisor replaying the learned blend
+      README_EA.md                <- install/compile/run guide for the EA
+      params/<SYM>_<TF>.params    <- generated per-symbol EA parameter files
+
+    tests/                        <- offline, stdlib-only test suite
+      __init__.py helpers.py run_all.py
+      test_config.py test_indicators.py test_learning.py
+      test_memory.py test_news.py test_pipeline.py
 
     examples/
       generate_sample_data.py     <- synthetic OHLCV CSVs for offline first run
@@ -442,8 +453,43 @@ blend, so the bot still decides on weak hardware with most features off.
   optionally with a mode argument (paper/live/search/backtest/train/loop).
 - **scripts/export_history.py**: connects to MT5 and exports history to
   `data_store/history/*.csv` for offline search/backtest.
+- **scripts/export_strategy_for_ea.py**: reads the best strategy per
+  symbol/timeframe from `data_store/strategy_registry.json` and flattens it into
+  `experts/params/<SYMBOL>_<TF>.params` (simple key=value) for the MT5 EA. Only
+  EA-supported indicators (`EA_SUPPORTED_INDICATORS`: ema, sma, rsi, macd, atr,
+  adx) are exported; others are skipped with a note. Keep that list in sync with
+  the EA's `ApplyParam()`.
 - **examples/generate_sample_data.py**: writes synthetic OHLCV CSVs so the whole
   pipeline runs offline with no MT5.
+
+### Native MT5 Strategy Tester validation (experts/)
+- **experts/Mt5SmartBotEA.mq5**: a self-contained MQL5 Expert Advisor that
+  replays the learned blended-indicator logic inside the native MT5 Strategy
+  Tester for authoritative, tick-accurate validation. It loads a `.params` file
+  from the terminal's `MQL5\Files` (via `InpParamsFile`), falling back to its own
+  input parameters when absent. Acts once per new bar; enters on the blended
+  score crossing long/short thresholds; ATR-based SL/TP; risk-based lot sizing;
+  closes on signal flip. Supported indicators: ema, sma, rsi, macd, adx (+ atr
+  for SL/TP). It mirrors the INDICATOR component of the Python decision engine,
+  not the ML/news blend.
+- **experts/README_EA.md**: step-by-step install/compile/run guide and the exact
+  indicator->signal mapping.
+
+### Tests (tests/)
+- Offline, standard-library-only suite (no MT5, no network needed):
+  - `helpers.py`: path fix + deterministic synthetic OHLCV builder.
+  - `test_config.py`: config loads, dotted access, path resolution.
+  - `test_indicators.py`: registry populated, signals bounded [-1,+1], series
+    aligned to bars, build-from-config.
+  - `test_learning.py`: FeatureBuilder shapes, active model fit/predict bounds,
+    NeutralModel fallback.
+  - `test_memory.py`: record/aggregate/rank + JSON registry persist and reload
+    (restart simulation) using a temp DB.
+  - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
+  - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
+    train end-to-end on sample CSVs.
+  - `run_all.py`: discovers and runs everything; non-zero exit on failure.
+  Run: `python -m unittest discover -s tests -v` or `python tests/run_all.py`.
 
 ---
 
@@ -524,12 +570,20 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
 ## 17. Current status / next steps
 
 - Phases 1-4, data/decision/execution layers, config, logging, memory, installer,
-  scripts, requirements, README and this CODE_MAP are IMPLEMENTED.
-- Verified: the offline pipeline runs (`python main.py --mode paper`) using CSV
-  data, a loaded ML model, the memory ensemble, and the news layer.
-- Testing/running is a SEPARATE later phase (per project rules); no formal test
-  suite is included yet.
-- Possible future work: a formal test suite; richer per-currency news attribution;
-  more indicators/patterns; optional annualized/risk-adjusted metrics; an MT5
-  Expert Advisor (.mq5) wrapper for native Strategy Tester validation.
+  scripts, requirements, and this CODE_MAP are IMPLEMENTED.
+- README.md is now WRITTEN (full Windows 7 install/run/backtest/VPS guide,
+  hardware notes, and honest limitations).
+- A native MT5 Strategy Tester Expert Advisor is now INCLUDED
+  (`experts/Mt5SmartBotEA.mq5` + `experts/README_EA.md`) together with the
+  `scripts/export_strategy_for_ea.py` exporter that feeds it the learned
+  strategy.
+- A formal, offline, stdlib-only TEST SUITE is now INCLUDED under `tests/`
+  (21 tests covering config, indicators, learning, memory, news, and the full
+  pipeline). All pass offline without MT5 or a network.
+- Verified: the offline pipeline runs (`python main.py --mode paper/train/
+  backtest/search`) using CSV data, a loaded ML model, the memory ensemble, and
+  the news layer; and `python tests/run_all.py` is green.
+- Possible future work: richer per-currency news attribution; more indicators in
+  the EA (supertrend/bbands) so the exporter can pass them through; optional
+  annualized/risk-adjusted metrics; a self-contained CI workflow file.
 ```

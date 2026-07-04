@@ -6,7 +6,7 @@
         "avg_score": 6.092091,
         "avg_trades": 30.0,
         "fingerprint": "d3e6d3a7e0fcc153",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "keltner": {
@@ -36,7 +36,7 @@
         "avg_score": 1.929701,
         "avg_trades": 37.0,
         "fingerprint": "fae90e6e69b03971",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "adx": {
@@ -73,7 +73,7 @@
         "avg_score": 1.201396,
         "avg_trades": 37.0,
         "fingerprint": "ed05c2f0fd923f08",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "ichimoku": {
@@ -105,7 +105,7 @@
         }
       }
     ],
-    "updated_at": 1782882901.123334
+    "updated_at": 1783137146.6257656
   },
   "GBPUSD|M15": {
     "rank_metric": "expectancy",
@@ -114,7 +114,7 @@
         "avg_score": 8.410708,
         "avg_trades": 31.0,
         "fingerprint": "33cceb66fba83424",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "bbands": {
@@ -155,7 +155,7 @@
         "avg_score": 2.896231,
         "avg_trades": 42.0,
         "fingerprint": "d9e47e3e1b67c88f",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "macd": {
@@ -184,7 +184,7 @@
         "avg_score": -0.961852,
         "avg_trades": 56.0,
         "fingerprint": "da27af040e581dce",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "macd": {
@@ -208,16 +208,16 @@
         }
       }
     ],
-    "updated_at": 1782882903.7446446
+    "updated_at": 1783137149.0265508
   },
   "XAUUSD|M15": {
     "rank_metric": "expectancy",
     "top": [
       {
-        "avg_score": 57451.475425,
+        "avg_score": 28753.07115,
         "avg_trades": 35.0,
         "fingerprint": "3c2bcde5619b6d4b",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "candle_patterns": {},
@@ -239,10 +239,37 @@
         }
       },
       {
-        "avg_score": 22685.98665,
+        "avg_score": 16509.553964,
+        "avg_trades": 102.0,
+        "fingerprint": "4c0ae5f6a32f2caa",
+        "n_segments": 2,
+        "spec": {
+          "indicators": {
+            "candle_patterns": {},
+            "ichimoku": {
+              "kijun": 26,
+              "senkou": 52,
+              "tenkan": 9
+            }
+          },
+          "long_threshold": 0.4,
+          "name": "4c0ae5f6a32f2caa",
+          "short_threshold": 0.17,
+          "sl_atr_mult": 1.8,
+          "symbol": "XAUUSD",
+          "timeframe": "M15",
+          "tp_atr_mult": 3.4,
+          "weights": {
+            "candle_patterns": 1.54,
+            "ichimoku": 0.85
+          }
+        }
+      },
+      {
+        "avg_score": 11352.9440185,
         "avg_trades": 30.0,
         "fingerprint": "701fa74bfad4dfdf",
-        "n_segments": 1,
+        "n_segments": 2,
         "spec": {
           "indicators": {
             "donchian": {
@@ -278,47 +305,8 @@
             "williams_r": 1.67
           }
         }
-      },
-      {
-        "avg_score": 21916.889224,
-        "avg_trades": 52.0,
-        "fingerprint": "ff689151029af665",
-        "n_segments": 1,
-        "spec": {
-          "indicators": {
-            "ichimoku": {
-              "kijun": 26,
-              "senkou": 52,
-              "tenkan": 9
-            },
-            "mfi": {
-              "period": 21
-            },
-            "sma": {
-              "period": 50
-            },
-            "stoch": {
-              "d": 3,
-              "k": 9,
-              "smooth": 1
-            }
-          },
-          "long_threshold": 0.46,
-          "name": "ff689151029af665",
-          "short_threshold": 0.3,
-          "sl_atr_mult": 1.0,
-          "symbol": "XAUUSD",
-          "timeframe": "M15",
-          "tp_atr_mult": 2.3,
-          "weights": {
-            "ichimoku": 1.44,
-            "mfi": 1.54,
-            "sma": 0.65,
-            "stoch": 0.65
-          }
-        }
       }
     ],
-    "updated_at": 1782882906.0075848
+    "updated_at": 1783137151.247012
   }
 }
