@@ -170,6 +170,14 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- ROADMAP EXECUTION START - P1.1 (Track A / A1, docs only). Documented the
+  multi-year REAL-data workflow in README.md (new subsection 1a): export >= 5
+  years of M15 bars per symbol via scripts/export_history.py on Windows with MT5
+  open, expected CSV names in data_store/history/, and how to run a long
+  `--mode search` afterwards. Decision/realism note: this is the highest-value
+  step per the expert review (small samples are the biggest risk), but the export
+  itself is a USER action on the Windows machine - the AI only prepares docs and
+  must not block on it. No source code changed; offline suite still green.
 - EXPERT-AI REVIEW captured as a prioritized roadmap in the new `structure.md`.
   Headline finding: the biggest current risk is STATISTICAL (small samples: ~2
   walk-forward segments, ~20 trades per time bucket), not software. Roadmap is

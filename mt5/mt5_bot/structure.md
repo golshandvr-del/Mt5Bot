@@ -277,7 +277,7 @@ adaptive ideas (Track B -> P5..P7) learn from trustworthy signal, not noise.
 
 Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
 
-- [ ] P1.1 (docs) Document the multi-year REAL-data workflow in README.md:
+- [x] P1.1 (docs) Document the multi-year REAL-data workflow in README.md:
       how to run `scripts/export_history.py` on Windows with MT5 open,
       recommended >= 5 years of M15 bars per symbol, expected CSV names in
       `data_store/history/`, and how to launch a long
@@ -455,6 +455,17 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P1.1 DONE (docs only, no source code changed): added a "Recommended multi-year
+  real-data workflow (do this first)" subsection (1a) to README.md under
+  "Exporting history and backtesting in MT5". It documents running
+  scripts/export_history.py on Windows with the MT5 terminal open, targeting >= 5
+  years of M15 bars per symbol (~125k bars; use --bars 150000), the exact output
+  CSV names in data_store/history/<SYMBOL>_<TF>.csv, how to force the terminal to
+  download older bars, and how to launch a long `python main.py --mode search`
+  afterwards plus the backtest/train/paper follow-ups. Note kept explicit that
+  the actual export is a USER action on the Windows machine; the AI only prepared
+  the docs. A1/A2 section-3 status flips remain deferred to P1.6. Offline suite
+  still green (21 tests). Next sub-step: P1.2.
 - Rewrote section 5 into the PHASED EXECUTION PLAN: the two-track roadmap
   (A1-A7, B1-B8) is now broken into 7 ordered phases (P1-P7) of small,
   commit-sized sub-steps, each with an explicit definition-of-done that

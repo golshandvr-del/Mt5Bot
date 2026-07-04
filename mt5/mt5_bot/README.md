@@ -296,6 +296,69 @@ python scripts/export_history.py --all-timeframes
 CSVs land in `data_store/history/<SYMBOL>_<TF>.csv` and are consumed by
 `--mode search` and `--mode backtest`, even with the terminal closed.
 
+### 1a. Recommended multi-year real-data workflow (do this first)
+
+The synthetic sample data is only for a first offline smoke run. For any results
+you intend to trust, the single most important step is to feed the bot **several
+years of REAL history**. Small samples make the search trust lucky, random
+patterns; a long real history is what makes walk-forward, the significance
+filter, and the time-bucket learning meaningful.
+
+**Step 1 - export a long history on Windows (a USER action).**
+Run this on the Windows machine with the **MT5 terminal open and logged in** (the
+exporter needs a live terminal to pull bars; it cannot run offline):
+
+```bash
+cd mt5\mt5_bot
+python scripts\export_history.py --symbols EURUSD,GBPUSD,XAUUSD --timeframe M15 --bars 150000
+```
+
+- **Aim for at least 5 years of M15 bars per symbol.** As a rule of thumb, M15
+  has ~96 bars per trading day and the FX week is ~5 days, so roughly:
+  - 1 year  ~= 25,000 bars
+  - 3 years ~= 75,000 bars
+  - **5 years ~= 125,000 bars** (use `--bars 150000` to be safe)
+  Your broker only serves the history it actually stores; if you get fewer bars
+  than requested, scroll the chart back in MT5 first (open the symbol chart, press
+  Home / page up to force the terminal to download older bars) and re-run.
+- The exporter writes one file per symbol/timeframe with these exact names in
+  `data_store/history/`:
+  - `EURUSD_M15.csv`
+  - `GBPUSD_M15.csv`
+  - `XAUUSD_M15.csv`
+  (pattern: `<SYMBOL>_<TF>.csv`, upper-case symbol, MT5 timeframe label). Export
+  additional timeframes with `--all-timeframes` or a specific `--timeframe`.
+- Without any flags, `python scripts\export_history.py` uses the symbols,
+  timeframe, and `mt5.history_bars` from `config/config.yaml`. To make the config
+  default long, raise `mt5.history_bars` (e.g. to `150000`) before exporting.
+
+**Step 2 - run a long search over the real data (offline, terminal can be
+closed).** Once the CSVs exist, the heavy exploration runs with no terminal and
+no network:
+
+```bash
+python main.py --mode search
+```
+
+This can legitimately take a long time on a weak CPU because it walk-forward
+evaluates many strategy/parameter combinations across the full multi-year
+history. Let it finish; it persists everything to `data_store/memory.sqlite` and
+refreshes `data_store/strategy_registry.json` as it goes, so progress is not
+lost. Tune the effort/breadth in `config/config.yaml` under `memory.search`
+(e.g. `max_trials`) and the evaluation windows under `memory.walk_forward`.
+
+**Step 3 - sanity-check, then train and dry-run:**
+
+```bash
+python main.py --mode backtest   # internal walk-forward report on the real data
+python main.py --mode train      # train the light ML model on the real data
+python main.py --mode paper      # dry-run decisions using the learned memory
+```
+
+> This "train offline / run light" split means you can do Steps 1-3 on a
+> capable machine and then copy just `data_store/` and `models/` to the weak
+> Windows 7 live/VPS box, which only ever runs the light paper/live path.
+
 ### 2. Validate a strategy in the native MT5 Strategy Tester
 
 An Expert Advisor is provided in `experts/Mt5SmartBotEA.mq5`:
