@@ -116,7 +116,7 @@ bot from an offline learner into a live, adaptive system.
 > This entire track exists to fix the biggest risk (small-sample overfitting).
 > Do this BEFORE the non-linear ideas in Track B.
 
-- [ ] **A1. Export multi-year real history and run a long search (do FIRST).**
+- [x] **A1. Export multi-year real history and run a long search (do FIRST).**
   Use `scripts/export_history.py` on Windows with MT5 open to export several
   years of real bars per symbol into `data_store/history/<SYM>_<TF>.csv`, then
   run `python main.py --mode search` over that real data. This is the single
@@ -124,14 +124,24 @@ bot from an offline learner into a live, adaptive system.
   Files: `scripts/export_history.py`, `app/runners.py::run_search`,
   `core/strategy/search.py`. No code change strictly required to START, but
   document the recommended multi-year workflow in README.
+  STATUS (P1.1 / P1.6): the recommended multi-year export + long-search
+  workflow is now documented in README (section 1a). The actual export and
+  long search are USER actions on the Windows machine (need MT5 + real data),
+  so the roadmap prerequisite is DONE while the run itself stays user-driven.
 
-- [ ] **A2. More walk-forward segments + a locked holdout.**
+- [x] **A2. More walk-forward segments + a locked holdout.**
   Lower `train_bars` and raise the segment count to 6-10, and reserve a final
   "quarantine"/holdout period that the search NEVER sees. A strategy is only
   promoted after it also passes on the untouched holdout.
   Files: `config/config.yaml` (`memory.walk_forward`, add `holdout_bars` /
   `min_segments`), `core/strategy/walk_forward.py` (`segments()` +
   holdout-aware `evaluate()`), `app/runners.py`.
+  STATUS (P1.2-P1.5 / P1.6): DONE. `min_segments` + `holdout_bars` added to
+  config (P1.2); `effective_train_bars` auto-shrinks the train window to reach
+  `min_segments` (P1.3); the locked holdout tail is quarantined from every
+  train/test segment and `evaluate_holdout` + the store `allowed_fingerprints`
+  allowlist gate registry promotion (P1.4); `tests/test_walk_forward.py`
+  (8 tests) locks all of this in (P1.5).
 
 - [ ] **A3. Statistical-significance test in metrics.**
   Add, in pure Python: a Wilson confidence interval for win-rate and a simple
@@ -300,7 +310,7 @@ Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
 - [x] P1.5 (test) Add `tests/test_walk_forward.py`: segment count grows with
       history, holdout bars never appear in any train/test segment, holdout
       gate blocks a failing spec.
-- [ ] P1.6 (docs) Sync CODE_MAP.md sections 8/17, Ideas.md, README.md; flip
+- [x] P1.6 (docs) Sync CODE_MAP.md sections 8/17, Ideas.md, README.md; flip
       A1/A2 statuses in section 3 above.
 
 ### Phase P2 - Statistical significance filter (covers A3)
@@ -468,6 +478,17 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
   and a temp DB so real data_store/config are untouched; stdlib-only. Full offline
   suite now 29 tests, all green. CODE_MAP.md tests section + test-count references
   (21 -> 29) updated. Next sub-step: P1.6.
+- P1.6 DONE (docs): Phase P1 documentation sync + status flips. Flipped the
+  section-3 Track-A items A1 and A2 to [x] with dated STATUS notes: A1's
+  multi-year export + long-search workflow is documented in README (P1.1) and
+  the actual run is a user action on the Windows machine; A2's segments +
+  holdout code/config/tests are complete (P1.2-P1.5). Confirmed CODE_MAP.md
+  section 8 (walk_forward / search / store holdout wording) and section 17
+  (29-test count, walk-forward/holdout status) are already in sync from the
+  P1.4/P1.5 commits, and README section 1a + the holdout config note already
+  cover the user-visible A1/A2 changes, so no further edits were needed there;
+  added this P1.6 note plus an Ideas.md entry. Offline suite still 29 tests,
+  all green. This completes Phase P1. Next sub-step: P2.1.
 - P1.4 DONE (code): locked holdout gate. walk_forward.py now reads
   `memory.walk_forward.holdout_bars` (default 0 = OFF), added
   `searchable_bars(n) = n - holdout_bars` and made `segments()` + the 70/30

@@ -170,6 +170,16 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P1.6 (Track A / A1 + A2, docs). Phase P1 documentation sync + status flips.
+  Flipped section-3 roadmap items A1 (multi-year real-data workflow) and A2
+  (more walk-forward segments + locked holdout) to done with dated STATUS notes;
+  A1's long search stays a user action on the Windows machine, A2's code/config/
+  tests are all complete (P1.2-P1.5). Confirmed CODE_MAP.md sections 8/17 and
+  README section 1a (+ the holdout config note) were already in sync from the
+  P1.4/P1.5 commits, so P1.6 only added the status flips and change-log notes.
+  This closes Phase P1; the next work is Phase P2 (statistical-significance
+  filter: Wilson interval + bootstrap p-value in metrics, enforced in the
+  registry). Offline suite still 29 tests, all green.
 - P1.5 (Track A / A2, test). Added tests/test_walk_forward.py (8 stdlib-only
   tests) locking in the P1.3 segmentation and P1.4 holdout behavior: segment
   count grows with history and reaches min_segments; the holdout tail never
