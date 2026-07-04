@@ -234,14 +234,74 @@ news:
   blackout_minutes: 15
 
 # -----------------------------------------------------------------------------
+# Time / Session / Season awareness (Phase 5, user-update-request)
+# -----------------------------------------------------------------------------
+# The bot can pay attention to WHEN it trades: the FX session (Sydney/Tokyo/
+# London/New York and their overlaps), the day of week, and the season
+# (month/quarter). It does NOT assume any window is good; it LEARNS from its own
+# historical trade outcomes which time buckets were favorable (see the memory
+# "time_stats" table). A bucket's edge is only trusted after it has accumulated
+# at least learning.min_samples trades; until then the time signal is neutral.
+#
+# Default is DISABLED so the light live path on Windows 7 is unchanged. Turn it
+# on after you have run "search" for a while so the time_stats table is filled.
+timing:
+  enabled: false
+  # How the bar timestamp (OHLCV.time) should be interpreted.
+  #   timestamp_is_utc: true  -> the feed timestamps are already UTC.
+  #   If your broker feed is in server/local time, set this false and put the
+  #   offset (hours to ADD to reach UTC) in utc_offset_hours (often negative,
+  #   e.g. a GMT+3 broker uses -3.0).
+  timestamp_is_utc: true
+  utc_offset_hours: 0.0
+  # Approximate UTC session windows [start_hour, end_hour). Windows may wrap
+  # past midnight (start > end), e.g. sydney [21, 6]. Tune for your broker.
+  sessions:
+    sydney:  [21, 6]
+    tokyo:   [0, 9]
+    london:  [7, 16]
+    newyork: [12, 21]
+  # How the time signal is used in the decision blend.
+  #   as_directional: false -> time is a CONFIDENCE / SIZE modifier + gate only
+  #                            (recommended; a session being profitable does not
+  #                             tell you the direction).
+  #   as_directional: true  -> also feed the learned edge as a directional vote
+  #                            with the "weight" below (less principled; off).
+  as_directional: false
+  weight: 0.0
+  # Thresholds on the combined, learned edge (in [-1, +1]).
+  favorable_threshold: 0.15
+  blackout_threshold: 0.5
+  # If true, block NEW entries during unfavorable/blackout time windows.
+  gate_unfavorable: false
+  # Position-size multiplier range derived from the time edge.
+  min_size_mult: 0.5
+  max_size_mult: 1.0
+  # Relative importance of each bucket type when combining learned edges.
+  bucket_weights:
+    session: 1.0
+    day: 0.8
+    hour: 0.6
+    month: 0.4
+    quarter: 0.3
+    season: 0.3
+  learning:
+    # Minimum trades in a bucket before its edge is trusted.
+    min_samples: 20
+  # Optionally expose session/day/season as extra ML learner features.
+  as_features: false
+
+# -----------------------------------------------------------------------------
 # Decision engine - how signals are combined
 # -----------------------------------------------------------------------------
 decision:
   # Weights for blending the different signal sources. They are normalized.
+  # (The optional "timing" weight is used only when timing.as_directional=true.)
   weights:
     indicators: 0.5
     learning: 0.3
     news: 0.2
+    timing: 0.0
   # Probability/score threshold to open a long or short.
   long_threshold: 0.60
   short_threshold: 0.60

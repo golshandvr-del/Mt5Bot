@@ -8,6 +8,12 @@ Inputs blended (weights and thresholds from config.decision):
         (b) the enabled stand-alone indicators (Phase 2).
   - learning   : the active learner's directional score (Phase 1), if ready.
   - news       : the aggregated news sentiment signal (Phase 4), if enabled.
+  - timing     : (Phase 5, user-update-request) an optional time/session/season
+        awareness. By default it is applied as a CONFIDENCE / SIZE modifier and
+        an optional entry GATE (a session being profitable does not tell you the
+        direction), driven ONLY by time buckets the bot has LEARNED to trust from
+        its own historical trades. If timing.as_directional=true it also adds a
+        directional vote with the decision.weights.timing weight.
 
 Output:
   Decision(action, score, size_hint, sl_atr_mult, tp_atr_mult, reasons)
@@ -77,19 +83,27 @@ class DecisionEngine(object):
     def __init__(self, cfg: Any, learner: Optional[object] = None,
                  feature_builder: Optional[object] = None,
                  news_analyzer: Optional[object] = None,
-                 memory: Optional[object] = None):
+                 memory: Optional[object] = None,
+                 timing: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("decision.engine", cfg)
         self.learner = learner
         self.feature_builder = feature_builder
         self.news = news_analyzer
         self.memory = memory
+        # Phase 5 (user-update-request): optional time/session/season provider.
+        self.timing = timing
 
         dec = cfg.get_path("decision", {})
         weights = dec.get("weights", {}) if hasattr(dec, "get") else {}
         self.w_ind = float(weights.get("indicators", 0.5)) if hasattr(weights, "get") else 0.5
         self.w_learn = float(weights.get("learning", 0.3)) if hasattr(weights, "get") else 0.3
         self.w_news = float(weights.get("news", 0.2)) if hasattr(weights, "get") else 0.2
+        self.w_timing = float(weights.get("timing", 0.0)) if hasattr(weights, "get") else 0.0
+        # Whether the timing layer contributes a directional vote (default off).
+        self.timing_directional = bool(cfg.get_path("timing.as_directional", False))
+        # Whether unfavorable/blackout time windows block NEW entries.
+        self.timing_gate = bool(cfg.get_path("timing.gate_unfavorable", False))
         self.long_threshold = float(dec.get("long_threshold", 0.6)) if hasattr(dec, "get") else 0.6
         self.short_threshold = float(dec.get("short_threshold", 0.6)) if hasattr(dec, "get") else 0.6
         self.require_agreement = bool(dec.get("require_agreement", False)) if hasattr(dec, "get") else False
@@ -194,6 +208,21 @@ class DecisionEngine(object):
             self.log.error("News signal error: %s", exc)
             return 0.0
 
+    def _timing_signal(self, ohlcv: Any, symbol: str, timeframe: str):
+        """
+        Return the Phase 5 TimeSignal object (or None). Never raises. The
+        TimeSignal is directionless by default; the engine uses its
+        size_multiplier and favorable/blackout flags, and only uses its edge as
+        a directional vote when timing.as_directional is enabled.
+        """
+        if self.timing is None:
+            return None
+        try:
+            return self.timing.evaluate(ohlcv, symbol, timeframe)
+        except Exception as exc:
+            self.log.error("Timing signal error: %s", exc)
+            return None
+
     # ------------------------------------------------------------------ #
     # Public: produce a decision.
     # ------------------------------------------------------------------ #
@@ -216,6 +245,8 @@ class DecisionEngine(object):
         )
         learn_sig = self._learning_signal(ohlcv)
         news_sig = self._news_signal(symbol)
+        # Phase 5 (user-update-request): time/session/season awareness.
+        time_sig = self._timing_signal(ohlcv, symbol, timeframe)
 
         # Build the weighted blend over contributing components only.
         parts = []
@@ -228,6 +259,12 @@ class DecisionEngine(object):
         if abs(self.w_news) > 0 and self.news is not None:
             parts.append((self.w_news, news_sig, "news"))
             components["news"] = news_sig
+        # Timing contributes a DIRECTIONAL vote only when explicitly enabled;
+        # otherwise it acts as a size/gate modifier applied further below.
+        if (self.timing_directional and abs(self.w_timing) > 0
+                and time_sig is not None and time_sig.enabled):
+            parts.append((self.w_timing, float(time_sig.edge), "timing"))
+            components["timing"] = float(time_sig.edge)
 
         weight_total = sum(abs(w) for w, _, _ in parts)
         if weight_total <= 0.0:
@@ -248,6 +285,16 @@ class DecisionEngine(object):
                 blackout = False
         if blackout:
             reasons.append("news_blackout=1")
+
+        # Timing gate: optionally block NEW entries in historically weak time
+        # windows (only if the bot has LEARNED to distrust this window). This is
+        # applied as a blackout so it never forces a trade, only prevents one.
+        if (self.timing_gate and time_sig is not None and time_sig.enabled
+                and (time_sig.blackout or time_sig.unfavorable)):
+            blackout = True
+            reasons.append("time_gate_blackout=1")
+        if time_sig is not None and time_sig.enabled:
+            reasons.extend(time_sig.reasons)
 
         # Optional agreement rule: indicators and learning must share direction.
         agree_ok = True
@@ -271,6 +318,13 @@ class DecisionEngine(object):
         elif action == -1 and self.short_threshold < 1.0:
             size_hint = (-score - self.short_threshold) / (1.0 - self.short_threshold)
         size_hint = max(0.0, min(1.0, size_hint))
+
+        # Phase 5: scale the size hint by the learned time-window multiplier so
+        # the bot risks less in historically weaker windows and up to normal in
+        # favorable ones. Neutral/unknown time -> multiplier ~1.0 (no change).
+        if action != 0 and time_sig is not None and time_sig.enabled:
+            size_hint = max(0.0, min(1.0, size_hint * time_sig.size_multiplier))
+            reasons.append("time_size_mult=%.2f" % time_sig.size_multiplier)
 
         return Decision(
             action=action,

@@ -28,6 +28,8 @@ from core.learning.factory import build_active_model
 from core.learning.features import FeatureBuilder
 from core.memory.store import MemoryStore
 from core.news.aggregator import NewsAnalyzer
+from core.timing.time_stats import TimeStats
+from core.timing.time_context import TimeContextProvider
 from core.decision.engine import DecisionEngine
 from core.execution.risk_manager import RiskManager
 from core.execution.order_manager import OrderManager
@@ -50,6 +52,8 @@ class BotContext(object):
         self._feature_builder: Optional[FeatureBuilder] = None
         self._memory: Optional[MemoryStore] = None
         self._news: Optional[NewsAnalyzer] = None
+        self._time_stats: Optional[TimeStats] = None
+        self._timing: Optional[TimeContextProvider] = None
         self._risk: Optional[RiskManager] = None
         self._orders: Optional[OrderManager] = None
         self._engine: Optional[DecisionEngine] = None
@@ -113,6 +117,28 @@ class BotContext(object):
         return self._news
 
     @property
+    def time_stats(self) -> TimeStats:
+        """
+        Phase 5 (user-update-request): the persistent per-time-bucket edge
+        statistics store (shares the memory SQLite DB). Always available; it
+        simply returns neutral edges until it has learned enough trades.
+        """
+        if self._time_stats is None:
+            self._time_stats = TimeStats(self.cfg)
+        return self._time_stats
+
+    @property
+    def timing(self) -> Optional[TimeContextProvider]:
+        """
+        Phase 5 (user-update-request): the time-context provider fed into the
+        decision engine. Built only when timing is enabled in config, so the
+        default light path skips it entirely.
+        """
+        if self._timing is None and bool(self.cfg.get_path("timing.enabled", False)):
+            self._timing = TimeContextProvider(self.cfg, time_stats=self.time_stats)
+        return self._timing
+
+    @property
     def risk(self) -> RiskManager:
         if self._risk is None:
             self._risk = RiskManager(self.cfg, self.connector)
@@ -133,6 +159,7 @@ class BotContext(object):
                 feature_builder=self.feature_builder,
                 news_analyzer=self.news,
                 memory=self.memory,
+                timing=self.timing,
             )
         return self._engine
 

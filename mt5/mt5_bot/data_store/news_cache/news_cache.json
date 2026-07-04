@@ -1,6 +1,33 @@
 {
-  "fetched_at": 1783137123.197395,
+  "fetched_at": 1783146061.6759777,
   "items": [
+    {
+      "published_ts": 1783142356.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "AI boom reshapes FX markets through equity hedging flows",
+      "url": "https://www.investing.com/news/stock-market-news/ai-boom-reshapes-fx-markets-through-equity-hedging-flows-4775340"
+    },
+    {
+      "published_ts": 1783141226.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "SK Hynix considering 0.5% fee payout in ADR offering, Bloomberg News reports",
+      "url": "https://www.investing.com/news/stock-market-news/sk-hynix-considering-05-fee-payout-in-adr-offering-bloomberg-news-reports-4775339"
+    },
+    {
+      "published_ts": 1783140196.0,
+      "score": 0.0,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "SK Hynix weighs 0.5% underwriting fee for blockbuster U.S. share sale",
+      "url": "https://www.investing.com/news/stock-market-news/sk-hynix-weighs-05-underwriting-fee-for-blockbuster-us-share-sale-4775338"
+    },
     {
       "published_ts": 1783132873.0,
       "score": 0.0,
@@ -65,33 +92,6 @@
       "symbols": [],
       "title": "Brazil stocks higher at close of trade; Bovespa up 0.74%",
       "url": "https://www.investing.com/news/stock-market-news/brazil-stocks-higher-at-close-of-trade-bovespa-up-074-4775316"
-    },
-    {
-      "published_ts": 1783105230.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Soccer-Texas Attorney General launches investigation into StubHub amid World Cup complaints",
-      "url": "https://www.investing.com/news/stock-market-news/soccertexas-attorney-general-launches-investigation-into-stubhub-amid-world-cup-complaints-4775306"
-    },
-    {
-      "published_ts": 1783103432.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "China\u2019s Chery takes over former Nissan car factory in South Africa",
-      "url": "https://www.investing.com/news/stock-market-news/chinas-chery-takes-over-former-nissan-car-factory-in-south-africa-4775305"
-    },
-    {
-      "published_ts": 1783102707.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Ferrari appeals to traditionalists with new V12 manual gearbox limited edition",
-      "url": "https://www.investing.com/news/stock-market-news/ferrari-appeals-to-traditionalists-with-new-v12-manual-gearbox-limited-edition-4775304"
     },
     {
       "published_ts": 1783108800.0,

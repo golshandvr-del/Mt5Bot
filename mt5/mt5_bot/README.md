@@ -102,9 +102,28 @@ the decision layer:
   optional **news blackout** window around fresh high-impact items.
 - Degrades to a neutral signal when disabled/offline.
 
+### Phase 5 - Timing / session / season awareness (`core/timing/`)
+Optional layer (default OFF) that lets the bot recognize whether its edge depends
+on WHEN it trades - the active FX session (Sydney / Tokyo / London / New York and
+their overlaps), the day of week, the hour, the month/quarter, and the season.
+
+- **Empirical, not assumed**: the bot LEARNS a per-time-bucket edge from its own
+  realized historical trade outcomes (`TimeStats`, persisted in the memory store).
+  A bucket's edge is trusted only after enough trades (`timing.learning.min_samples`).
+- **Pure stdlib** (Python `datetime` only), so it runs on a minimal Windows 7
+  install with no extra dependencies.
+- **Config-driven session windows** (`timing.sessions`) and a broker-time to UTC
+  conversion (`timing.timestamp_is_utc` / `timing.utc_offset_hours`).
+- **Three ways to use it** (all optional): a confidence / position-size modifier,
+  an entry GATE that blocks trades in unfavorable/blackout windows
+  (`timing.gate_unfavorable`), and/or a directional vote (`timing.as_directional`).
+  It can also add session/day/season columns to the ML features
+  (`timing.as_features`).
+
 All phases meet in the **decision engine** (`core/decision/engine.py`), which
-blends indicators/ensemble + learning + news into a single `Decision`, then the
-**execution layer** (`core/execution/`) sizes and (in live mode) sends the order.
+blends indicators/ensemble + learning + news (and, when enabled, the timing
+signal) into a single `Decision`, then the **execution layer**
+(`core/execution/`) sizes and (in live mode) sends the order.
 
 ---
 
@@ -128,6 +147,7 @@ mt5/
       strategy/           Phase 3 search / backtest / walk-forward
       memory/             Phase 3 SQLite + JSON persistence
       news/               Phase 4 news + sentiment
+      timing/             Phase 5 session / day / season awareness (optional)
       decision/           Signal fusion -> Decision
       execution/          Risk manager + order manager
       utils/              Logging + helpers

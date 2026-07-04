@@ -36,10 +36,16 @@ class BacktestResult(object):
     """Holds the outcome of a single backtest run."""
 
     def __init__(self, metrics: Dict[str, Any], equity_curve: List[float],
-                 trade_pnls: List[float]):
+                 trade_pnls: List[float],
+                 trades: Optional[List[Dict[str, Any]]] = None):
         self.metrics = metrics
         self.equity_curve = equity_curve
         self.trade_pnls = trade_pnls
+        # Phase 5 (user-update-request): optional per-trade records with the
+        # entry-bar timestamp so the timing layer can attribute PnL to time
+        # buckets (session/day/season). Each item: {"entry_ts": int, "pnl": float,
+        # "direction": +1/-1}. Empty unless record_trades=True was requested.
+        self.trades: List[Dict[str, Any]] = trades or []
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -75,7 +81,8 @@ class Backtester(object):
 
     def run(self, strategy: Strategy, ohlcv: Any,
             warmup: int = 60, point: Optional[float] = None,
-            contract: Optional[float] = None) -> BacktestResult:
+            contract: Optional[float] = None,
+            record_trades: bool = False) -> BacktestResult:
         """
         Run the backtest over the OHLCV series.
 
@@ -86,6 +93,10 @@ class Backtester(object):
                    the symbol (FX/JPY 100000, metals 100). Making these
                    symbol-aware keeps reported PnL sensible per instrument;
                    RELATIVE ranking across strategies is unaffected.
+        record_trades : when True, also collect per-trade records carrying the
+                   ENTRY-bar timestamp and PnL so the Phase 5 timing layer can
+                   attribute outcomes to time buckets. Kept optional so the hot
+                   search loop stays as light as possible when not needed.
         """
         # Infer symbol specs so gold/JPY do not report absurd PnL magnitudes.
         symbol = getattr(strategy.spec, "symbol", "") or getattr(ohlcv, "symbol", "")
@@ -99,10 +110,11 @@ class Backtester(object):
         close = ohlcv.close
         high = ohlcv.high
         low = ohlcv.low
+        times = getattr(ohlcv, "time", None) or []
         n = len(close)
         if n <= warmup + 5:
             return BacktestResult(compute_metrics([], [self.initial_balance]),
-                                  [self.initial_balance], [])
+                                  [self.initial_balance], [], [])
 
         # -------------------------------------------------------------- #
         # PERFORMANCE: precompute the full per-bar decision and ATR series
@@ -119,9 +131,11 @@ class Backtester(object):
         balance = self.initial_balance
         equity_curve: List[float] = [balance]
         trade_pnls: List[float] = []
+        trades: List[Dict[str, Any]] = []
 
         position = 0          # 0 flat, +1 long, -1 short
         entry_price = 0.0
+        entry_ts = 0          # entry-bar timestamp (for the timing layer)
         stop_price = 0.0
         take_price = 0.0
         cost = self._round_trip_cost(point, self.contract)
@@ -161,12 +175,19 @@ class Backtester(object):
                     balance += pnl
                     trade_pnls.append(pnl)
                     equity_curve.append(balance)
+                    if record_trades:
+                        trades.append({
+                            "entry_ts": entry_ts,
+                            "pnl": pnl,
+                            "direction": position,
+                        })
                     position = 0
 
             # Enter a new position if flat and a directional decision appears.
             if position == 0 and decision != 0:
                 position = decision
                 entry_price = close[i]
+                entry_ts = times[i] if i < len(times) else 0
                 if position == 1:
                     stop_price = entry_price - strategy.spec.sl_atr_mult * atr
                     take_price = entry_price + strategy.spec.tp_atr_mult * atr
@@ -181,6 +202,12 @@ class Backtester(object):
             balance += pnl
             trade_pnls.append(pnl)
             equity_curve.append(balance)
+            if record_trades:
+                trades.append({
+                    "entry_ts": entry_ts,
+                    "pnl": pnl,
+                    "direction": position,
+                })
 
         metrics = compute_metrics(trade_pnls, equity_curve)
-        return BacktestResult(metrics, equity_curve, trade_pnls)
+        return BacktestResult(metrics, equity_curve, trade_pnls, trades)
