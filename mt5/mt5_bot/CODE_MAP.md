@@ -607,6 +607,12 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
     `evaluate_holdout` is a no-op when disabled and blocks a spec that fails on
     the untouched holdout; the store `allowed_fingerprints` allowlist restricts
     registry promotion (none/subset/empty).
+  - `test_metrics_significance.py` (A3 / P2.5): wilson_interval textbook + edge
+    cases; bootstrap_pvalue low for a positive series, high for a symmetric one,
+    deterministic under a fixed seed; compute_metrics carries win_rate_ci_low /
+    pnl_pvalue; and the memory store PROMOTION filter (P2.4) records a
+    non-significant strategy but never promotes it, promotes the significant one,
+    honors the optional win-rate lower-bound gate, and is a no-op when disabled.
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.
@@ -700,11 +706,12 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   `scripts/export_strategy_for_ea.py` exporter that feeds it the learned
   strategy.
 - A formal, offline, stdlib-only TEST SUITE is now INCLUDED under `tests/`
-  (29 tests covering config, indicators, learning, memory, news, walk-forward /
-  holdout, and the full pipeline). All pass offline without MT5 or a network.
+  (40 tests covering config, indicators, learning, memory, news, walk-forward /
+  holdout, statistical significance, and the full pipeline). All pass offline
+  without MT5 or a network.
 - Verified: the offline pipeline runs (`python main.py --mode paper/train/
   backtest/search`) using CSV data, a loaded ML model, the memory ensemble, and
-  the news layer; and `python tests/run_all.py` is green (29 tests).
+  the news layer; and `python tests/run_all.py` is green (40 tests).
 - Phase 5 TIMING layer (user-update-request) is IMPLEMENTED under `core/timing/`
   (SessionCalendar/TimeContext, TimeStats learned per-bucket edge, and
   TimeContextProvider/TimeSignal). It is wired (optional, default OFF) into the

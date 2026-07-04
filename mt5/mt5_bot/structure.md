@@ -330,7 +330,7 @@ never enter the registry.
 - [x] P2.4 (code) Enforce the filter in `core/memory/store.py`
       (`update_registry` and/or `top_strategies`): non-significant strategies
       are recorded (for memory) but never promoted to the registry.
-- [ ] P2.5 (test) Add `tests/test_metrics_significance.py`: Wilson bounds on
+- [x] P2.5 (test) Add `tests/test_metrics_significance.py`: Wilson bounds on
       known cases, bootstrap p-value low for a clearly-positive PnL series and
       high for a symmetric-random series, registry rejects non-significant.
 - [ ] P2.6 (docs) Sync all four docs; flip A3 status.
@@ -465,6 +465,24 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P2.5 DONE (test): added tests/test_metrics_significance.py (11 tests) locking
+  in the whole P2 significance layer. TestWilsonInterval: the textbook 95%
+  interval for 50/100 (~0.4038, 0.5962), bounds stay in [0,1] and are honest for
+  small n (10/10 lower bound < 1.0), and the n<=0 / z<=0 / wins-clamp edge cases.
+  TestBootstrapPvalue: p-value < 0.05 for a clearly-positive series, > 0.20 for a
+  symmetric-random series, conservative 1.0 for empty / n_boot<=0, and identical
+  results under a fixed seed (determinism). TestComputeMetricsSignificance:
+  compute_metrics carries win_rate_ci_low + pnl_pvalue (low p-value / positive
+  lower bound for a positive series) and the empty-series conservative case
+  (pnl_pvalue=1.0, ci_low=0.0). TestRegistrySignificanceFilter (P2.4 lock-in):
+  a non-significant strategy with a HIGHER raw score is recorded (4 result rows)
+  but excluded from top_strategies and update_registry while the significant one
+  is promoted; apply_significance=False returns both; the filter disabled
+  promotes both; and the optional min_winrate_ci_low gate rejects a strong
+  p-value with a weak win-rate lower bound. Tests use in-memory config overrides
+  + a temp DB; stdlib-only. Full offline suite now 40 tests (was 29), all green.
+  CODE_MAP.md tests section + the two 29->40 test-count references updated. Next
+  sub-step: P2.6.
 - P2.4 DONE (code): the statistical-significance filter is now ENFORCED at the
   registry-promotion boundary in core/memory/store.py. `MemoryStore.__init__`
   reads the `memory.search.significance` block (enabled default true,

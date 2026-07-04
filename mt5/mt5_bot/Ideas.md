@@ -170,6 +170,17 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P2.5 (Track A / A3, test). Added tests/test_metrics_significance.py (11 tests)
+  as the formal lock-in for the P2 significance layer: wilson_interval on the
+  textbook 50/100 case plus [0,1]/small-n honesty and the n<=0 / z<=0 / clamp
+  edges; bootstrap_pvalue low for a clearly-positive series, high for a
+  symmetric one, conservative for empty/n_boot<=0, and deterministic under a
+  fixed seed; compute_metrics carrying win_rate_ci_low + pnl_pvalue; and the
+  P2.4 registry filter (non-significant recorded but not promoted, significant
+  promoted, apply_significance=False raw fetch, disabled = promote all, optional
+  win-rate lower-bound gate). Stdlib-only, temp DB + in-memory config overrides.
+  Offline suite grew 29 -> 40 tests, all green. Docs synced. Next: P2.6 (doc
+  sync + flip the A3 status in structure.md section 3).
 - P2.4 (Track A / A3, code). Enforced the statistical-significance filter in
   the memory store so a strategy that cannot be separated from randomness is
   RECORDED (for memory) but never PROMOTED to the JSON registry.
