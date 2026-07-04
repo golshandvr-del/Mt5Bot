@@ -170,6 +170,14 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P2.1 (Track A / A3, code). Added wilson_interval(wins, n, z=1.96) to
+  core/strategy/metrics.py: a pure-Python Wilson score confidence interval for
+  the win-rate that stays in [0, 1] and is honest for small samples. This is the
+  first brick of the P2 statistical-significance filter; P2.2 adds a bootstrap
+  p-value, P2.3 wires both into compute_metrics + a config block, and P2.4
+  enforces the filter so non-significant strategies are recorded but never
+  promoted to the registry. Default behavior of compute_metrics is unchanged
+  until P2.3.
 - P1.6 (Track A / A1 + A2, docs). Phase P1 documentation sync + status flips.
   Flipped section-3 roadmap items A1 (multi-year real-data workflow) and A2
   (more walk-forward segments + locked holdout) to done with dated STATUS notes;

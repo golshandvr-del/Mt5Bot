@@ -12,6 +12,10 @@ curve, compute the standard set of metrics used to rank strategies in memory:
   - net_profit
   - average_win / average_loss
 
+It also provides `wilson_interval(wins, n, z)`, a pure-Python Wilson score
+confidence interval for the win-rate, used by the statistical-significance
+filter (Phase P2 / A3) to keep small-sample strategies honest.
+
 All pure Python.
 
 All text is standard ASCII English only.
@@ -19,7 +23,50 @@ All text is standard ASCII English only.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
+
+
+def wilson_interval(wins: int, n: int, z: float = 1.96) -> Tuple[float, float]:
+    """
+    Wilson score confidence interval for a binomial proportion (win-rate).
+
+    Given `wins` successes out of `n` trials, return the (low, high) bounds of
+    the confidence interval for the true win-rate at confidence level implied by
+    `z` (default z=1.96 ~ 95%). Unlike the naive normal interval, the Wilson
+    interval stays inside [0, 1] and behaves sensibly for small `n`, which is
+    exactly the small-sample regime this project needs to be honest about.
+
+    Pure Python (uses only ** for the square root). Edge cases:
+      - n <= 0            -> (0.0, 0.0) (no information).
+      - wins clamped to [0, n] defensively.
+      - z <= 0            -> the point estimate (p_hat, p_hat).
+    The returned bounds are always clamped to [0.0, 1.0] with low <= high.
+    """
+    if n <= 0:
+        return (0.0, 0.0)
+    if wins < 0:
+        wins = 0
+    if wins > n:
+        wins = n
+
+    p_hat = wins / n
+    if z <= 0.0:
+        return (p_hat, p_hat)
+
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    center = (p_hat + z2 / (2.0 * n)) / denom
+    margin = (z / denom) * ((p_hat * (1.0 - p_hat) / n
+                             + z2 / (4.0 * n * n)) ** 0.5)
+
+    low = center - margin
+    high = center + margin
+    # Clamp to a valid probability range; keep low <= high defensively.
+    low = 0.0 if low < 0.0 else (1.0 if low > 1.0 else low)
+    high = 0.0 if high < 0.0 else (1.0 if high > 1.0 else high)
+    if low > high:
+        low, high = high, low
+    return (low, high)
 
 
 def compute_metrics(trade_pnls: List[float],

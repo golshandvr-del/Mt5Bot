@@ -321,6 +321,11 @@ and indicator layers consistent.
   average_win/loss.
 - `rank_value(metrics, rank_metric)` -> single comparable score (max_drawdown is
   negated so "higher is better" holds for ranking).
+- Statistical significance (A3 / P2.1): `wilson_interval(wins, n, z=1.96)` ->
+  pure-Python Wilson score confidence interval (low, high) for the win-rate.
+  Stays inside [0, 1] and is honest for small `n`. Edge cases: n<=0 -> (0,0),
+  z<=0 -> (p_hat, p_hat), wins clamped to [0, n], bounds clamped to [0, 1].
+  Feeds the upcoming P2.3 `win_rate_ci_low` metric and the P2.4 registry filter.
 
 ### backtester.py - `Backtester`
 Fast bar-by-bar single-position simulator (NOT the MT5 tester). Enter on signal

@@ -318,7 +318,7 @@ Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
 Goal: a strategy that cannot be statistically separated from randomness must
 never enter the registry.
 
-- [ ] P2.1 (code) `core/strategy/metrics.py`: add `wilson_interval(wins, n,
+- [x] P2.1 (code) `core/strategy/metrics.py`: add `wilson_interval(wins, n,
       z=1.96)` returning (low, high) for win-rate. Pure Python.
 - [ ] P2.2 (code) `core/strategy/metrics.py`: add `bootstrap_pvalue(trade_pnls,
       n_boot=1000, seed=...)` -> p-value that mean PnL <= 0, via seeded
@@ -478,6 +478,16 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
   and a temp DB so real data_store/config are untouched; stdlib-only. Full offline
   suite now 29 tests, all green. CODE_MAP.md tests section + test-count references
   (21 -> 29) updated. Next sub-step: P1.6.
+- P2.1 DONE (code): added `wilson_interval(wins, n, z=1.96)` to
+  core/strategy/metrics.py - a pure-Python Wilson score confidence interval
+  (low, high) for the win-rate. It stays inside [0, 1] and is honest for small
+  n (the exact small-sample regime Track A targets). Edge cases handled: n<=0
+  -> (0.0, 0.0); z<=0 -> (p_hat, p_hat); wins clamped to [0, n]; bounds clamped
+  to [0, 1] with low<=high. Verified against the textbook 95% interval for
+  50/100 (~0.4038, 0.5962) and the 0/n, n/n, and clamp edge cases. No behavior
+  change to compute_metrics/rank_value yet (that arrives in P2.3); the formal
+  test is P2.5. CODE_MAP section 8 metrics.py entry updated. Offline suite still
+  29 tests, all green. Next sub-step: P2.2.
 - P1.6 DONE (docs): Phase P1 documentation sync + status flips. Flipped the
   section-3 Track-A items A1 and A2 to [x] with dated STATUS notes: A1's
   multi-year export + long-search workflow is documented in README (P1.1) and
