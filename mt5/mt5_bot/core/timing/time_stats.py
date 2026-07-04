@@ -80,7 +80,27 @@ class TimeStats(object):
         except Exception:
             pass
         # Minimum trades before a bucket's edge is trusted (else neutral).
-        self.min_samples = int(cfg.get_path("timing.learning.min_samples", 20))
+        # P3.1 raised the default from 20 to 50 (a ~20-trade time bucket is too
+        # noisy to trust). Read defensively so a bad/missing value degrades to
+        # the safe default rather than crashing the live-light path.
+        try:
+            self.min_samples = int(cfg.get_path("timing.learning.min_samples", 50))
+        except (TypeError, ValueError):
+            self.min_samples = 50
+        # Bayesian shrinkage constant (P3.1). The bucket edge is multiplied by
+        # n / (n + shrinkage), pulling small buckets toward a neutral 0 edge in
+        # proportion to how few samples they have. Decoupled from min_samples
+        # (which is only the trust threshold) so the two can be tuned
+        # independently. Default falls back to min_samples to preserve the old
+        # n / (n + min_samples) behavior; shrinkage <= 0 disables shrinkage.
+        try:
+            self.shrinkage = float(
+                cfg.get_path("timing.learning.shrinkage", self.min_samples)
+            )
+        except (TypeError, ValueError):
+            self.shrinkage = float(self.min_samples)
+        if self.shrinkage < 0.0:
+            self.shrinkage = 0.0
         self.calendar = SessionCalendar(cfg)
         self._init_db()
         # Small in-process cache: (symbol, timeframe) -> {(type,value): row}.
@@ -221,13 +241,18 @@ class TimeStats(object):
         return rows
 
     @staticmethod
-    def _edge_from_row(row: Dict[str, Any], min_samples: int) -> Dict[str, Any]:
+    def _edge_from_row(row: Dict[str, Any], min_samples: int,
+                       shrinkage: Optional[float] = None) -> Dict[str, Any]:
         """
         Turn raw aggregates into interpretable stats + a bounded edge score.
 
         edge in [-1, +1]:
           base = avg_pnl / (std_pnl + |avg_pnl| + eps)   (a t-like ratio, bounded)
-          shrink toward 0 by n / (n + min_samples) so small samples are cautious.
+          shrink toward 0 by n / (n + shrinkage) so small samples are cautious
+          (Bayesian shrinkage, P3.1). `shrinkage` is decoupled from
+          `min_samples` (the trust threshold); when it is None the old
+          n / (n + min_samples) behavior is used, and shrinkage <= 0 disables
+          shrinkage (raw edge).
         favorable/unfavorable are derived by the caller via thresholds.
         """
         n = int(row.get("n", 0))
@@ -243,7 +268,15 @@ class TimeStats(object):
         eps = 1e-9
         base = avg / (std + abs(avg) + eps)     # naturally in about [-1, +1]
         base = max(-1.0, min(1.0, base))
-        shrink = n / float(n + max(1, min_samples))
+        # Bayesian shrinkage: edge * n / (n + shrinkage_k).
+        if shrinkage is None:
+            k = float(max(1, min_samples))
+        else:
+            k = float(shrinkage)
+        if k <= 0.0:
+            shrink = 1.0                        # shrinkage disabled -> raw edge
+        else:
+            shrink = n / float(n + k)
         edge = base * shrink
         return {
             "n": n,
@@ -266,7 +299,7 @@ class TimeStats(object):
         if row is None:
             return {"n": 0, "win_rate": 0.0, "avg_pnl": 0.0, "edge": 0.0,
                     "trusted": False}
-        return self._edge_from_row(row, self.min_samples)
+        return self._edge_from_row(row, self.min_samples, self.shrinkage)
 
     def context_edges(self, symbol: str, timeframe: str,
                       ctx: Any) -> Dict[str, Dict[str, Any]]:

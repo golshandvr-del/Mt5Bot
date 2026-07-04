@@ -170,6 +170,21 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P3.1 (Track A / A4, code+config). Time-bucket Bayesian shrinkage. Raised the
+  timing.learning.min_samples default from 20 to 50 (a ~20-trade time bucket is
+  too noisy to trust) and added timing.learning.shrinkage (default 50, <= 0
+  disables). core/timing/time_stats.py now multiplies each bucket's bounded edge
+  by n / (n + shrinkage), pulling small buckets toward a neutral 0 edge in
+  proportion to sample scarcity so a rare bucket cannot hallucinate a strong
+  time pattern. Realism note: this is the direct fix for the expert review's
+  "~20 trades per time bucket = luck-trusting" risk - combined with the P6.3
+  time x regime buckets (which will be even smaller) the shrinkage becomes
+  essential. Decoupled from min_samples (the trust threshold) and fully
+  backward-compatible (shrinkage=None reproduces the old n/(n+min_samples)
+  formula, shrinkage<=0 gives raw edge, config read defensively). Default OFF
+  path unchanged since timing.enabled is still false. Dedicated shrinkage test
+  is P3.2; the A4 status flip is deferred to P3.8. Offline suite still 40 tests,
+  all green.
 - P2.6 (Track A / A3, docs). Phase P2 documentation sync + status flip. Flipped
   the structure.md section-3 roadmap item A3 (statistical-significance filter) to
   done with a dated STATUS note summarizing the full P2.1-P2.6 chain (Wilson

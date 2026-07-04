@@ -314,8 +314,19 @@ timing:
     quarter: 0.3
     season: 0.3
   learning:
-    # Minimum trades in a bucket before its edge is trusted.
-    min_samples: 20
+    # Minimum trades in a bucket before its edge is trusted (P3.1 raised the
+    # default from 20 to 50 because a time bucket with only ~20 trades is
+    # statistically noisy - most FX time patterns need many more samples to be
+    # real).
+    min_samples: 50
+    # Bayesian-style shrinkage constant that pulls a bucket's edge toward 0 in
+    # proportion to how few samples it has: edge is multiplied by
+    # n / (n + shrinkage). A large bucket (n >> shrinkage) keeps almost its raw
+    # edge; a tiny bucket (n << shrinkage) is heavily damped toward neutral, so
+    # rare buckets cannot hallucinate a strong time pattern. Set to 0 to disable
+    # shrinkage entirely (raw edge). Default matches min_samples so a bucket at
+    # exactly the trust threshold keeps ~half its edge.
+    shrinkage: 50
   # Optionally expose session/day/season as extra ML learner features.
   as_features: false
 

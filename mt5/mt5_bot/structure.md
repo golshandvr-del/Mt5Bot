@@ -347,7 +347,7 @@ never enter the registry.
 Goal: stop hallucinated time patterns, stop cross-symbol dilution, and rank
 gold realistically.
 
-- [ ] P3.1 (code+config) `core/timing/time_stats.py`: raise
+- [x] P3.1 (code+config) `core/timing/time_stats.py`: raise
       `timing.learning.min_samples` default to 50 and add
       `timing.learning.shrinkage` (Bayesian shrinkage pulling a bucket's edge
       toward zero in proportion to sample scarcity, e.g.
@@ -472,6 +472,23 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P3.1 DONE (code+config): time-bucket Bayesian shrinkage + higher trust
+  threshold (A4). config.yaml `timing.learning.min_samples` default raised from
+  20 to 50 (a ~20-trade bucket is too noisy to trust) and a new
+  `timing.learning.shrinkage` knob added (default 50 = matches min_samples;
+  <= 0 disables). `core/timing/time_stats.py`: `__init__` now reads both keys
+  defensively (bad/missing -> safe defaults; negative shrinkage clamped to 0);
+  `_edge_from_row` gained an optional `shrinkage` parameter and multiplies the
+  bounded edge by `n / (n + shrinkage)` so small buckets are pulled toward a
+  neutral 0 edge in proportion to sample scarcity, decoupled from the trust
+  threshold. `shrinkage=None` reproduces the pre-P3.1 `n / (n + min_samples)`
+  formula, and `shrinkage <= 0` returns the raw edge, so the change degrades
+  gracefully. `bucket_edge` passes `self.shrinkage`. Verified manually: a
+  5-sample bucket's edge is heavily damped (~0.06) and untrusted while a
+  500-sample bucket keeps ~0.63 (trusted); shrinkage=0 gives the raw ~0.69;
+  config loads via both YAML paths. CODE_MAP.md section 10b updated. Offline
+  suite still 40 tests, all green. The dedicated shrinkage test is P3.2; the
+  A4 status flip is deferred to P3.8. Next sub-step: P3.2.
 - P2.6 DONE (docs): Phase P2 documentation sync + status flip. Flipped the
   section-3 Track-A item A3 to [x] with a dated STATUS note summarizing the
   whole P2.1-P2.6 chain (Wilson interval + bootstrap p-value in metrics,

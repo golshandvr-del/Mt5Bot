@@ -501,8 +501,17 @@ own historical trade outcomes rather than assume it. Pure-Python stdlib only
 - Learns and PERSISTS a per-bucket edge from realized trade outcomes. Buckets are
   keyed by type (session/day/hour/month/quarter/season) and value. Each bucket
   aggregates trade count + mean outcome -> an edge in [-1,+1]. Trusts a bucket
-  only after `timing.learning.min_samples` trades. Survives restarts via the
-  memory store.
+  only after `timing.learning.min_samples` trades (default 50 since P3.1).
+  Survives restarts via the memory store.
+- Bayesian shrinkage (A4 / P3.1): the bucket edge is multiplied by
+  `n / (n + timing.learning.shrinkage)`, pulling small buckets toward a neutral
+  0 edge in proportion to how few samples they have, so a rare bucket cannot
+  hallucinate a strong time pattern. `shrinkage` is DECOUPLED from `min_samples`
+  (the trust threshold) and defaults to `min_samples` to preserve the old
+  `n / (n + min_samples)` behavior; `shrinkage <= 0` disables shrinkage (raw
+  edge). `_edge_from_row(row, min_samples, shrinkage=None)` implements it;
+  `shrinkage=None` reproduces the pre-P3.1 formula. Config is read defensively
+  (bad/missing values fall back to the safe defaults).
 
 ### time_context.py - `TimeContextProvider` + `TimeSignal`
 - `evaluate(ohlcv, symbol, tf) -> TimeSignal`: builds the `TimeContext`, looks up
