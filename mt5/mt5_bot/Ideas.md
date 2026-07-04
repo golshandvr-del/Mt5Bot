@@ -170,6 +170,13 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P1.3 (Track A / A2, code). walk_forward.py segments() now produces at least
+  min_segments (6-10) rolling out-of-sample windows on long histories by
+  auto-shrinking the train window (new effective_train_bars(n); shrink-only, with
+  a floor). This directly attacks the "~2 segments = luck-trusting" risk while
+  leaving short-history and already-long-enough cases byte-identical. Realism
+  note: more out-of-sample windows = a more honest generalization estimate before
+  a strategy is trusted. Offline suite still green.
 - P1.2 (Track A / A2, config only). Added two walk-forward knobs to config.yaml:
   memory.walk_forward.min_segments (default 6) to later request 6-10 rolling
   segments, and memory.walk_forward.holdout_bars (default 0 = off) to later

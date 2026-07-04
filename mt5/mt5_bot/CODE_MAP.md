@@ -335,6 +335,12 @@ Splits history into rolling (train, test) windows from `memory.walk_forward`.
 each out-of-sample test segment, optionally recording each result in the memory
 store, and returns aggregate avg_score/avg_trades. Falls back to a 70/30 split if
 history is too short.
+- Statistical robustness (A2 / P1.3): `effective_train_bars(n)` auto-SHRINKS the
+  train window (never below a floor = max(test_bars, 200), never grown) so a long
+  history is split into at least `memory.walk_forward.min_segments` (clamped to
+  1..10, default 6) rolling out-of-sample windows instead of only ~2. When the
+  configured train window already yields enough segments, or when history is too
+  short to hit min_segments above the floor, the original behavior is preserved.
 
 ### search.py - `StrategySearch`
 The "learn from trial-and-error" loop / memory builder.

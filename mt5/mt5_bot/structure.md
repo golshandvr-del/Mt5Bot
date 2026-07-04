@@ -288,7 +288,7 @@ Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
       `memory.walk_forward.holdout_bars` (default 0 = off) to config.yaml with
       comments. Unset/zero values must keep today's behavior byte-identical.
       [A2]
-- [ ] P1.3 (code) Upgrade `core/strategy/walk_forward.py::segments()` to
+- [x] P1.3 (code) Upgrade `core/strategy/walk_forward.py::segments()` to
       produce `min_segments` (6-10) rolling segments by auto-shrinking
       train_bars when history length allows; keep the existing 70/30 fallback
       for short history. [A2]
@@ -455,6 +455,16 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P1.3 DONE (code): walk_forward.py now auto-shrinks the train window to hit
+  `memory.walk_forward.min_segments` (clamped 1..10, default 6) rolling
+  out-of-sample segments on long histories. Added `effective_train_bars(n)` (uses
+  t_max = n - test_bars - (min_segments-1)*step_bars; only ever shrinks, never
+  below floor = max(test_bars, 200)) and made `segments()` use it. Behavior is
+  preserved when the configured train already yields enough segments and when
+  history is too short (segments()=0 -> evaluate()'s 70/30 fallback). Verified:
+  n=6000 now gives 6 segments (was 4), n>=8000 unchanged, n=125000 -> 162
+  segments, all test windows in range. CODE_MAP.md section 8 updated. Dedicated
+  test file is P1.5. Offline suite still green (21 tests). Next sub-step: P1.4.
 - P1.2 DONE (config only): added `memory.walk_forward.min_segments` (default 6)
   and `memory.walk_forward.holdout_bars` (default 0 = off) to config.yaml with
   explanatory comments. No code reads them yet (that lands in P1.3 segments and
