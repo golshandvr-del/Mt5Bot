@@ -170,6 +170,16 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P1.4 (Track A / A2, code). Locked "quarantine" holdout: the final
+  memory.walk_forward.holdout_bars of history are now reserved and NEVER seen by
+  the search (walk_forward.searchable_bars() bounds segments() and the 70/30
+  fallback). New WalkForward.evaluate_holdout() backtests a spec on just that
+  tail; search.py only lets holdout-passing fingerprints be promoted, via a new
+  optional allowed_fingerprints allowlist on store.top_strategies/update_registry.
+  Default holdout_bars=0 keeps everything a byte-identical no-op. Realism note:
+  this is the strongest anti-overfit guard yet - a strategy must survive on data
+  that could not have influenced its selection before it is trusted live. Offline
+  suite still green (dedicated test lands in P1.5).
 - P1.3 (Track A / A2, code). walk_forward.py segments() now produces at least
   min_segments (6-10) rolling out-of-sample windows on long histories by
   auto-shrinking the train window (new effective_train_bars(n); shrink-only, with

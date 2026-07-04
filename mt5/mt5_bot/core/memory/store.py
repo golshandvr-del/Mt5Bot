@@ -146,13 +146,30 @@ class MemoryStore(object):
     # ------------------------------------------------------------------ #
     def top_strategies(self, symbol: str, timeframe: str, k: Optional[int] = None,
                        rank_metric: str = "expectancy",
-                       min_trades: int = 30) -> List[Dict[str, Any]]:
+                       min_trades: int = 30,
+                       allowed_fingerprints: Optional[Any] = None
+                       ) -> List[Dict[str, Any]]:
         """
         Return the top-k strategy specs for a symbol/timeframe ranked by the
         AVERAGE score across all their stored segments (walk-forward robust).
         Only strategies whose average num_trades >= min_trades are considered.
+
+        allowed_fingerprints (A2 / P1.4): when a set/collection is supplied, only
+        strategies whose fingerprint is in it are eligible (used by the locked
+        holdout gate so only holdout-passing specs are promoted). When None
+        (default) no such filtering happens and behavior is unchanged. An empty
+        collection means "nothing passed" and yields no results.
         """
         k = k or self.top_k
+        allowed = None
+        if allowed_fingerprints is not None:
+            allowed = set(allowed_fingerprints)
+            if not allowed:
+                # Nothing passed the holdout gate: promote nothing.
+                return []
+        # We may need more than k rows before the allowlist filter, so fetch a
+        # generous window and trim after filtering.
+        fetch_limit = int(k) if allowed is None else max(int(k) * 20, 200)
         try:
             conn = self._connect()
             cur = conn.cursor()
@@ -164,12 +181,17 @@ class MemoryStore(object):
                 "GROUP BY fingerprint "
                 "HAVING avg_trades >= ? "
                 "ORDER BY avg_score DESC LIMIT ?",
-                (symbol, timeframe, rank_metric, float(min_trades), int(k)),
+                (symbol, timeframe, rank_metric, float(min_trades),
+                 int(fetch_limit)),
             )
             rows = cur.fetchall()
             results: List[Dict[str, Any]] = []
             for row in rows:
                 fp = row["fingerprint"]
+                if allowed is not None and fp not in allowed:
+                    continue
+                if len(results) >= int(k):
+                    break
                 cur2 = conn.cursor()
                 cur2.execute(
                     "SELECT spec_json FROM strategies WHERE fingerprint=?", (fp,)
@@ -195,13 +217,20 @@ class MemoryStore(object):
     # ------------------------------------------------------------------ #
     def update_registry(self, symbol: str, timeframe: str,
                         rank_metric: str = "expectancy",
-                        min_trades: int = 30) -> Dict[str, Any]:
+                        min_trades: int = 30,
+                        allowed_fingerprints: Optional[Any] = None
+                        ) -> Dict[str, Any]:
         """
         Recompute the best strategies for symbol/timeframe and write them into
         the JSON registry. Returns the registry section that was written.
+
+        allowed_fingerprints (A2 / P1.4): forwarded to top_strategies so the
+        locked-holdout gate can restrict promotion to holdout-passing specs.
+        None (default) keeps the previous unfiltered behavior.
         """
         best = self.top_strategies(symbol, timeframe, self.top_k,
-                                   rank_metric, min_trades)
+                                   rank_metric, min_trades,
+                                   allowed_fingerprints=allowed_fingerprints)
         registry = read_json(self.registry_path, default={}) or {}
         key = "%s|%s" % (symbol, timeframe)
         registry[key] = {

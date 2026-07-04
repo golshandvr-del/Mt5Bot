@@ -347,6 +347,14 @@ refreshes `data_store/strategy_registry.json` as it goes, so progress is not
 lost. Tune the effort/breadth in `config/config.yaml` under `memory.search`
 (e.g. `max_trials`) and the evaluation windows under `memory.walk_forward`.
 
+> Optional but recommended with multi-year data: set
+> `memory.walk_forward.holdout_bars` to reserve the FINAL N bars of history as a
+> locked "quarantine" that the search never sees (e.g. `holdout_bars: 15000`,
+> roughly the last ~6 months of M15). A strategy is then only promoted to the
+> registry if it ALSO passes on this untouched holdout, which is the strongest
+> guard against picking strategies that only looked good in-sample. The default
+> `0` disables the holdout and keeps the previous behavior.
+
 **Step 3 - sanity-check, then train and dry-run:**
 
 ```bash

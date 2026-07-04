@@ -102,6 +102,13 @@ class StrategySearch(object):
         )
         seen = set()
         evaluated = 0
+        # Locked holdout gate (A2 / P1.4): when memory.walk_forward.holdout_bars
+        # > 0, only specs that ALSO pass on the untouched holdout tail may enter
+        # the registry. We collect the passing fingerprints here and pass them
+        # as an allowlist to update_registry. When the holdout is OFF the gate is
+        # a no-op and allowed stays None (no filtering), keeping old behavior.
+        holdout_on = int(getattr(self.wf, "holdout_bars", 0)) > 0
+        allowed_fps = set() if holdout_on else None
 
         if self.method == "grid":
             specs = self._grid_specs(symbol, timeframe)
@@ -119,14 +126,23 @@ class StrategySearch(object):
             try:
                 self.wf.evaluate(spec, ohlcv, point=point, persist=True)
                 evaluated += 1
+                if holdout_on:
+                    gate = self.wf.evaluate_holdout(spec, ohlcv, point=point)
+                    if gate.get("passed"):
+                        allowed_fps.add(fp)
                 if evaluated % 25 == 0:
                     self.log.info("  evaluated %d strategies...", evaluated)
             except Exception as exc:
                 self.log.error("Evaluation failed for %s: %s", fp, exc)
 
+        if holdout_on:
+            self.log.info(
+                "Holdout gate: %d of %d evaluated specs passed the locked holdout.",
+                len(allowed_fps), evaluated,
+            )
         section = self.memory.update_registry(
             symbol, timeframe, rank_metric=self.rank_metric,
-            min_trades=self.min_trades,
+            min_trades=self.min_trades, allowed_fingerprints=allowed_fps,
         )
         self.log.info(
             "Search complete: %d strategies evaluated; %d in registry top.",

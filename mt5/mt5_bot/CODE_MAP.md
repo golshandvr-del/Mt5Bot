@@ -341,6 +341,15 @@ history is too short.
   1..10, default 6) rolling out-of-sample windows instead of only ~2. When the
   configured train window already yields enough segments, or when history is too
   short to hit min_segments above the floor, the original behavior is preserved.
+- Locked holdout (A2 / P1.4): `memory.walk_forward.holdout_bars` (default 0 = OFF)
+  reserves the FINAL N bars as a "quarantine" the search NEVER sees.
+  `searchable_bars(n) = n - holdout_bars` bounds `segments()` and the 70/30
+  fallback, so no train/test window ever touches the holdout tail.
+  `evaluate_holdout(spec, ohlcv, point=None)` backtests a spec on just that tail
+  and returns `{enabled, passed, score, metrics, holdout_bars, holdout_trades}`;
+  `passed` requires num_trades >= `memory.search.min_trades` AND a non-negative
+  rank score. With holdout_bars <= 0 the gate is a no-op (enabled=False,
+  passed=True) and behavior is byte-identical to before.
 
 ### search.py - `StrategySearch`
 The "learn from trial-and-error" loop / memory builder.
@@ -348,6 +357,11 @@ The "learn from trial-and-error" loop / memory builder.
   indicator params/weights/thresholds, or a bounded grid), dedup by fingerprint,
   evaluate each via `WalkForward` (persisting results), then call
   `memory.update_registry` to refresh the top strategies. Returns a summary.
+  Locked holdout gate (A2 / P1.4): when `memory.walk_forward.holdout_bars > 0`,
+  each evaluated spec is also run through `WalkForward.evaluate_holdout`; only
+  fingerprints that pass are passed as an `allowed_fingerprints` allowlist to
+  `update_registry`, so a spec that only worked in-sample is never promoted.
+  When the holdout is OFF the allowlist is None and promotion is unchanged.
 
 ### memory/store.py - `MemoryStore` (persistence)
 SQLite DB (`data_store/memory.sqlite`) + JSON registry
@@ -356,9 +370,11 @@ SQLite DB (`data_store/memory.sqlite`) + JSON registry
   and `results(id, fingerprint, symbol, timeframe, segment, rank_metric,
   metrics_json, score, created_at)`.
 - `record_strategy`, `record_result`, `top_strategies(...)` (averages score
-  across walk-forward segments, filtered by min avg trades),
-  `update_registry(...)` (writes top-K per symbol|timeframe),
-  `load_registry_top(...)` (fast read for the decision engine), `stats()`.
+  across walk-forward segments, filtered by min avg trades; optional
+  `allowed_fingerprints` allowlist restricts promotion to holdout-passing specs,
+  A2 / P1.4), `update_registry(...)` (writes top-K per symbol|timeframe; forwards
+  `allowed_fingerprints`), `load_registry_top(...)` (fast read for the decision
+  engine), `stats()`.
 
 The more the bot searches, the richer this memory; strategy SELECTION improves
 over time. It does NOT rewrite its own source code.

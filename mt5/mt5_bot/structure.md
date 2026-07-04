@@ -292,7 +292,7 @@ Goal: kill the single biggest risk (2 walk-forward segments = luck-trusting).
       produce `min_segments` (6-10) rolling segments by auto-shrinking
       train_bars when history length allows; keep the existing 70/30 fallback
       for short history. [A2]
-- [ ] P1.4 (code) Locked holdout: reserve the FINAL `holdout_bars` of history
+- [x] P1.4 (code) Locked holdout: reserve the FINAL `holdout_bars` of history
       that the search NEVER sees. Add `WalkForward.evaluate_holdout(spec,
       ohlcv)`; in `core/strategy/search.py` + `core/memory/store.py::
       update_registry`, only promote a strategy to the registry if it also
@@ -455,6 +455,25 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P1.4 DONE (code): locked holdout gate. walk_forward.py now reads
+  `memory.walk_forward.holdout_bars` (default 0 = OFF), added
+  `searchable_bars(n) = n - holdout_bars` and made `segments()` + the 70/30
+  fallback split only the searchable portion, so no train/test window ever
+  touches the final holdout tail. Added `evaluate_holdout(spec, ohlcv,
+  point=None)` that backtests a spec on just the holdout tail and returns
+  `{enabled, passed, score, metrics, holdout_bars, holdout_trades}`; passed
+  requires num_trades >= min_trades AND score >= 0 (conservative). search.py::run
+  now runs the gate per evaluated spec when holdout is ON and passes the passing
+  fingerprints as an `allowed_fingerprints` allowlist to update_registry.
+  store.py `top_strategies`/`update_registry` gained an optional
+  `allowed_fingerprints` filter (None = unchanged behavior; empty set = promote
+  nothing; a set restricts promotion to those specs). With holdout_bars=0 the
+  entire gate is a byte-identical no-op. Verified manually: holdout OFF ->
+  searchable=n and gate passes; holdout=1200 on n=6000 -> searchable=4800 and all
+  test windows stay below index 4800; store allowlist filters correctly (none /
+  subset / empty). CODE_MAP.md section 8 (walk_forward + search + store) updated.
+  Dedicated test file is P1.5. Offline suite still green (21 tests). Next
+  sub-step: P1.5.
 - P1.3 DONE (code): walk_forward.py now auto-shrinks the train window to hit
   `memory.walk_forward.min_segments` (clamped 1..10, default 6) rolling
   out-of-sample segments on long histories. Added `effective_train_bars(n)` (uses

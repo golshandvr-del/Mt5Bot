@@ -58,6 +58,15 @@ class WalkForward(object):
             self.min_segments = 1
         if self.min_segments > 10:
             self.min_segments = 10
+        # Locked holdout (A2 / P1.4): the FINAL holdout_bars of history are
+        # reserved as a "quarantine" window that the search NEVER sees. The
+        # walk-forward segmenter only splits the searchable portion
+        # (n - holdout_bars); a strategy is later promoted only if it also
+        # passes on this untouched holdout (evaluate_holdout()). Default 0 = OFF
+        # so the walk-forward behavior stays byte-identical.
+        self.holdout_bars = int(wf.get("holdout_bars", 0)) if hasattr(wf, "get") else 0
+        if self.holdout_bars < 0:
+            self.holdout_bars = 0
         self.rank_metric = cfg.get_path("memory.search.rank_metric", "expectancy")
         self.min_trades = int(cfg.get_path("memory.search.min_trades", 30))
 
@@ -67,6 +76,17 @@ class WalkForward(object):
         test window and never below 200 bars)."""
         floor = max(int(self.test_bars), 200)
         return floor
+
+    def searchable_bars(self, n_bars: int) -> int:
+        """Number of leading bars the search is allowed to see.
+
+        The final holdout_bars are quarantined off the END of history so the
+        search (and thus every walk-forward segment) never touches them. With
+        holdout_bars = 0 (default) this returns n_bars unchanged, so behavior
+        is byte-identical to before. Never returns less than 0.
+        """
+        n = int(n_bars) - int(self.holdout_bars)
+        return n if n > 0 else 0
 
     def effective_train_bars(self, n_bars: int) -> int:
         """Pick a train window that yields at least min_segments segments when
@@ -100,15 +120,19 @@ class WalkForward(object):
         min_segments out-of-sample windows (auto-shrinking train_bars). Short
         histories keep the original single-window behavior (and evaluate()
         applies the 70/30 fallback when no full window fits).
+
+        Only the searchable portion (n_bars - holdout_bars) is segmented; the
+        quarantined holdout tail is never included in any train/test window.
         """
-        train = self.effective_train_bars(n_bars)
+        n_search = self.searchable_bars(n_bars)
+        train = self.effective_train_bars(n_search)
         out: List[Dict[str, int]] = []
         start = 0
         while True:
             train_start = start
             test_start = train_start + train
             test_end = test_start + self.test_bars
-            if test_end > n_bars:
+            if test_end > n_search:
                 break
             out.append(
                 {"train_start": train_start, "test_start": test_start,
@@ -131,9 +155,14 @@ class WalkForward(object):
         segs = self.segments(n)
         if not segs:
             # History too short for the configured windows: fall back to a
-            # single 70/30 split so the search still produces a result.
-            split = int(n * 0.7)
-            segs = [{"train_start": 0, "test_start": split, "test_end": n}]
+            # single 70/30 split so the search still produces a result. The
+            # split is taken over the searchable portion only, so the holdout
+            # tail is still never seen by the search.
+            n_search = self.searchable_bars(n)
+            if n_search <= 0:
+                n_search = n
+            split = int(n_search * 0.7)
+            segs = [{"train_start": 0, "test_start": split, "test_end": n_search}]
 
         strategy = Strategy(spec)
         seg_metrics: List[Dict[str, Any]] = []
@@ -174,4 +203,68 @@ class WalkForward(object):
             "avg_score": avg_score,
             "avg_trades": avg_trades,
             "segments": seg_metrics,
+        }
+
+    # ------------------------------------------------------------------ #
+    def evaluate_holdout(self, spec: StrategySpec, ohlcv: Any,
+                         point: Optional[float] = None) -> Dict[str, Any]:
+        """Backtest a strategy on the locked holdout tail (A2 / P1.4).
+
+        The holdout is the FINAL holdout_bars of history, which the search
+        (segments()/evaluate()) never touches. A strategy is only promoted to
+        the registry if it also "passes" here, giving an honest out-of-sample
+        check on data that could not have been overfit.
+
+        Returns a dict:
+            {enabled, passed, score, metrics, holdout_bars, holdout_trades}
+        When holdout_bars <= 0 the holdout is OFF: enabled=False and passed=True
+        (i.e. the gate is a no-op), so behavior is unchanged by default.
+
+        "passed" means the strategy produced at least min_trades holdout trades
+        and a non-negative rank score on the holdout window. This is deliberately
+        conservative and cheap; it filters out specs that only worked in-sample.
+        """
+        from core.strategy.metrics import rank_value
+
+        n = len(ohlcv.close)
+        h = int(self.holdout_bars)
+        if h <= 0 or n <= 0:
+            return {
+                "enabled": False, "passed": True, "score": 0.0,
+                "metrics": {}, "holdout_bars": 0, "holdout_trades": 0,
+            }
+        # Clamp the holdout so a train remnant always precedes it; if history is
+        # too short to hold both, fall back to disabling the gate (pass-through)
+        # rather than blocking every strategy.
+        start = n - h
+        if start <= 0:
+            return {
+                "enabled": False, "passed": True, "score": 0.0,
+                "metrics": {}, "holdout_bars": h, "holdout_trades": 0,
+            }
+        holdout_slice = ohlcv.slice(start, n)
+        strategy = Strategy(spec)
+        try:
+            result = self.backtester.run(
+                strategy, holdout_slice, warmup=60, point=point,
+                record_trades=False,
+            )
+        except Exception as exc:
+            self.log.error("evaluate_holdout failed for %s: %s",
+                           spec.fingerprint(), exc)
+            return {
+                "enabled": True, "passed": False, "score": 0.0,
+                "metrics": {}, "holdout_bars": h, "holdout_trades": 0,
+            }
+        metrics = result.metrics
+        score = rank_value(metrics, self.rank_metric)
+        n_trades = int(metrics.get("num_trades", 0) or 0)
+        passed = (n_trades >= self.min_trades) and (score >= 0.0)
+        return {
+            "enabled": True,
+            "passed": bool(passed),
+            "score": float(score),
+            "metrics": metrics,
+            "holdout_bars": h,
+            "holdout_trades": n_trades,
         }
