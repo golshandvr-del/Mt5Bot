@@ -115,6 +115,12 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- Phase 1 upgrade DONE: added core/learning/calibration.py (pure-Python Platt
+  calibrator); MLClassifier now optionally calibrates P(up) on a held-out tail
+  (learning.ml_classifier.calibrate, default true), persists the calibrator, and
+  exports feature importances to a JSON sidecar when the backend supports it
+  (lightgbm/GBDT); run_train passes feature names. HistGBDT has no importances
+  and gracefully skips the sidecar. Verified train/save/load/predict offline.
 - Phase 2 upgrade DONE: added 4 pluggable indicators (psar, stochrsi, dpo, vwma)
   in core/indicators/extra.py; added Indicator.safe_signal() health guard; wired
   it into the decision engine fallback blend; added the new indicators to

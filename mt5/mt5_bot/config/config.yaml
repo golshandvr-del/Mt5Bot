@@ -146,6 +146,10 @@ learning:
     n_estimators: 300
     learning_rate: 0.05
     max_depth: 6
+    # Phase 5: fit a light Platt-style probability calibrator on a held-out
+    # tail of the training data. Cheap on CPU. Set true for better-calibrated
+    # confidence used by the decision engine's optional confidence gate.
+    calibrate: true
 
   rl_agent:
     enabled: false           # HEAVY-ish; keep off on weak hardware

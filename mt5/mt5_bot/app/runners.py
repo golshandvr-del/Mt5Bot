@@ -78,6 +78,12 @@ def run_train(ctx: BotContext) -> Dict[str, Any]:
             log.warning("No training samples for %s; skipping.", symbol)
             continue
         log.info("Training %s on %s with %d samples...", name, symbol, len(X))
+        # Phase 5: pass feature names for importance export when supported.
+        if hasattr(ctx.learner, "set_feature_names"):
+            try:
+                ctx.learner.set_feature_names(feat_names)
+            except Exception:
+                pass
         ctx.learner.fit(X, y)
         results["trained_symbols"].append({"symbol": symbol, "samples": len(X)})
         # Train on the first symbol with data, then persist (single shared model).

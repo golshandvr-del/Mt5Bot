@@ -15,11 +15,13 @@ All text is standard ASCII English only.
 
 from __future__ import annotations
 
+import json
 import os
 import pickle
 from typing import Any, List, Optional
 
 from core.learning.base_model import BaseModel
+from core.learning.calibration import PlattCalibrator
 from core.utils.logger import get_logger
 
 
@@ -91,6 +93,13 @@ class MLClassifier(BaseModel):
         self.n_features = 0
         # Map model class index -> label for libraries that reorder classes.
         self._class_order: List[int] = [-1, 0, 1]
+        # Phase 5: optional probability calibration (default off unless enabled).
+        self.calibrate_enabled = bool(
+            model_cfg.get("calibrate", False)
+        ) if hasattr(model_cfg, "get") else False
+        self.calibrator = PlattCalibrator()  # identity until fitted
+        # Feature names (set by the training pipeline for importance export).
+        self.feature_names: List[str] = []
 
     # ------------------------------------------------------------------ #
     def _build_backend(self, n_features: int):
@@ -139,6 +148,14 @@ class MLClassifier(BaseModel):
         return None
 
     # ------------------------------------------------------------------ #
+    def set_feature_names(self, names: List[str]) -> None:
+        """Record human-readable feature names for importance export (Phase 5)."""
+        try:
+            self.feature_names = list(names) if names else []
+        except Exception:
+            self.feature_names = []
+
+    # ------------------------------------------------------------------ #
     def fit(self, X: List[List[float]], y: List[int]) -> None:
         if not X:
             self.log.error("No training data provided to MLClassifier.fit.")
@@ -155,6 +172,7 @@ class MLClassifier(BaseModel):
                     self._class_order = list(self.model.classes_)
                 self.trained = True
                 self.log.info("MLClassifier trained on %d samples.", len(X))
+                self._maybe_calibrate(X, y)
                 return
             except Exception as exc:
                 self.log.error("Backend fit failed (%s); using fallback.", exc)
@@ -167,11 +185,42 @@ class MLClassifier(BaseModel):
             self._class_order = [-1, 0, 1]
             self.trained = True
             self.log.info("Fallback logistic model trained on %d samples.", len(X))
+            self._maybe_calibrate(X, y)
 
     # ------------------------------------------------------------------ #
-    def predict_proba_up(self, x: List[float]) -> float:
-        if not self.is_ready():
-            return 0.5
+    def _maybe_calibrate(self, X: List[List[float]], y: List[int]) -> None:
+        """
+        Phase 5: fit the Platt calibrator on a held-out tail of the training
+        data. We use the most recent ~20% of samples (time-ordered) as the
+        calibration set so calibration reflects newer market behaviour. Never
+        fatal: on any problem we simply keep the identity calibrator.
+        """
+        if not self.calibrate_enabled:
+            self.calibrator = PlattCalibrator()
+            return
+        try:
+            n = len(X)
+            hold = max(30, int(n * 0.2))
+            if hold >= n:
+                # Not enough data to hold out; skip (keep identity).
+                self.calibrator = PlattCalibrator()
+                return
+            cal_X = X[n - hold:]
+            cal_y = y[n - hold:]
+            raw = [self._raw_proba_up(x) for x in cal_X]
+            outcomes = [1 if yi == 1 else 0 for yi in cal_y]
+            calibr = PlattCalibrator()
+            ok = calibr.fit(raw, outcomes)
+            self.calibrator = calibr
+            self.log.info("Calibration fitted=%s on %d held-out samples.",
+                          ok, hold)
+        except Exception as exc:
+            self.log.error("Calibration error (%s); using identity.", exc)
+            self.calibrator = PlattCalibrator()
+
+    # ------------------------------------------------------------------ #
+    def _raw_proba_up(self, x: List[float]) -> float:
+        """Uncalibrated P(label == +1) straight from the backend."""
         try:
             if self.model is not None:
                 proba = self.model.predict_proba([x])[0]
@@ -188,6 +237,56 @@ class MLClassifier(BaseModel):
             self.log.error("predict_proba_up error: %s", exc)
         return 0.5
 
+    def predict_proba_up(self, x: List[float]) -> float:
+        if not self.is_ready():
+            return 0.5
+        raw = self._raw_proba_up(x)
+        # Phase 5: apply calibration if it was fitted (identity otherwise).
+        try:
+            return float(self.calibrator.transform(raw))
+        except Exception:
+            return raw
+
+    # ------------------------------------------------------------------ #
+    def export_feature_importances(self, model_path: str) -> Optional[str]:
+        """
+        Phase 5: write feature importances (when the backend exposes them) to a
+        JSON sidecar next to the model file, e.g. models/ml_classifier.pkl ->
+        models/ml_classifier.pkl.importances.json. Returns the path or None.
+        Zero runtime cost live; purely an offline transparency artifact.
+        """
+        if self.model is None:
+            return None
+        importances = None
+        try:
+            if hasattr(self.model, "feature_importances_"):
+                importances = list(self.model.feature_importances_)
+        except Exception:
+            importances = None
+        if not importances:
+            return None
+        try:
+            names = self.feature_names
+            if not names or len(names) != len(importances):
+                names = ["f%d" % i for i in range(len(importances))]
+            pairs = sorted(
+                ({"feature": n, "importance": float(v)}
+                 for n, v in zip(names, importances)),
+                key=lambda d: d["importance"], reverse=True,
+            )
+            out_path = model_path + ".importances.json"
+            directory = os.path.dirname(os.path.abspath(out_path))
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            with open(out_path, "w") as handle:
+                json.dump({"backend": self.backend_name,
+                           "importances": pairs}, handle, indent=2)
+            self.log.info("Wrote feature importances to %s", out_path)
+            return out_path
+        except Exception as exc:
+            self.log.error("export_feature_importances error: %s", exc)
+            return None
+
     # ------------------------------------------------------------------ #
     def save(self, path: str) -> bool:
         try:
@@ -201,6 +300,9 @@ class MLClassifier(BaseModel):
                 "model": self.model,
                 "fallback": self.fallback,
                 "trained": self.trained,
+                # Phase 5 persisted extras.
+                "calibrator": self.calibrator.to_dict(),
+                "feature_names": self.feature_names,
             }
             with open(path, "wb") as handle:
                 # Protocol 4 is readable by every Python >= 3.4, keeping model
@@ -208,6 +310,8 @@ class MLClassifier(BaseModel):
                 # Python 3.8 live machine (avoids protocol-5-only pickles).
                 pickle.dump(blob, handle, protocol=4)
             self.log.info("Saved MLClassifier to %s", path)
+            # Phase 5: best-effort feature-importance sidecar (never fatal).
+            self.export_feature_importances(path)
             return True
         except Exception as exc:
             self.log.error("save error: %s", exc)
@@ -226,6 +330,9 @@ class MLClassifier(BaseModel):
             self.model = blob.get("model")
             self.fallback = blob.get("fallback")
             self.trained = bool(blob.get("trained", False))
+            # Phase 5 persisted extras (backward compatible with old files).
+            self.calibrator = PlattCalibrator.from_dict(blob.get("calibrator"))
+            self.feature_names = blob.get("feature_names", []) or []
             self.log.info("Loaded MLClassifier from %s", path)
             return self.trained
         except Exception as exc:
