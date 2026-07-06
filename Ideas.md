@@ -152,16 +152,18 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 - [x] **Tests** for all new modules (calibration, new indicators, regime,
   calendar, expanded sentiment) added to the stdlib-only suite.
 - [x] **CODE_MAP.md + README.md** updated to describe Phase 5.
-- [~] **CI workflow file** (GitHub Actions) running the offline test suite on
-  push (nice-to-have; does not affect Windows 7 runtime). WRITTEN in P4.1:
-  `.github/workflows/ci.yml` (`offline-tests`) runs `python tests/run_all.py`
-  from `main` under Python 3.8 on every push/PR. STILL BLOCKED-ON-PUSH
-  (re-verified 2026-07-06, fourth session, on the `Mt5Bot` repo): the GitHub App
-  credential still lacks the `workflows` permission, so the file cannot be
-  pushed to GitHub yet. A byte-for-byte committable copy is preserved at
-  `main/ci_workflow_template.yml` (paste it into
-  `.github/workflows/ci.yml` once the permission is granted). See change-log
-  P4.1 below.
+- [x] **CI workflow file** (GitHub Actions) running the offline test suite on
+  push (nice-to-have; does not affect Windows 7 runtime). DONE in P4.1/P4.2:
+  `.github/workflows/ci.yml` (`offline-tests`) is LIVE on GitHub and runs
+  `python tests/run_all.py` at the repo ROOT under Python 3.8 on every push/PR
+  (the project now lives at the repo root, so no `working-directory` is needed).
+  It was added via the GitHub web UI (`e602990`) to bypass the App
+  `workflows`-permission blocker and updated in `419cdf4` after the folder move
+  to the root (`0c1cfd6`). A byte-for-byte reference copy stays at
+  `ci_workflow_template.yml`. README now carries the CI status badge + note
+  (P4.2). The App lacks the `actions` read scope, so run results can't be polled
+  from the sandbox, but CI mirrors the green local suite (64 tests). Phase P4
+  (Track A / A7) is complete; next up is Phase P5 (living adaptive core).
 
 ---
 
@@ -178,6 +180,24 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P4.1 + P4.2 DONE, PHASE P4 COMPLETE (Track A / A7, infra + docs, 2026-07-06,
+  SIXTH session). Confirmed the `offline-tests` CI workflow is PRESENT and
+  CORRECT on GitHub (Contents API: `.github/workflows/ci.yml`, sha `3a9c55c...`,
+  1568 bytes). Since the project moved from `main/` to the repo ROOT (commit
+  `0c1cfd6`), the live workflow runs `python tests/run_all.py` at the root with
+  NO `working-directory`, which is correct for the new layout; it was updated for
+  the root move in commit `419cdf4 Update ci.yml`. Ran the local offline suite:
+  64 tests, all green - CI mirrors this exact command. The GitHub App lacks the
+  `actions` read scope, so `gh run list` returns 403 and the assistant cannot
+  observe Actions run results from the sandbox; this is an OBSERVABILITY limit,
+  not a code problem, so P4.1 is now treated as complete. P4.2: added the
+  `offline-tests` status badge (GitHub Actions badge endpoint) to the top of
+  README.md, plus a CI note there and in the Testing section. Flipped A7, P4.1
+  and P4.2 to [x] in structure.md; synced CODE_MAP.md (section 13 CI note +
+  section 17 roadmap-progress) and this file (section 5 + this entry). NEXT:
+  Phase P5 (living adaptive core, B1/B3), starting at P5.1
+  (`core/strategy/council.py` - per-strategy live credibility via a light
+  bandit rule).
 - FOLDER MOVE mt5/mt5_bot -> main (2026-07-06, FIFTH session; user request).
   The user reported the project had been stored at `mt5/mt5_bot/` on GitHub but
   they wanted it directly under `main/`, matching the roadmap invariant "the
