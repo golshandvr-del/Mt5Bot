@@ -223,7 +223,10 @@ bot from an offline learner into a live, adaptive system.
 > learner into a live, self-doubting, adaptive system. All optional / config-
 > gated / pure-Python / Win7-safe. Numbering matches the expert review's ideas.
 
-- [ ] **B1. "Strategy council" instead of a plain ensemble (live credibility).**
+- [x] **B1. "Strategy council" instead of a plain ensemble (live credibility).**
+  DONE (Phase P5.1-P5.4): `core/strategy/council.py` UCB1 bandit, consumed in
+  the engine ensemble blend, persisted in the memory `council` table.
+
   Today the top-3 strategies are blended by a static average. Instead give each
   strategy a LIVE credibility that updates from its recent performance (e.g.
   last ~30 trades) via a light multi-armed-bandit rule (tabular UCB or Exp3,
@@ -244,7 +247,12 @@ bot from an offline learner into a live, adaptive system.
   `core/strategy/walk_forward.py` (pass regime when recording trades),
   `config/config.yaml` (`timing.use_regime_buckets`, default OFF), plus a test.
 
-- [ ] **B3. Self-doubting bot - strategy-decay monitoring.**
+- [x] **B3. Self-doubting bot - strategy-decay monitoring.**
+  DONE (Phase P5.5-P5.8): `core/strategy/decay_monitor.py` (Welch z-test +
+  relative mean-drop), recent live PnL captured via `order_manager.py` +
+  `store.py` (`live_trades` table), suspect strategies zero-weighted in the
+  engine blend; wired through `BotContext`; 11 tests.
+
   Give each registry strategy a "statistical expiry": if the distribution of its
   recent live/paper trade PnL drifts away from its walk-forward distribution
   (simple KS test, or a mean/std comparison), the bot flags it "suspect" and
@@ -545,17 +553,46 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
       one), the save->restart->load round-trip via a temp MemoryStore, and the
       engine blend (OFF = plain average; ON = tilts toward the better recent
       record). Full offline suite now 72 tests, all green.
-- [ ] P5.5 (code) New `core/strategy/decay_monitor.py`: per-registry-strategy
+- [x] P5.5 (code) New `core/strategy/decay_monitor.py`: per-registry-strategy
       "statistical expiry" - compare recent live/paper PnL distribution vs its
       walk-forward distribution (simple KS or mean/std drift); mark drifted
       strategies "suspect". [B3]
-- [ ] P5.6 (code+config) Wire it: `core/execution/order_manager.py` +
+      DONE (2026-07-06, SEVENTH session): `DecayMonitor` compares a strategy's
+      RECENT live/paper mean trade PnL against its walk-forward reference via a
+      Welch two-sample z-test plus a relative mean-drop guard (either or both
+      can trip, configurable). Pure stdlib, conservative (too little live
+      evidence or disabled -> never suspect), graceful (any error -> ok).
+- [x] P5.6 (code+config) Wire it: `core/execution/order_manager.py` +
       `core/memory/store.py` capture realized PnL per strategy; engine skips /
       zero-weights suspect strategies until the next search. Add
       `decision.decay_monitor.*`, default OFF.
-- [ ] P5.7 (test) Decay test: a strategy whose recent PnL distribution flips
+      DONE (2026-07-06, SEVENTH session): `store.py` gained a `live_trades`
+      table with `record_live_trade` / `recent_live_pnls` (trailing window) /
+      `reference_pnls` (per-segment walk-forward expectancy) /
+      `live_trade_fingerprints`; `order_manager.py` gained `record_trade_result`
+      that forwards a closed position's broker profit to the store (config-gated
+      no-op otherwise); the engine drops decay-suspect fingerprints from the
+      ensemble blend (`decay_suspects` set); `BotContext` builds the monitor and
+      computes the suspect set (`decay_suspects()`) when enabled. All
+      config-gated on `decision.decay_monitor.enabled`, default OFF -> the light
+      path is byte-for-byte unchanged (verified: 72 pre-existing tests stay
+      green).
+- [x] P5.7 (test) Decay test: a strategy whose recent PnL distribution flips
       gets flagged suspect and excluded from the blend.
-- [ ] P5.8 (docs) Sync all four docs; flip B1/B3 statuses.
+      DONE (2026-07-06, SEVENTH session): `tests/test_decay_monitor.py`
+      (11 tests) covers the drift verdict (flipped PnL -> suspect; healthy ->
+      ok; insufficient/disabled -> never suspect; require_both semantics), the
+      store capture round-trip on a temp DB, the engine exclusion (the suspect
+      strategy is dropped so the blend collapses onto the survivor -> goes fully
+      bullish/bearish; OFF = unchanged plain average), and the end-to-end
+      `BotContext.decay_suspects()` flagging a decayed strategy but not a healthy
+      one. Full offline suite now 83 tests, all green.
+- [x] P5.8 (docs) Sync all four docs; flip B1/B3 statuses.
+      DONE (2026-07-06, SEVENTH session): structure.md roadmap flipped
+      P5.5-P5.8 to done; CODE_MAP updated with decay_monitor.py, the store
+      live_trades table/methods, engine decay_suspects gating, order_manager
+      capture, and context wiring; Ideas.md change-log records B3 (statistical
+      expiry) complete.
 
 ### Phase P6 - Smarter evaluation and search (covers B8, B2, B7)
 
