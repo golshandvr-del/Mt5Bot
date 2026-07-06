@@ -23,10 +23,10 @@ CPU-only, mid-range hardware**. Architecture is **"train offline / run light"**:
 heavy machine learning is optional and isolated; the live decision + execution
 path is lightweight and pure-Python-friendly.
 
-> NOTE ON REPO LAYOUT: the project itself lives ONLY under `mt5/mt5_bot/`. The
+> NOTE ON REPO LAYOUT: the project itself lives ONLY under `main/`. The
 > single exception is the GitHub Actions CI workflow (`.github/workflows/ci.yml`
 > at the REPO ROOT), because GitHub only recognizes workflows there. It merely
-> `cd`s into `mt5/mt5_bot` and runs the offline test suite; it ships nothing to
+> `cd`s into `main` and runs the offline test suite; it ships nothing to
 > the Windows 7 runtime and adds no dependency.
 
 Four decoupled phases:
@@ -49,103 +49,102 @@ news, decision, execution, config.
 ## 2. Top-level layout
 
 ```
-mt5/                              <- required top folder
-  mt5_bot/                        <- the ENTIRE project lives ONLY here
-    install.bat                   <- ONE-CLICK Windows 7 automatic installer
-    main.py                       <- CLI entry point; dispatches run modes
-    requirements.txt              <- dependencies pinned for Win7 / Python 3.8
-    CODE_MAP.md                   <- THIS FILE (always keep current)
-    structure.md                  <- structure snapshot + prioritized ROADMAP
-    Ideas.md                      <- idea backlog log (write idea before change)
-    README.md                     <- user-facing guide (install/run/backtest/VPS)
+main/                             <- the ENTIRE project lives ONLY here
+  install.bat                     <- ONE-CLICK Windows 7 automatic installer
+  main.py                         <- CLI entry point; dispatches run modes
+  requirements.txt                <- dependencies pinned for Win7 / Python 3.8
+  CODE_MAP.md                     <- THIS FILE (always keep current)
+  structure.md                    <- structure snapshot + prioritized ROADMAP
+  Ideas.md                        <- idea backlog log (write idea before change)
+  README.md                       <- user-facing guide (install/run/backtest/VPS)
 
-    config/
-      config.yaml                 <- MASTER config; controls the whole bot
-      loader.py                   <- YAML loader + dot-access + fallback parser
-      __init__.py
+  config/
+    config.yaml                   <- MASTER config; controls the whole bot
+    loader.py                     <- YAML loader + dot-access + fallback parser
+    __init__.py
 
-    app/
-      context.py                  <- BotContext: builds/caches all components
-      runners.py                  <- one function per mode (train/search/etc.)
-      __init__.py
+  app/
+    context.py                    <- BotContext: builds/caches all components
+    runners.py                    <- one function per mode (train/search/etc.)
+    __init__.py
 
-    core/
-      data/
-        mt5_connector.py          <- thin, defensive MetaTrader5 wrapper
-        data_feed.py              <- OHLCV container + live/CSV data source
-      indicators/                 <- Phase 2 (pluggable)
-        base.py                   <- Indicator base class + math helpers
-        registry.py               <- register/build enabled indicators
-        trend.py momentum.py volatility.py volume.py patterns.py
-        __init__.py               <- imports submodules to trigger registration
-      learning/                   <- Phase 1 (swappable learners)
-        base_model.py             <- BaseModel common interface
-        factory.py                <- build learner by name (+ NeutralModel)
-        features.py               <- FeatureBuilder (OHLCV -> X, y)
-        ml_classifier.py          <- LightGBM / sklearn / pure-Python (DEFAULT)
-        rl_agent.py               <- tabular Q-learning (CPU-light, optional)
-        dl_classifier.py          <- Keras MLP (HEAVY, off by default)
-        transfer.py               <- transfer learning on DL model (optional)
-        self_supervised.py        <- autoencoder feature learner (optional)
-      strategy/                   <- Phase 3 (search/backtest)
-        strategy.py               <- StrategySpec (recipe) + Strategy (executable)
-        metrics.py                <- performance metrics + ranking value
-        backtester.py             <- fast bar-by-bar single-position simulator
-        walk_forward.py           <- rolling out-of-sample evaluation
-        search.py                 <- random/grid strategy search (memory builder)
-      memory/
-        store.py                  <- SQLite + JSON registry of strategies/results
-      news/                       <- Phase 4
-        base.py                   <- NewsItem, SentimentBackend, NewsSource ABCs
-        sentiment.py              <- lexicon (offline) + optional VADER backends
-        sources.py                <- RSS (stdlib) + optional NewsAPI sources
-        aggregator.py             <- NewsAnalyzer: fetch/score/cache/aggregate
-      timing/                     <- Phase 5 (user-update-request): time/season awareness
-        session.py                <- SessionCalendar + TimeContext (session/day/season)
-        time_stats.py             <- TimeStats: learned per-bucket edge (persisted)
-        time_context.py           <- TimeContextProvider: combine buckets -> TimeSignal
-        __init__.py               <- exports the timing public API
-      decision/
-        engine.py                 <- DecisionEngine: fuse all signals -> Decision
+  core/
+    data/
+      mt5_connector.py            <- thin, defensive MetaTrader5 wrapper
+      data_feed.py                <- OHLCV container + live/CSV data source
+    indicators/                   <- Phase 2 (pluggable)
+      base.py                     <- Indicator base class + math helpers
+      registry.py                 <- register/build enabled indicators
+      trend.py momentum.py volatility.py volume.py patterns.py
+      __init__.py                 <- imports submodules to trigger registration
+    learning/                     <- Phase 1 (swappable learners)
+      base_model.py               <- BaseModel common interface
+      factory.py                  <- build learner by name (+ NeutralModel)
+      features.py                 <- FeatureBuilder (OHLCV -> X, y)
+      ml_classifier.py            <- LightGBM / sklearn / pure-Python (DEFAULT)
+      rl_agent.py                 <- tabular Q-learning (CPU-light, optional)
+      dl_classifier.py            <- Keras MLP (HEAVY, off by default)
+      transfer.py                 <- transfer learning on DL model (optional)
+      self_supervised.py          <- autoencoder feature learner (optional)
+    strategy/                     <- Phase 3 (search/backtest)
+      strategy.py                 <- StrategySpec (recipe) + Strategy (executable)
+      metrics.py                  <- performance metrics + ranking value
+      backtester.py               <- fast bar-by-bar single-position simulator
+      walk_forward.py             <- rolling out-of-sample evaluation
+      search.py                   <- random/grid strategy search (memory builder)
+    memory/
+      store.py                    <- SQLite + JSON registry of strategies/results
+    news/                         <- Phase 4
+      base.py                     <- NewsItem, SentimentBackend, NewsSource ABCs
+      sentiment.py                <- lexicon (offline) + optional VADER backends
+      sources.py                  <- RSS (stdlib) + optional NewsAPI sources
+      aggregator.py               <- NewsAnalyzer: fetch/score/cache/aggregate
+    timing/                       <- Phase 5 (user-update-request): time/season awareness
+      session.py                  <- SessionCalendar + TimeContext (session/day/season)
+      time_stats.py               <- TimeStats: learned per-bucket edge (persisted)
+      time_context.py             <- TimeContextProvider: combine buckets -> TimeSignal
+      __init__.py                 <- exports the timing public API
+    decision/
+      engine.py                   <- DecisionEngine: fuse all signals -> Decision
                                      (optionally gated/sized by the timing layer)
-      execution/
-        risk_manager.py           <- position sizing + risk limits
-        order_manager.py          <- Decision -> MT5 order (paper logs / live sends)
-      utils/
-        logger.py                 <- rotating file + console logging setup
-        helpers.py                <- seeds, JSON I/O, timeframe mapping, math
+    execution/
+      risk_manager.py             <- position sizing + risk limits
+      order_manager.py            <- Decision -> MT5 order (paper logs / live sends)
+    utils/
+      logger.py                   <- rotating file + console logging setup
+      helpers.py                  <- seeds, JSON I/O, timeframe mapping, math
 
-    installer/
-      install_helper.py           <- pip install w/ retries + verify + sample data
-      install_vcredist.ps1        <- auto-install VC++ x64 runtime if missing
+  installer/
+    install_helper.py             <- pip install w/ retries + verify + sample data
+    install_vcredist.ps1          <- auto-install VC++ x64 runtime if missing
 
-    scripts/
-      run_bot.bat                 <- run launcher (finds Python, runs main.py)
-      export_history.py           <- export live MT5 history to CSV for offline use
-      export_strategy_for_ea.py   <- flatten best learned strategy -> EA .params
+  scripts/
+    run_bot.bat                   <- run launcher (finds Python, runs main.py)
+    export_history.py             <- export live MT5 history to CSV for offline use
+    export_strategy_for_ea.py     <- flatten best learned strategy -> EA .params
 
-    experts/                      <- native MT5 Strategy Tester validation
-      Mt5SmartBotEA.mq5           <- Expert Advisor replaying the learned blend
-      README_EA.md                <- install/compile/run guide for the EA
-      params/<SYM>_<TF>.params    <- generated per-symbol EA parameter files
+  experts/                        <- native MT5 Strategy Tester validation
+    Mt5SmartBotEA.mq5             <- Expert Advisor replaying the learned blend
+    README_EA.md                  <- install/compile/run guide for the EA
+    params/<SYM>_<TF>.params      <- generated per-symbol EA parameter files
 
-    tests/                        <- offline, stdlib-only test suite
-      __init__.py helpers.py run_all.py
-      test_config.py test_indicators.py test_learning.py
-      test_memory.py test_news.py test_pipeline.py
+  tests/                          <- offline, stdlib-only test suite
+    __init__.py helpers.py run_all.py
+    test_config.py test_indicators.py test_learning.py
+    test_memory.py test_news.py test_pipeline.py
 
-    examples/
-      generate_sample_data.py     <- synthetic OHLCV CSVs for offline first run
+  examples/
+    generate_sample_data.py       <- synthetic OHLCV CSVs for offline first run
 
-    data_store/                   <- persistent state (survives restarts)
-      history/<SYMBOL>_<TF>.csv    <- OHLCV history (exported or synthetic)
-      memory.sqlite               <- Phase 3 strategy/result database
-      strategy_registry.json      <- human-readable best-strategy registry
-      news_cache/news_cache.json  <- cached scored news items
+  data_store/                     <- persistent state (survives restarts)
+    history/<SYMBOL>_<TF>.csv      <- OHLCV history (exported or synthetic)
+    memory.sqlite                 <- Phase 3 strategy/result database
+    strategy_registry.json        <- human-readable best-strategy registry
+    news_cache/news_cache.json    <- cached scored news items
 
-    models/                       <- trained model artifacts (e.g. ml_classifier.pkl)
-    backtests/                    <- backtest_report.json outputs
-    logs/                         <- mt5_bot.log (rotating)
+  models/                         <- trained model artifacts (e.g. ml_classifier.pkl)
+  backtests/                      <- backtest_report.json outputs
+  logs/                           <- mt5_bot.log (rotating)
 ```
 
 ---
@@ -711,30 +710,20 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
 - `.github/workflows/ci.yml` (A7 / P4.1): a tiny GitHub Actions workflow named
   `offline-tests` that, on every push and pull request, checks out the repo,
   sets up Python 3.8 (matching the Windows 7 target), and runs
-  `python tests/run_all.py` from `mt5/mt5_bot`. It uses only stdlib (no MT5, no
+  `python tests/run_all.py` from `main`. It uses only stdlib (no MT5, no
   network, no heavy deps) so it mirrors the local offline gate exactly and has
   ZERO effect on the Windows 7 runtime. It lives at the repo root (not under
-  `mt5/mt5_bot/`) only because GitHub requires workflows there.
-  STATUS (re-verified AGAIN 2026-07-06, FOURTH session, now on the `Mt5Bot`
-  repo): the project's full commit history was moved this session into the
-  (previously empty) `golshandvr-del/Mt5Bot` repo - a fresh manual backup was
-  confirmed byte-identical to the prior HEAD (nothing lost) and the complete
-  history was pushed to `Mt5Bot`'s `main`. The workflow file is written +
-  verified locally (64 tests green) but STILL NOT pushed to GitHub - the current
-  GitHub App credential still lacks the `workflows` permission. Re-tested this
-  session against `Mt5Bot`: `git push` is rejected with "refusing to allow a
-  GitHub App to create or update workflow ... without `workflows` permission",
-  and the GitHub Contents API PUT for the workflow path still returns 403
-  "Resource not accessible by integration". The active credential is a GitHub App
-  user-to-server token (ghu_...) governed by the App installation, which still
-  lacks `workflows`. The unpushable commit was rolled back so HEAD stays in sync
-  with origin/main. Because the App CAN push anywhere under
-  `mt5/mt5_bot/`, a byte-for-byte committable copy of the workflow is kept at
-  `mt5/mt5_bot/ci_workflow_template.yml` (a header explains how to copy it into
-  `.github/workflows/ci.yml`; the YAML body below its marker line is the exact
-  file). The unpushable `.github/workflows/ci.yml` is left untracked in the
-  working tree. See structure.md section 5 P4.1 [~] for the blocker and the
-  action needed (grant the App the `workflows` permission, then push).
+  `main/`) only because GitHub requires workflows there.
+  STATUS (2026-07-06, FIFTH session): the workflow file
+  `.github/workflows/ci.yml` is now PRESENT and tracked in the repo (added via
+  the GitHub web UI in commit `e602990 Create ci.yml`, which bypasses the GitHub
+  App `workflows`-permission push blocker recorded in earlier sessions). This
+  session its `working-directory` was updated from the old `mt5/mt5_bot` path to
+  `main` as part of the project folder move (see section 17 REPO NOTE) so CI runs
+  the offline suite from the new location. `main/ci_workflow_template.yml` is
+  kept as a byte-for-byte reference copy. Because the workflow is live, the P4.1
+  push blocker is effectively resolved; structure.md P4.1 tracks the final
+  flip-to-[x] (a docs-only confirmation once a CI run is observed green).
 
 ---
 
@@ -800,7 +789,7 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
 ## 16. Conventions & invariants (do not break)
 
 1. **ASCII only** everywhere (code, comments, docs, strings, filenames).
-2. **Entire project stays under `mt5/mt5_bot/`**; nothing else in that folder.
+2. **Entire project stays under `main/`**; nothing else in that folder.
 3. **Config-driven**: no hard-coded feature flags; read from config.yaml.
 4. **Graceful degradation**: missing MT5 / missing optional dep / offline news
    must NOT crash the bot; components return neutral/empty and log a warning.
@@ -846,6 +835,20 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   was migrated this session from the earlier `golshandvr-del/MtBot` repo
   (byte-identical content, so nothing was lost); `Mt5Bot` is the authoritative
   primary repo going forward.
+- FOLDER-MOVE NOTE (2026-07-06, fifth session): at the user's request the entire
+  project was MOVED from the old `mt5/mt5_bot/` directory to a single top-level
+  `main/` directory (via `git mv mt5/mt5_bot main`, so file history is
+  preserved), and the now-empty `mt5/` parent was removed. This aligns the repo
+  with the roadmap invariant "the entire project lives ONLY inside main/". No
+  source code changed - all code uses project-root-relative paths, so it runs
+  unchanged from the new location (offline suite: 64 tests green from `main/`).
+  Every path reference in the docs (CODE_MAP.md, structure.md, Ideas.md,
+  README.md, experts/README_EA.md), the CI workflow `.github/workflows/ci.yml`
+  and its `main/ci_workflow_template.yml` reference copy (both now
+  `working-directory: main`), and `.gitignore` were updated from `mt5/mt5_bot`
+  to `main`. Historical change-log entries that mention the old path describe
+  events as they happened; the path token was updated for consistency since the
+  files now live under `main/`.
 - ROADMAP PROGRESS: Phases P1, P2, and P3 of `structure.md` are now COMPLETE.
   Phase P1 (Track A items A1 + A2 - honest evaluation: multi-year real-data
   workflow documented, more walk-forward segments via `min_segments`
@@ -865,20 +868,16 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   test (`tests/test_per_symbol_learning.py`), P3.6 the weekend-swap + Monday-gap
   model in the backtester, P3.7 its test
   (`tests/test_backtester_swap_gap.py`), and P3.8 the A4/A5/A6 status flips
-  (docs-only) are all done. Phase P4 (CI safety net, A7) is IN PROGRESS but
-  P4.1 is BLOCKED-ON-PUSH (blocker re-verified AGAIN 2026-07-06, FOURTH session,
-  now on the Mt5Bot repo):
-  the `.github/workflows/ci.yml` workflow
-  (`offline-tests`, runs `python tests/run_all.py` from `mt5/mt5_bot` on push/PR
-  under Python 3.8, stdlib-only, zero Windows-7-runtime impact) is written and
-  verified locally (64 tests green) and left untracked in the working tree, but
-  the GitHub App credential lacks the `workflows` permission, so the file cannot
-  be pushed yet (git push rejected + Contents API 403 - both re-tested this
-  session; the unpushable commit was rolled back so HEAD == origin/main).
-  See structure.md section 5
-  (P4.1 [~]) and section 7 for the blocker and the exact file contents. NEXT:
-  grant the App the `workflows` permission, push the workflow, and flip P4.1 to
-  [x]; only then P4.2 (add a CI note/badge to README and flip the A7 status).
+  (docs-only) are all done. Phase P4 (CI safety net, A7) is IN PROGRESS. The
+  P4.1 push blocker (GitHub App lacking the `workflows` permission, re-verified
+  through the fourth session) is now RESOLVED: `.github/workflows/ci.yml` was
+  added to the repo via the GitHub web UI (commit `e602990 Create ci.yml`),
+  which bypasses the App push restriction. This fifth session updated its
+  `working-directory` to `main` as part of the folder move
+  (`offline-tests`, runs `python tests/run_all.py` from `main` on push/PR under
+  Python 3.8, stdlib-only, zero Windows-7-runtime impact). See structure.md
+  section 5 (P4.1) and section 7. NEXT: confirm a green CI run and flip P4.1 to
+  [x], then P4.2 (add a CI note/badge to README and flip the A7 status).
 - PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
   biggest current risk as STATISTICAL (small samples), not software. The roadmap
   there sequences Track A (multi-year real data, more walk-forward segments +

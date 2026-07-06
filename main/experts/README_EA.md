@@ -50,7 +50,7 @@ First build the memory with a search, then export the best strategy to an
 EA-readable params file:
 
 ```bash
-cd mt5/mt5_bot
+cd main
 python main.py --mode search                 # builds data_store/strategy_registry.json
 python scripts/export_strategy_for_ea.py     # writes experts/params/<SYMBOL>_<TF>.params
 # or a single pair:

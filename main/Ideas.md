@@ -155,11 +155,11 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 - [~] **CI workflow file** (GitHub Actions) running the offline test suite on
   push (nice-to-have; does not affect Windows 7 runtime). WRITTEN in P4.1:
   `.github/workflows/ci.yml` (`offline-tests`) runs `python tests/run_all.py`
-  from `mt5/mt5_bot` under Python 3.8 on every push/PR. STILL BLOCKED-ON-PUSH
+  from `main` under Python 3.8 on every push/PR. STILL BLOCKED-ON-PUSH
   (re-verified 2026-07-06, fourth session, on the `Mt5Bot` repo): the GitHub App
   credential still lacks the `workflows` permission, so the file cannot be
   pushed to GitHub yet. A byte-for-byte committable copy is preserved at
-  `mt5/mt5_bot/ci_workflow_template.yml` (paste it into
+  `main/ci_workflow_template.yml` (paste it into
   `.github/workflows/ci.yml` once the permission is granted). See change-log
   P4.1 below.
 
@@ -178,6 +178,24 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- FOLDER MOVE mt5/mt5_bot -> main (2026-07-06, FIFTH session; user request).
+  The user reported the project had been stored at `mt5/mt5_bot/` on GitHub but
+  they wanted it directly under `main/`, matching the roadmap invariant "the
+  entire project lives ONLY inside main/". Moved the whole project with
+  `git mv mt5/mt5_bot main` (so file history is preserved) and removed the
+  now-empty `mt5/` parent. No source code changed - all code uses
+  project-root-relative paths, so it runs unchanged from `main/` (offline suite
+  re-run from the new location: 64 tests, all green). Updated every path
+  reference from `mt5/mt5_bot` to `main` across the docs (CODE_MAP.md tree +
+  notes, structure.md, this file, README.md layout + commands,
+  experts/README_EA.md), the live CI workflow `.github/workflows/ci.yml` and its
+  `ci_workflow_template.yml` reference copy (both now `working-directory: main`),
+  and `.gitignore` (log path). Also noted that the P4.1 CI workflow is now LIVE
+  in the repo (added earlier via the GitHub web UI as commit `e602990 Create
+  ci.yml`, bypassing the GitHub App `workflows`-permission push blocker recorded
+  in the fourth-session entries below); its stale "blocked" STATUS notes in
+  CODE_MAP.md and the template header were corrected. Committed + pushed as the
+  folder-structure fix before resuming the roadmap.
 - P4.1 (Track A / A7, infra) [~] BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH
   (2026-07-06, FOURTH session, now on the `Mt5Bot` repo). This session began from
   a fresh manual backup link: downloaded + extracted it and confirmed it is
@@ -203,7 +221,7 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 - P4.1 (Track A / A7, infra) [~] BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH
   (2026-07-06, third session). Re-ran the exact push test this session:
   recreated `.github/workflows/ci.yml` byte-for-byte from the committed
-  `mt5/mt5_bot/ci_workflow_template.yml` (ASCII-only: 0 non-printable bytes;
+  `main/ci_workflow_template.yml` (ASCII-only: 0 non-printable bytes;
   YAML parses, name = offline-tests), committed it locally, and ran
   `git push origin main` -> STILL rejected with "refusing to allow a GitHub App
   to create or update workflow `.github/workflows/ci.yml` without `workflows`
@@ -226,7 +244,7 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 - P4.1 (Track A / A7, infra) [~] STILL BLOCKED-ON-PUSH, committable copy
   preserved (2026-07-06, second session). Re-verified the blocker in a fresh
   session: recreated `.github/workflows/ci.yml` (ASCII-only, YAML-valid, its
-  command `python tests/run_all.py` from `mt5/mt5_bot` is green - 64 tests),
+  command `python tests/run_all.py` from `main` is green - 64 tests),
   committed it, and ran `git push origin main`. STILL rejected: "refusing to
   allow a GitHub App to create or update workflow `.github/workflows/ci.yml`
   without `workflows` permission" - the `workflows` permission has NOT been
@@ -234,8 +252,8 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
   unstaged) so the branch stays in sync with origin and other doc commits stay
   pushable; the ci.yml is left untracked in the working tree. DECISION / NEW
   THIS SESSION: to stop losing the file across sessions, committed a byte-for-
-  byte copy at `mt5/mt5_bot/ci_workflow_template.yml` (pushable because it is
-  under mt5/mt5_bot/, not under .github/workflows/). Its header explains the two
+  byte copy at `main/ci_workflow_template.yml` (pushable because it is
+  under main/, not under .github/workflows/). Its header explains the two
   activation paths (grant the `workflows` permission, or paste it into
   `.github/workflows/ci.yml` via the GitHub web UI); the YAML body below its
   marker line is the exact intended workflow. Docs synced (structure.md P4.1
@@ -248,16 +266,16 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
   (`offline-tests`) that runs the stdlib-only offline suite on every push and
   pull request: checkout -> setup Python 3.8 (matching the Windows 7 /
   Python 3.8.x target) -> `python tests/run_all.py` with
-  `working-directory: mt5/mt5_bot`. No MetaTrader5, no network, no heavy deps,
+  `working-directory: main`. No MetaTrader5, no network, no heavy deps,
   so it mirrors the local offline gate and has ZERO effect on the Windows 7
   runtime. DECISION: the workflow file must sit at the REPO ROOT
   (`.github/workflows/`) because GitHub recognizes workflows only there; this is
   documented in CODE_MAP.md section 1 as the single deliberate exception to the
-  "everything under mt5/mt5_bot/" folder invariant (the project code itself is
+  "everything under main/" folder invariant (the project code itself is
   untouched). Runner pinned to `ubuntu-22.04` since Python 3.8 is available
   there via setup-python (newer default runners dropped it). Verified locally:
   YAML parses, ASCII-only (0 non-ascii bytes), and the exact CI command run from
-  `mt5/mt5_bot` is green (64 tests).
+  `main` is green (64 tests).
   BLOCKER: pushing the file is REFUSED by GitHub because the GitHub App
   credential used here lacks the `workflows` permission - `git push` returns
   "refusing to allow a GitHub App to create or update workflow

@@ -16,7 +16,7 @@ env/
 ENV/
 
 # Logs (runtime, regenerated)
-mt5/mt5_bot/logs/*.log
+main/logs/*.log
 *.log
 
 # IDE

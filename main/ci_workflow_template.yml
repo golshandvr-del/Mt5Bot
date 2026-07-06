@@ -1,0 +1,31 @@
+# CI WORKFLOW TEMPLATE (reference copy) - see structure.md P4.1
+#
+# STATUS (2026-07-06): the live workflow now EXISTS at the repo root as
+# `.github/workflows/ci.yml` (added via the GitHub web UI, which bypasses the
+# GitHub App `workflows`-permission push restriction recorded in earlier
+# sessions). This file is kept as a byte-for-byte REFERENCE COPY of that
+# workflow, under main/ (where the automated push credential can always write),
+# so the intended content stays preserved in version control. If the live
+# workflow is ever lost or needs recreating, copy everything BELOW the marker
+# line back into `.github/workflows/ci.yml`.
+#
+# The workflow itself is stdlib-only (no MetaTrader5, no network, no heavy
+# deps): it just runs the offline test suite from main on push/PR under
+# Python 3.8, mirroring the local offline gate. It has ZERO effect on the
+# Windows 7 runtime.
+#
+# ----- COPY EVERYTHING BELOW THIS LINE INTO .github/workflows/ci.yml -----
+name: offline-tests
+on:
+  push:
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+      - working-directory: main
+        run: python tests/run_all.py

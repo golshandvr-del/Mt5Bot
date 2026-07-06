@@ -140,38 +140,37 @@ signal) into a single `Decision`, then the **execution layer**
 ## Project layout
 
 ```
-mt5/
-  mt5_bot/
-    install.bat            One-click Windows 7 installer
-    main.py               CLI entry point (train/search/backtest/paper/live/loop)
-    requirements.txt      Dependencies pinned for Windows 7 / Python 3.8
-    README.md             This file
-    CODE_MAP.md           Full internal architecture map (read this for details)
-    structure.md          Structure snapshot + prioritized development roadmap
-    Ideas.md              Idea backlog log
+main/                   The ENTIRE project lives ONLY here
+  install.bat            One-click Windows 7 installer
+  main.py               CLI entry point (train/search/backtest/paper/live/loop)
+  requirements.txt      Dependencies pinned for Windows 7 / Python 3.8
+  README.md             This file
+  CODE_MAP.md           Full internal architecture map (read this for details)
+  structure.md          Structure snapshot + prioritized development roadmap
+  Ideas.md              Idea backlog log
 
-    config/               config.yaml (master config) + loader
-    app/                  BotContext (assembly) + runners (one per mode)
-    core/
-      data/               MT5 connector + OHLCV data feed
-      indicators/         Phase 2 pluggable indicators
-      learning/           Phase 1 swappable learners
-      strategy/           Phase 3 search / backtest / walk-forward
-      memory/             Phase 3 SQLite + JSON persistence
-      news/               Phase 4 news + sentiment
-      timing/             Phase 5 session / day / season awareness (optional)
-      decision/           Signal fusion -> Decision
-      execution/          Risk manager + order manager
-      utils/              Logging + helpers
-    installer/            install_helper.py + install_vcredist.ps1
-    scripts/              run_bot.bat + export_history.py
-    experts/              MT5 Expert Advisor (.mq5) for the native Strategy Tester
-    examples/             generate_sample_data.py (synthetic offline data)
-    tests/                Offline smoke/unit tests
-    data_store/           Persistent state (history CSVs, memory DB, news cache)
-    models/               Trained model artifacts
-    backtests/            Backtest reports
-    logs/                 Rotating log file
+  config/               config.yaml (master config) + loader
+  app/                  BotContext (assembly) + runners (one per mode)
+  core/
+    data/               MT5 connector + OHLCV data feed
+    indicators/         Phase 2 pluggable indicators
+    learning/           Phase 1 swappable learners
+    strategy/           Phase 3 search / backtest / walk-forward
+    memory/             Phase 3 SQLite + JSON persistence
+    news/               Phase 4 news + sentiment
+    timing/             Phase 5 session / day / season awareness (optional)
+    decision/           Signal fusion -> Decision
+    execution/          Risk manager + order manager
+    utils/              Logging + helpers
+  installer/            install_helper.py + install_vcredist.ps1
+  scripts/              run_bot.bat + export_history.py
+  experts/              MT5 Expert Advisor (.mq5) for the native Strategy Tester
+  examples/             generate_sample_data.py (synthetic offline data)
+  tests/                Offline smoke/unit tests
+  data_store/           Persistent state (history CSVs, memory DB, news cache)
+  models/               Trained model artifacts
+  backtests/            Backtest reports
+  logs/                 Rotating log file
 ```
 
 ---
@@ -191,7 +190,7 @@ mt5/
 ## Install on Windows 7 (one click)
 
 1. Copy the whole `mt5` folder to the target machine.
-2. Open the `mt5\mt5_bot` folder.
+2. Open the `main` folder.
 3. Double-click **`install.bat`** (or run it from a Command Prompt).
 
 `install.bat` will automatically:
@@ -219,7 +218,7 @@ falls back to pure-Python implementations.
 If you prefer to install by hand (or on Linux/macOS for development):
 
 ```bash
-cd mt5/mt5_bot
+cd main
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 # Generate synthetic history so everything runs offline:
@@ -234,7 +233,7 @@ connector runs in OFFLINE mode using the CSV files in `data_store/history/`.
 
 ## How to run
 
-All commands are run from inside `mt5/mt5_bot`.
+All commands are run from inside `main`.
 
 ```bash
 python main.py                 # use the mode from config.general.mode
@@ -319,7 +318,7 @@ Run this on the Windows machine with the **MT5 terminal open and logged in** (th
 exporter needs a live terminal to pull bars; it cannot run offline):
 
 ```bash
-cd mt5\mt5_bot
+cd main
 python scripts\export_history.py --symbols EURUSD,GBPUSD,XAUUSD --timeframe M15 --bars 150000
 ```
 
@@ -443,7 +442,7 @@ offline pipeline end to end (config, indicators, learning fallback, memory,
 news degradation, decision, and each run mode) without needing MT5 or a network.
 
 ```bash
-cd mt5/mt5_bot
+cd main
 python -m unittest discover -s tests -v
 # or
 python tests/run_all.py
