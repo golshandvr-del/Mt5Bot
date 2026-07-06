@@ -156,9 +156,9 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
   push (nice-to-have; does not affect Windows 7 runtime). WRITTEN in P4.1:
   `.github/workflows/ci.yml` (`offline-tests`) runs `python tests/run_all.py`
   from `mt5/mt5_bot` under Python 3.8 on every push/PR. STILL BLOCKED-ON-PUSH
-  (re-verified 2026-07-06): the GitHub App credential still lacks the
-  `workflows` permission, so the file cannot be pushed to GitHub yet. A
-  byte-for-byte committable copy is preserved at
+  (re-verified 2026-07-06, fourth session, on the `Mt5Bot` repo): the GitHub App
+  credential still lacks the `workflows` permission, so the file cannot be
+  pushed to GitHub yet. A byte-for-byte committable copy is preserved at
   `mt5/mt5_bot/ci_workflow_template.yml` (paste it into
   `.github/workflows/ci.yml` once the permission is granted). See change-log
   P4.1 below.
@@ -178,6 +178,28 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P4.1 (Track A / A7, infra) [~] BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH
+  (2026-07-06, FOURTH session, now on the `Mt5Bot` repo). This session began from
+  a fresh manual backup link: downloaded + extracted it and confirmed it is
+  BYTE-IDENTICAL to the current GitHub HEAD (nothing newer, nothing lost). The
+  primary repo named in the prompt (`golshandvr-del/Mt5Bot`) was empty, while the
+  full project history lived in `golshandvr-del/MtBot`; pushed the COMPLETE
+  history into `Mt5Bot`'s `main` so the entire project now lives there. Re-ran
+  the definitive P4.1 push test: recreated `.github/workflows/ci.yml`
+  byte-for-byte from the committed `ci_workflow_template.yml` (ASCII-only, YAML
+  parses, name = offline-tests), committed it, and ran `git push origin main`
+  against `Mt5Bot` -> STILL rejected with "refusing to allow a GitHub App to
+  create or update workflow `.github/workflows/ci.yml` without `workflows`
+  permission". Contents API PUT -> STILL 403 "Resource not accessible by
+  integration". The active credential is a GitHub App user-to-server token
+  (ghu_...) whose permissions come from the App installation, which still lacks
+  `workflows`. Rolled the unpushable commit back (`git reset --soft HEAD~1` +
+  unstage) so HEAD stays == origin/main; `.github/workflows/ci.yml` left
+  untracked and `ci_workflow_template.yml` still preserves the content. Offline
+  suite re-run: 64 tests, all green. P4.1 stays [~]; per the scope rules P4.2 is
+  NOT started until P4.1 is actually pushed. ACTION NEEDED FROM USER: grant the
+  Genspark/GitHub App the `workflows` permission for `Mt5Bot`, then copy the
+  template into `.github/workflows/ci.yml` and push (or paste via the web UI).
 - P4.1 (Track A / A7, infra) [~] BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH
   (2026-07-06, third session). Re-ran the exact push test this session:
   recreated `.github/workflows/ci.yml` byte-for-byte from the committed
