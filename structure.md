@@ -507,16 +507,44 @@ gold realistically.
 
 Goal: upgrade from "offline learner" to "live, self-doubting system".
 
-- [ ] P5.1 (code) New `core/strategy/council.py`: per-strategy LIVE credibility
+- [x] P5.1 (code) New `core/strategy/council.py`: per-strategy LIVE credibility
       from its recent (~30) trade outcomes via a light bandit rule (tabular UCB
       or Exp3, pure Python). [B1]
-- [ ] P5.2 (code) Persist live credibility in `core/memory/store.py` (new
+      DONE (2026-07-06, SIXTH session): `StrategyCouncil` (+ `ArmStats`) is a
+      pure-stdlib tabular UCB1 bandit. Each arm keeps a rolling window (default
+      30) of normalized rewards; `weight()` maps the arm's mean reward onto
+      [min_weight, max_weight] around a neutral 1.0, and uses the UCB
+      exploration term ONLY as a one-sided ANTI-BURIAL floor so young low-sample
+      arms are not prematurely starved (winners are never inflated by
+      exploration). Reward is the trade SIGN by default (reward_scale=0),
+      currency-independent.
+- [x] P5.2 (code) Persist live credibility in `core/memory/store.py` (new
       table or column) so it survives restarts.
-- [ ] P5.3 (code+config) Consume council weights in the
+      DONE (2026-07-06, SIXTH session): new `council` SQLite table
+      (fingerprint PK, rewards_json, total_seen, updated_at) plus
+      `MemoryStore.save_council()` / `load_council()` using the council's
+      to_dict()/load_dict() hooks. Both degrade gracefully (log + no-op) so a DB
+      problem never crashes the live path. Round-trip verified in P5.4 tests.
+- [x] P5.3 (code+config) Consume council weights in the
       `core/decision/engine.py` ensemble blend instead of the static average.
       Add `decision.council.*` to config.yaml, default OFF.
-- [ ] P5.4 (test) Council test: a strategy that keeps losing sees its weight
+      DONE (2026-07-06, SIXTH session): `DecisionEngine` takes an optional
+      `council`; when `decision.council.enabled` is true the memory-ensemble
+      blend is a credibility-WEIGHTED average (label `ensemble+council`),
+      otherwise it stays the previous plain equal-weight average (label
+      `ensemble`), byte-for-byte. `decision.council.*` added to config.yaml
+      (enabled:false, window, min_trades, exploration_c, default/min/max weight,
+      reward_scale). `BotContext.council` builds the council only when enabled,
+      restores it from memory (P5.2), and injects it into the engine.
+- [x] P5.4 (test) Council test: a strategy that keeps losing sees its weight
       decay toward zero; weights persist across a simulated restart.
+      DONE (2026-07-06, SIXTH session): `tests/test_strategy_council.py`
+      (8 tests) covers the weight math (loser decays monotonically toward the
+      floor as losing evidence mounts; winner boosts to the cap; coin-flip and
+      unknown/warming-up stay neutral; young loser less damped than a seasoned
+      one), the save->restart->load round-trip via a temp MemoryStore, and the
+      engine blend (OFF = plain average; ON = tilts toward the better recent
+      record). Full offline suite now 72 tests, all green.
 - [ ] P5.5 (code) New `core/strategy/decay_monitor.py`: per-registry-strategy
       "statistical expiry" - compare recent live/paper PnL distribution vs its
       walk-forward distribution (simple KS or mean/std drift); mark drifted
