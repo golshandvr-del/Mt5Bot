@@ -29,6 +29,7 @@ from core.learning.factory import build_active_model
 from core.learning.features import FeatureBuilder
 from core.memory.store import MemoryStore
 from core.strategy.council import StrategyCouncil
+from core.strategy.decay_monitor import DecayMonitor
 from core.news.aggregator import NewsAnalyzer
 from core.timing.time_stats import TimeStats
 from core.timing.time_context import TimeContextProvider
@@ -59,6 +60,9 @@ class BotContext(object):
         # Phase 5 / P5.3: optional live strategy council (built only when
         # decision.council.enabled is true).
         self._council: Optional[StrategyCouncil] = None
+        # Phase 5 / P5.6: optional strategy decay monitor (built only when
+        # decision.decay_monitor.enabled is true).
+        self._decay_monitor: Optional[DecayMonitor] = None
         self._news: Optional[NewsAnalyzer] = None
         self._time_stats: Optional[TimeStats] = None
         self._timing: Optional[TimeContextProvider] = None
@@ -233,6 +237,54 @@ class BotContext(object):
         return self._council
 
     @property
+    def decay_monitor(self) -> Optional[DecayMonitor]:
+        """
+        Phase 5 / P5.6 (Track B / B3): the strategy decay monitor that flags
+        registry strategies whose recent live PnL has drifted below their
+        walk-forward distribution. Built ONLY when
+        ``decision.decay_monitor.enabled`` is true, so the default light path
+        skips it entirely and behaves byte-for-byte as before.
+        """
+        if self._decay_monitor is None and bool(
+            self.cfg.get_path("decision.decay_monitor.enabled", False)
+        ):
+            self._decay_monitor = DecayMonitor(self.cfg)
+        return self._decay_monitor
+
+    def decay_suspects(self) -> set:
+        """
+        Compute the set of strategy fingerprints the decay monitor currently
+        deems "suspect" (recent live PnL has decayed vs their walk-forward
+        reference). Returns an empty set when the monitor is disabled or no
+        strategy has enough live evidence, so callers can pass it unconditionally
+        and the engine simply drops nothing. Degrades gracefully (any error ->
+        the fingerprints assessed so far).
+        """
+        monitor = self.decay_monitor
+        if monitor is None or not monitor.enabled:
+            return set()
+        suspects: set = set()
+        try:
+            fingerprints = self.memory.live_trade_fingerprints()
+        except Exception as exc:
+            self.log.error("decay_suspects: fingerprint fetch failed: %s", exc)
+            return suspects
+        window = int(self.cfg.get_path(
+            "decision.decay_monitor.recent_window", 200))
+        for fp in fingerprints:
+            try:
+                reference = self.memory.reference_pnls(fp)
+                recent = self.memory.recent_live_pnls(fp, limit=window)
+                if monitor.assess(reference, recent).suspect:
+                    suspects.add(fp)
+            except Exception as exc:
+                self.log.error("decay_suspects: assess %s failed: %s", fp, exc)
+        if suspects:
+            self.log.info("decay monitor flagged %d suspect strategy(ies): %s",
+                          len(suspects), ", ".join(sorted(suspects)))
+        return suspects
+
+    @property
     def risk(self) -> RiskManager:
         if self._risk is None:
             self._risk = RiskManager(self.cfg, self.connector)
@@ -261,6 +313,7 @@ class BotContext(object):
                 timing=self.timing,
                 learner_provider=provider,
                 council=self.council,
+                decay_suspects=self.decay_suspects(),
             )
         return self._engine
 

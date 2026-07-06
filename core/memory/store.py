@@ -499,6 +499,26 @@ class MemoryStore(object):
         except Exception as exc:
             self.log.error("record_live_trade failed: %s", exc)
 
+    def live_trade_fingerprints(self) -> List[str]:
+        """
+        Return the distinct strategy fingerprints that have at least one recorded
+        live/paper trade. Used by the decay monitor to know which strategies have
+        enough live evidence to be assessed. Empty list on error / empty table.
+        """
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT DISTINCT fingerprint FROM live_trades "
+                "WHERE fingerprint IS NOT NULL AND fingerprint <> ''"
+            )
+            rows = cur.fetchall()
+            conn.close()
+        except Exception as exc:
+            self.log.error("live_trade_fingerprints failed: %s", exc)
+            return []
+        return [r["fingerprint"] for r in rows if r["fingerprint"]]
+
     def recent_live_pnls(self, fingerprint: str,
                          limit: int = 100) -> List[float]:
         """

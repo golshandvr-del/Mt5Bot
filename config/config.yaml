@@ -393,6 +393,7 @@ decision:
     z_threshold: 2.0      # |z| beyond which the mean drop is deemed statistically real
     max_rel_drop: 0.5     # recent mean below (1-this)*ref_mean alone trips suspect; 0 disables
     require_both: false   # true = BOTH z-test AND relative-drop must trip; false = EITHER trips
+    recent_window: 200    # how many most-recent live trades per strategy to assess
 
 # -----------------------------------------------------------------------------
 # Backtest engine (internal, for "backtest" mode)
