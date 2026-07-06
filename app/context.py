@@ -212,6 +212,27 @@ class BotContext(object):
         return self._timing
 
     @property
+    def council(self) -> Optional[StrategyCouncil]:
+        """
+        Phase 5 / P5.3 (Track B / B1): the live strategy council that supplies a
+        per-strategy credibility weight to the ensemble blend. Built ONLY when
+        ``decision.council.enabled`` is true, so the default light path skips it
+        entirely and behaves byte-for-byte as before. On first build its rolling
+        rewards are restored from the memory store (P5.2) so live credibility
+        survives restarts.
+        """
+        if self._council is None and bool(
+            self.cfg.get_path("decision.council.enabled", False)
+        ):
+            council = StrategyCouncil(self.cfg)
+            try:
+                self.memory.load_council(council)
+            except Exception as exc:
+                self.log.error("council: load from memory failed: %s", exc)
+            self._council = council
+        return self._council
+
+    @property
     def risk(self) -> RiskManager:
         if self._risk is None:
             self._risk = RiskManager(self.cfg, self.connector)
@@ -239,6 +260,7 @@ class BotContext(object):
                 memory=self.memory,
                 timing=self.timing,
                 learner_provider=provider,
+                council=self.council,
             )
         return self._engine
 
