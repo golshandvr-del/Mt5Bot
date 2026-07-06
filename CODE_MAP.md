@@ -427,12 +427,38 @@ The "learn from trial-and-error" loop / memory builder.
   `update_registry`, so a spec that only worked in-sample is never promoted.
   When the holdout is OFF the allowlist is None and promotion is unchanged.
 
+### council.py - `StrategyCouncil` (Phase 5 / P5.1, Track B / B1)
+A pure-stdlib tabular UCB1 bandit that learns a LIVE per-strategy credibility
+from each strategy's own recent realized trade outcomes.
+- `ArmStats(window)`: one strategy's rolling window (default 30) of normalized
+  rewards (a `deque`) plus a `total_seen` counter; `to_dict/load_dict` for
+  persistence. `mean_reward` is the exploit term.
+- `StrategyCouncil(cfg)`: reads `decision.council.*` (window, min_trades,
+  exploration_c, default/min/max weight, reward_scale). `record_outcome(fp, pnl)`
+  normalizes the trade into [0,1] (SIGN only when reward_scale=0 -> win=1/loss=0,
+  currency-independent) and appends it. `weight(fp)` maps the arm's mean reward
+  onto `[min_weight, max_weight]` around a neutral 1.0 anchor, and applies the
+  UCB exploration term ONLY as a one-sided ANTI-BURIAL floor on the losing side
+  (so a young, low-sample arm is damped less than a well-sampled one; winners are
+  never inflated by exploration). Unknown / still-warming-up arms (n < min_trades)
+  return the neutral `default_weight`. Also `weights(fps)`, `credibility(fp)`,
+  `arm_summary(fp)`, and `to_dict/load_dict` (used by MemoryStore.save/load_council).
+  Consumed by `DecisionEngine` (P5.3) only when `decision.council.enabled` is true.
+
 ### memory/store.py - `MemoryStore` (persistence)
 SQLite DB (`data_store/memory.sqlite`) + JSON registry
 (`data_store/strategy_registry.json`). Survives restarts.
-- Tables: `strategies(fingerprint PK, symbol, timeframe, spec_json, created_at)`
-  and `results(id, fingerprint, symbol, timeframe, segment, rank_metric,
-  metrics_json, score, created_at)`.
+- Tables: `strategies(fingerprint PK, symbol, timeframe, spec_json, created_at)`,
+  `results(id, fingerprint, symbol, timeframe, segment, rank_metric,
+  metrics_json, score, created_at)`, and (Phase 5 / P5.2)
+  `council(fingerprint PK, rewards_json, total_seen, updated_at)` for the live
+  strategy-council credibility.
+- Live strategy council persistence (Phase 5 / P5.2): `save_council(council)`
+  snapshots each arm's rolling reward window into the `council` table
+  (INSERT OR REPLACE keyed on fingerprint), and `load_council(council)` restores
+  it via the council's `to_dict()`/`load_dict()` hooks. Both are wrapped in
+  try/except (log + no-op on any failure) so a DB problem never crashes the live
+  decision path; a missing table / empty DB simply leaves the council cold.
 - `record_strategy`, `record_result`, `top_strategies(...)` (averages score
   across walk-forward segments, filtered by min avg trades; optional
   `allowed_fingerprints` allowlist restricts promotion to holdout-passing specs,
@@ -886,9 +912,21 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   `419cdf4` after the project moved to the repo root (`0c1cfd6`). P4.1, P4.2 and
   A7 are all flipped to [x]; README carries the CI badge + note. The assistant
   cannot observe Actions run results from the sandbox (App lacks `actions` read
-  scope), but CI mirrors the green local suite (64 tests) exactly. See
-  structure.md section 5. NEXT: Phase P5 (living adaptive core, B1/B3), starting
-  at P5.1 (`core/strategy/council.py` - per-strategy live credibility bandit).
+  scope), but CI mirrors the green local suite exactly. See structure.md
+  section 5. Phase P5 (living adaptive core, B1/B3) is now IN PROGRESS: the
+  STRATEGY COUNCIL half (B1) is DONE - P5.1 `core/strategy/council.py`
+  (pure-Python UCB1 bandit for per-strategy live credibility), P5.2 persistence
+  in `core/memory/store.py` (new `council` table + save/load_council), P5.3
+  consumption in `core/decision/engine.py` (credibility-weighted ensemble blend,
+  `decision.council.*` config default OFF, wired through `BotContext.council`),
+  and P5.4 `tests/test_strategy_council.py` (8 tests: loser weight decays toward
+  the floor, weights persist across a simulated restart, engine blend tilts to
+  the winner) are all flipped to [x]. Full offline suite now 72 tests, all green.
+  NEXT: the DECAY-MONITOR half (B3) - P5.5 `core/strategy/decay_monitor.py`
+  (per-registry-strategy statistical-expiry: recent live/paper PnL vs its
+  walk-forward distribution), P5.6 wiring in order_manager + store
+  (`decision.decay_monitor.*` default OFF), P5.7 its test, P5.8 doc sync +
+  B1/B3 flips.
 - PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
   biggest current risk as STATISTICAL (small samples), not software. The roadmap
   there sequences Track A (multi-year real data, more walk-forward segments +
