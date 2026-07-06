@@ -402,18 +402,26 @@ gold realistically.
 - [~] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
       set up Python 3.8, run `python tests/run_all.py`. Zero impact on the
       Windows 7 runtime. [A7]
-      UNBLOCKED (2026-07-06, FIFTH session): the workflow file
-      `.github/workflows/ci.yml` is now PRESENT and tracked in the repo - it was
-      added via the GitHub web UI (commit `e602990 Create ci.yml`), which bypasses
-      the GitHub App `workflows`-permission push restriction that blocked earlier
-      sessions. So the long-standing push blocker recorded below is RESOLVED. This
-      session also updated the workflow's `working-directory` from the old
-      `mt5/mt5_bot` path to `main` as part of the folder move, and corrected the
-      stale "blocked" STATUS notes in CODE_MAP.md and the template header. P4.1 is
-      kept [~] only pending a first observed GREEN CI run on GitHub (the offline
-      suite is green locally: 64 tests); once confirmed, flip P4.1 to [x] and
-      proceed to P4.2 (CI badge/note in README + flip the A7 status). The
-      historical BLOCKED notes below are retained for provenance.
+      NEARLY DONE (2026-07-06, FIFTH session): the workflow file
+      `.github/workflows/ci.yml` is now PRESENT, tracked, and CORRECT on GitHub.
+      It was first added via the GitHub web UI (commit `e602990 Create ci.yml`),
+      which bypasses the GitHub App `workflows`-permission push restriction that
+      blocked earlier sessions. When the folder move to `main/` this session
+      required changing the workflow's `working-directory` from `mt5/mt5_bot` to
+      `main`, the assistant's push of that edit was REJECTED by the same App
+      permission gap (it blocks workflow UPDATES too, not just CREATE), so the
+      assistant CANNOT edit the workflow from the sandbox. The USER then made that
+      one-line fix directly in the GitHub web UI (commit `33b0360 Update ci.yml`):
+      the live workflow now correctly runs `working-directory: main`, matching the
+      byte-for-byte body of `main/ci_workflow_template.yml`. So the workflow is
+      functionally complete and the offline suite is green locally (64 tests).
+      P4.1 is kept [~] ONLY because this assistant cannot observe GitHub Actions
+      run results from the sandbox (no network/Actions access) to confirm a GREEN
+      run. ACTION NEEDED FROM USER (verification only, no edit): check the Actions
+      tab on GitHub and confirm the `offline-tests` workflow ran GREEN on a recent
+      push. Once confirmed, flip P4.1 to [x] and proceed to P4.2 (CI badge/note in
+      README + flip A7 status). The historical BLOCKED notes below are retained
+      for provenance.
       BLOCKED (re-verified AGAIN 2026-07-06, FOURTH session, now against the
       `Mt5Bot` repo): the same external blocker persists. This session (a) took a
       fresh manual backup of the project, confirmed it is BYTE-IDENTICAL to the
@@ -576,16 +584,24 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
   Updated every path reference `mt5/mt5_bot` -> `main` across CODE_MAP.md (the
   section-2 tree + repo/CI notes), this file (section-1 tree + this entry),
   Ideas.md, README.md (layout + all `cd` commands), experts/README_EA.md, the
-  live CI workflow `.github/workflows/ci.yml` and its `ci_workflow_template.yml`
-  reference copy (both now `working-directory: main`), and `.gitignore`.
+  `ci_workflow_template.yml` reference copy (now `working-directory: main`), and
+  `.gitignore`. NOTE: this move was first attempted earlier in the FIFTH session
+  but the sandbox RESET before commit/push, losing that work; it was recovered
+  this session from a user-provided manual backup (verified byte-identical code
+  to the pre-move HEAD) and redone via `git mv` + push, so nothing was lost.
   Historical change-log entries below that mention `mt5/mt5_bot` describe events
   as they happened; the path token was normalized to `main` for consistency
-  since the files now live under `main/`. Separately noticed the P4.1 CI workflow
-  is now LIVE in the repo (added via the GitHub web UI as commit `e602990 Create
-  ci.yml`, which bypasses the GitHub App `workflows`-permission push blocker
-  re-verified through the fourth session); corrected the stale "blocked" STATUS
-  notes accordingly (see section 5 P4.1). Committed + pushed as the
-  folder-structure fix before resuming the roadmap.
+  since the files now live under `main/`. The P4.1 CI workflow is now LIVE in the
+  repo (added via the GitHub web UI as commit `e602990 Create ci.yml`, which
+  bypasses the GitHub App `workflows`-permission push blocker re-verified through
+  the fourth session). The live `.github/workflows/ci.yml` needed its
+  `working-directory` changed from `mt5/mt5_bot` to `main` for the new layout;
+  the assistant's push of that edit was rejected by the same permission gap
+  (which also blocks workflow UPDATES) and rolled back, so the USER made the
+  one-line fix directly in the GitHub web UI (commit `33b0360 Update ci.yml`).
+  The live workflow now correctly uses `working-directory: main` and CI is
+  functional (see section 5 P4.1). Committed + pushed as the folder-structure fix
+  before resuming the roadmap.
 - P4.1 BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH (infra, 2026-07-06,
   FOURTH session, now on the `Mt5Bot` repo): this session started from a fresh
   manual backup link. Downloaded and extracted it, then confirmed it is

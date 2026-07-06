@@ -715,15 +715,18 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   ZERO effect on the Windows 7 runtime. It lives at the repo root (not under
   `main/`) only because GitHub requires workflows there.
   STATUS (2026-07-06, FIFTH session): the workflow file
-  `.github/workflows/ci.yml` is now PRESENT and tracked in the repo (added via
-  the GitHub web UI in commit `e602990 Create ci.yml`, which bypasses the GitHub
-  App `workflows`-permission push blocker recorded in earlier sessions). This
-  session its `working-directory` was updated from the old `mt5/mt5_bot` path to
-  `main` as part of the project folder move (see section 17 REPO NOTE) so CI runs
-  the offline suite from the new location. `main/ci_workflow_template.yml` is
-  kept as a byte-for-byte reference copy. Because the workflow is live, the P4.1
-  push blocker is effectively resolved; structure.md P4.1 tracks the final
-  flip-to-[x] (a docs-only confirmation once a CI run is observed green).
+  `.github/workflows/ci.yml` is now PRESENT, tracked, and CORRECT on GitHub. It
+  was first added via the GitHub web UI (commit `e602990 Create ci.yml`, which
+  bypasses the GitHub App `workflows`-permission push blocker). When the folder
+  move to `main/` this session required changing its `working-directory` from
+  `mt5/mt5_bot` to `main`, the assistant's push of that edit was REJECTED by the
+  same permission gap (it blocks workflow UPDATES too), so the assistant cannot
+  edit the workflow from the sandbox; the USER made that one-line fix in the
+  GitHub web UI (commit `33b0360 Update ci.yml`). The live workflow now correctly
+  uses `working-directory: main`, matching `main/ci_workflow_template.yml`
+  (kept as a byte-for-byte reference copy). The workflow is functionally
+  complete; structure.md P4.1 stays [~] only until the user confirms a GREEN
+  Actions run (the assistant has no Actions visibility from the sandbox).
 
 ---
 
@@ -843,12 +846,17 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   source code changed - all code uses project-root-relative paths, so it runs
   unchanged from the new location (offline suite: 64 tests green from `main/`).
   Every path reference in the docs (CODE_MAP.md, structure.md, Ideas.md,
-  README.md, experts/README_EA.md), the CI workflow `.github/workflows/ci.yml`
-  and its `main/ci_workflow_template.yml` reference copy (both now
-  `working-directory: main`), and `.gitignore` were updated from `mt5/mt5_bot`
-  to `main`. Historical change-log entries that mention the old path describe
-  events as they happened; the path token was updated for consistency since the
-  files now live under `main/`.
+  README.md, experts/README_EA.md), the `main/ci_workflow_template.yml`
+  reference copy (now `working-directory: main`), and `.gitignore` were updated
+  from `mt5/mt5_bot` to `main` and PUSHED. The LIVE CI workflow
+  `.github/workflows/ci.yml` also needed its `working-directory` changed to
+  `main`, but the assistant's push of that edit was REJECTED by the GitHub App
+  `workflows`-permission gap (rolled back to keep HEAD == origin); the USER made
+  that one-line fix in the GitHub web UI (commit `33b0360 Update ci.yml`), so the
+  live workflow now correctly uses `working-directory: main`. Historical
+  change-log entries that mention the old path describe events as they happened;
+  the path token was updated for consistency since the files now live under
+  `main/`.
 - ROADMAP PROGRESS: Phases P1, P2, and P3 of `structure.md` are now COMPLETE.
   Phase P1 (Track A items A1 + A2 - honest evaluation: multi-year real-data
   workflow documented, more walk-forward segments via `min_segments`

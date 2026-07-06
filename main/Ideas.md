@@ -188,13 +188,23 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
   re-run from the new location: 64 tests, all green). Updated every path
   reference from `mt5/mt5_bot` to `main` across the docs (CODE_MAP.md tree +
   notes, structure.md, this file, README.md layout + commands,
-  experts/README_EA.md), the live CI workflow `.github/workflows/ci.yml` and its
-  `ci_workflow_template.yml` reference copy (both now `working-directory: main`),
-  and `.gitignore` (log path). Also noted that the P4.1 CI workflow is now LIVE
+  experts/README_EA.md), the `ci_workflow_template.yml` reference copy (now
+  `working-directory: main`), and `.gitignore` (log path). NOTE: this move was
+  first attempted earlier in the FIFTH session but the sandbox RESET before it
+  could be committed/pushed, losing that work; it was recovered this session from
+  a user-provided manual backup (verified byte-identical code to the pre-move
+  HEAD) and redone properly via `git mv` + push. The P4.1 CI workflow is now LIVE
   in the repo (added earlier via the GitHub web UI as commit `e602990 Create
   ci.yml`, bypassing the GitHub App `workflows`-permission push blocker recorded
-  in the fourth-session entries below); its stale "blocked" STATUS notes in
-  CODE_MAP.md and the template header were corrected. Committed + pushed as the
+  in the fourth-session entries below). The live `.github/workflows/ci.yml`
+  needed its `working-directory` changed from `mt5/mt5_bot` to `main` for the new
+  layout; the assistant's push of that edit was REJECTED by the same
+  `workflows`-permission gap (it blocks UPDATES to workflow files too) and rolled
+  back, so the USER made the one-line fix directly in the GitHub web UI (commit
+  `33b0360 Update ci.yml`). The live workflow now correctly uses
+  `working-directory: main` and CI is functional; P4.1 stays [~] only pending the
+  user confirming a GREEN Actions run (no sandbox Actions visibility). The stale
+  "blocked" STATUS notes in CODE_MAP.md were corrected. Committed + pushed as the
   folder-structure fix before resuming the roadmap.
 - P4.1 (Track A / A7, infra) [~] BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH
   (2026-07-06, FOURTH session, now on the `Mt5Bot` repo). This session began from
