@@ -180,6 +180,31 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P5.1-P5.4 DONE - STRATEGY COUNCIL (Track B / B1) complete (2026-07-06, SIXTH
+  session). Built `core/strategy/council.py`: a pure-stdlib tabular UCB1 bandit
+  (`StrategyCouncil` + `ArmStats`) that learns a LIVE per-strategy credibility
+  from each strategy's own recent (~30) realized trade outcomes. `weight()` maps
+  the arm's mean reward onto [min_weight, max_weight] around a neutral 1.0, and
+  uses the UCB exploration term ONLY as a one-sided anti-burial floor on the
+  losing side (young low-sample arms are damped less; winners are never inflated
+  by exploration). Reward is the trade SIGN by default (currency-independent).
+  P5.2: persisted it in `core/memory/store.py` via a new `council` table +
+  `save_council`/`load_council` (graceful no-op on any DB error). P5.3: consumed
+  it in `core/decision/engine.py` - the memory-ensemble blend is now a
+  credibility-WEIGHTED average (label `ensemble+council`) when
+  `decision.council.enabled` is true, else the previous plain average (label
+  `ensemble`), byte-for-byte; added the `decision.council.*` config block
+  (default OFF) and wired `BotContext.council` (built only when enabled, restored
+  from memory, injected into the engine). P5.4: `tests/test_strategy_council.py`
+  (8 tests) locks in the weight math (loser decays toward the floor as evidence
+  mounts, winner boosts to the cap, coin-flip/unknown/warming-up stay neutral,
+  young loser less damped than a seasoned one), the save->restart->load
+  round-trip, and the engine blend (OFF=plain average, ON=tilts to the better
+  recent record). Full offline suite now 72 tests, all green. Recovered the
+  P5.3 code from the user's manual backup after a mid-session sandbox reset, then
+  committed + pushed after every edit going forward. NEXT: the decay-monitor half
+  (B3) - P5.5 `core/strategy/decay_monitor.py`, P5.6 wiring, P5.7 test, P5.8 doc
+  sync + B1/B3 flips.
 - P4.1 + P4.2 DONE, PHASE P4 COMPLETE (Track A / A7, infra + docs, 2026-07-06,
   SIXTH session). Confirmed the `offline-tests` CI workflow is PRESENT and
   CORRECT on GitHub (Contents API: `.github/workflows/ci.yml`, sha `3a9c55c...`,
