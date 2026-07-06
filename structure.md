@@ -206,10 +206,14 @@ bot from an offline learner into a live, adaptive system.
   `tests/test_backtester_swap_gap.py` (9 tests) locks in the 3-night Fri->Mon
   swap and the gap-vs-stop fill difference (P3.7).
 
-- [ ] **A7. GitHub Actions CI (offline only).**
+- [x] **A7. GitHub Actions CI (offline only).**
   A ~15-line workflow that runs `python tests/run_all.py` on push. Zero effect
   on the Windows 7 runtime; guards regressions as the roadmap is executed.
   Files: `.github/workflows/ci.yml`. (Also listed in Ideas.md section 5.)
+  DONE: the `offline-tests` workflow is LIVE at `.github/workflows/ci.yml` on
+  GitHub (project now lives at the repo ROOT, so the workflow runs
+  `python tests/run_all.py` directly, no `working-directory` needed). The CI
+  badge + note are in README (P4.2). Local offline suite: 64 tests, all green.
 
 ---
 
@@ -399,9 +403,21 @@ gold realistically.
 
 ### Phase P4 - CI safety net (covers A7)
 
-- [~] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
+- [x] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
       set up Python 3.8, run `python tests/run_all.py`. Zero impact on the
       Windows 7 runtime. [A7]
+      DONE (2026-07-06, SIXTH session): the workflow file
+      `.github/workflows/ci.yml` is PRESENT, tracked, and CORRECT on GitHub
+      (verified this session via the Contents API: name `ci.yml`, sha
+      `3a9c55c...`, 1568 bytes). Because the project now lives at the repo ROOT
+      (commit `0c1cfd6`), the workflow body runs `python tests/run_all.py`
+      directly with no `working-directory`, which is correct. The GitHub App
+      still lacks the `actions` read scope, so this assistant cannot poll the
+      Actions API from the sandbox (`gh run list` -> 403) to observe a run
+      result - that is an OBSERVABILITY limit, not a code problem. The local
+      offline suite is green (64 tests) and CI mirrors that exact command, so
+      P4.1 is considered complete and the roadmap advances to P4.2. The
+      historical NEARLY-DONE / BLOCKED notes below are retained for provenance.
       NEARLY DONE (2026-07-06, FIFTH session): the workflow file
       `.github/workflows/ci.yml` is now PRESENT, tracked, and CORRECT on GitHub.
       It was first added via the GitHub web UI (commit `e602990 Create ci.yml`),
@@ -479,7 +495,13 @@ gold realistically.
       reproduced in the P4.1 change-log entry in section 7 below. Once pushed,
       flip this box to [x]. Per the scope rules the next sub-step (P4.2) is NOT
       started until P4.1 is pushed.
-- [ ] P4.2 (docs) Add the CI badge/note to README.md; flip A7 status; sync docs.
+- [x] P4.2 (docs) Add the CI badge/note to README.md; flip A7 status; sync docs.
+      DONE (2026-07-06, SIXTH session): added the `offline-tests` status badge
+      (shields via GitHub Actions badge endpoint) to the top of README.md plus a
+      short CI note there and in the Testing section; flipped A7 and P4.1 to [x];
+      synced CODE_MAP.md (section 13 CI note + section 17 roadmap-progress) and
+      Ideas.md. This completes Phase P4 (CI safety net, Track A / A7). Next
+      sub-step: Phase P5 (living adaptive core), starting at P5.1.
 
 ### Phase P5 - Living adaptive core (covers B1, B3)
 
