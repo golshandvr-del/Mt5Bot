@@ -178,6 +178,29 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P4.1 (Track A / A7, infra) [~] BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH
+  (2026-07-06, third session). Re-ran the exact push test this session:
+  recreated `.github/workflows/ci.yml` byte-for-byte from the committed
+  `mt5/mt5_bot/ci_workflow_template.yml` (ASCII-only: 0 non-printable bytes;
+  YAML parses, name = offline-tests), committed it locally, and ran
+  `git push origin main` -> STILL rejected with "refusing to allow a GitHub App
+  to create or update workflow `.github/workflows/ci.yml` without `workflows`
+  permission". Also tried the GitHub Contents API via
+  `gh api -X PUT repos/.../contents/.github/workflows/ci.yml` -> STILL 403
+  "Resource not accessible by integration". Confirmed the active credential is a
+  GitHub App user-to-server token (ghu_...), whose permissions are governed by
+  the App installation, which still lacks `workflows`. The `workflows`
+  permission has NOT been granted since the last session, so the blocker
+  persists - this is an external permission limit, not a code defect. Rolled the
+  unpushable commit back (`git reset --soft HEAD~1` + unstage) so HEAD stays in
+  sync with origin/main and future commits remain pushable; `.github/workflows/
+  ci.yml` is left untracked in the working tree, and the byte-for-byte
+  `ci_workflow_template.yml` continues to preserve the content in version
+  control. Offline suite re-run this session: 64 tests, all green. P4.1 stays
+  [~]; per the scope rules P4.2 is NOT started until P4.1 is actually pushed.
+  ACTION NEEDED FROM USER: grant the Genspark/GitHub App the `workflows`
+  permission for this repo, then either let the assistant copy the template to
+  `.github/workflows/ci.yml` and push, or paste it in via the GitHub web UI.
 - P4.1 (Track A / A7, infra) [~] STILL BLOCKED-ON-PUSH, committable copy
   preserved (2026-07-06, second session). Re-verified the blocker in a fresh
   session: recreated `.github/workflows/ci.yml` (ASCII-only, YAML-valid, its

@@ -402,7 +402,23 @@ gold realistically.
 - [~] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
       set up Python 3.8, run `python tests/run_all.py`. Zero impact on the
       Windows 7 runtime. [A7]
-      BLOCKED (re-verified 2026-07-06, second session): the workflow file is
+      BLOCKED (re-verified AGAIN 2026-07-06, third session): the same blocker
+      persists. This session recreated `.github/workflows/ci.yml` byte-for-byte
+      from `mt5/mt5_bot/ci_workflow_template.yml` (0 non-printable bytes, YAML
+      parses, name = offline-tests), committed it, and ran `git push origin
+      main` -> STILL rejected: "refusing to allow a GitHub App to create or
+      update workflow `.github/workflows/ci.yml` without `workflows`
+      permission". The GitHub Contents API (`gh api -X PUT .../contents/.github/
+      workflows/ci.yml`) STILL returns 403 "Resource not accessible by
+      integration". The active credential is a GitHub App user-to-server token
+      (ghu_...) whose permissions come from the App installation, which still
+      lacks `workflows`. The permission has NOT been granted since the last
+      session. The unpushable commit was rolled back (`git reset --soft HEAD~1`)
+      so HEAD stays == origin/main and future commits remain pushable; ci.yml is
+      left untracked in the working tree. Offline suite re-run: 64 tests green.
+      This is an external permission blocker, not a code problem.
+      (Historical note from the second session, still accurate): the workflow
+      file is
       fully written, ASCII-only, YAML-valid, and verified locally (the exact CI
       command `python tests/run_all.py` from `mt5/mt5_bot` is green, 64 tests).
       It STILL CANNOT be pushed to GitHub because the GitHub App credential used
@@ -523,6 +539,33 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P4.1 BLOCKER RE-VERIFIED AGAIN, STILL BLOCKED-ON-PUSH (infra, 2026-07-06,
+  third session): re-ran the definitive push test one more time this session so
+  the roadmap is not advanced on a stale conclusion. Recreated
+  `.github/workflows/ci.yml` byte-for-byte from the committed
+  `mt5/mt5_bot/ci_workflow_template.yml` (verified ASCII-only: 0 non-printable
+  bytes; YAML parses with name = offline-tests), committed it locally, and ran
+  `git push origin main`. Result: STILL rejected with "refusing to allow a
+  GitHub App to create or update workflow `.github/workflows/ci.yml` without
+  `workflows` permission". Also re-tried the GitHub Contents API
+  (`gh api -X PUT repos/golshandvr-del/MtBot/contents/.github/workflows/ci.yml`)
+  -> STILL 403 "Resource not accessible by integration". Confirmed via
+  `gh auth status` that the active push credential is a GitHub App
+  user-to-server token (ghu_...); its permissions are the App installation's,
+  which still does NOT include `workflows`. So the permission has NOT been
+  granted since the previous session and the blocker is unchanged - an external
+  permission limit, not a code defect. Rolled the unpushable commit back
+  (`git reset --soft HEAD~1`, then unstaged the workflow file) so HEAD stays ==
+  origin/main and future doc commits remain pushable; `.github/workflows/ci.yml`
+  is left untracked in the working tree and `ci_workflow_template.yml` continues
+  to preserve the exact content in version control. Offline suite re-run this
+  session: 64 tests, all green. Docs synced (this entry + the section-5 P4.1 [~]
+  note + the Ideas.md change-log entry; CODE_MAP.md section 13 already carries
+  the blocker note and stays accurate). P4.1 remains [~]; per the scope rules
+  P4.2 is NOT started until P4.1 is actually pushed. ACTION NEEDED FROM USER:
+  grant the Genspark/GitHub App the `workflows` permission for this repo, then
+  copy `mt5/mt5_bot/ci_workflow_template.yml` (the part below its marker line)
+  to `.github/workflows/ci.yml` and push (or paste it in via the GitHub web UI).
 - P4.1 STILL BLOCKED-ON-PUSH, committable copy preserved (infra, 2026-07-06,
   second session): re-verified the P4.1 blocker in a fresh session. Recreated
   `.github/workflows/ci.yml` (the previous session's sandbox tree was gone; the

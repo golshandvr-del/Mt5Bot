@@ -715,11 +715,16 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   network, no heavy deps) so it mirrors the local offline gate exactly and has
   ZERO effect on the Windows 7 runtime. It lives at the repo root (not under
   `mt5/mt5_bot/`) only because GitHub requires workflows there.
-  STATUS (re-verified 2026-07-06): the file is written + verified locally
-  (64 tests green) but STILL NOT pushed to GitHub - the current GitHub App
-  credential still lacks the `workflows` permission (`git push` is rejected
-  with "refusing to allow a GitHub App to create or update workflow ... without
-  `workflows` permission"). Because the App CAN push anywhere under
+  STATUS (re-verified AGAIN 2026-07-06, third session): the file is written +
+  verified locally (64 tests green) but STILL NOT pushed to GitHub - the current
+  GitHub App credential still lacks the `workflows` permission. Re-tested this
+  session: `git push` is rejected with "refusing to allow a GitHub App to create
+  or update workflow ... without `workflows` permission", and the GitHub
+  Contents API PUT for the workflow path still returns 403 "Resource not
+  accessible by integration". The active credential is a GitHub App
+  user-to-server token (ghu_...) governed by the App installation, which still
+  lacks `workflows`. The unpushable commit was rolled back so HEAD stays in sync
+  with origin/main. Because the App CAN push anywhere under
   `mt5/mt5_bot/`, a byte-for-byte committable copy of the workflow is kept at
   `mt5/mt5_bot/ci_workflow_template.yml` (a header explains how to copy it into
   `.github/workflows/ci.yml`; the YAML body below its marker line is the exact
@@ -852,12 +857,15 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   model in the backtester, P3.7 its test
   (`tests/test_backtester_swap_gap.py`), and P3.8 the A4/A5/A6 status flips
   (docs-only) are all done. Phase P4 (CI safety net, A7) is IN PROGRESS but
-  P4.1 is BLOCKED-ON-PUSH (2026-07-06): the `.github/workflows/ci.yml` workflow
+  P4.1 is BLOCKED-ON-PUSH (blocker re-verified AGAIN 2026-07-06, third session):
+  the `.github/workflows/ci.yml` workflow
   (`offline-tests`, runs `python tests/run_all.py` from `mt5/mt5_bot` on push/PR
   under Python 3.8, stdlib-only, zero Windows-7-runtime impact) is written and
-  verified locally (64 tests green) and staged in the working tree, but the
-  GitHub App credential lacks the `workflows` permission, so the file cannot be
-  pushed yet (git push + Contents API both 403). See structure.md section 5
+  verified locally (64 tests green) and left untracked in the working tree, but
+  the GitHub App credential lacks the `workflows` permission, so the file cannot
+  be pushed yet (git push rejected + Contents API 403 - both re-tested this
+  session; the unpushable commit was rolled back so HEAD == origin/main).
+  See structure.md section 5
   (P4.1 [~]) and section 7 for the blocker and the exact file contents. NEXT:
   grant the App the `workflows` permission, push the workflow, and flip P4.1 to
   [x]; only then P4.2 (add a CI note/badge to README and flip the A7 status).
