@@ -12,6 +12,7 @@ Tables
 strategies(fingerprint PK, symbol, timeframe, spec_json, created_at)
 results(id PK, fingerprint, symbol, timeframe, segment, rank_metric,
         metrics_json, score, created_at)
+council(fingerprint PK, rewards_json, total_seen, updated_at)  -- Phase 5 / P5.2
 
 The JSON registry (strategy_registry.json) stores, per (symbol, timeframe),
 the top-K specs and their aggregated walk-forward score so the live decision
@@ -114,6 +115,20 @@ class MemoryStore(object):
             cur.execute(
                 "CREATE INDEX IF NOT EXISTS idx_results_key "
                 "ON results(symbol, timeframe, score)"
+            )
+            # Phase 5 / P5.2: live strategy-council credibility. One row per
+            # strategy fingerprint holding its rolling window of normalized
+            # rewards (JSON list) so the council's LIVE credibility survives
+            # restarts. Kept in the same SQLite DB as the offline memory.
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS council (
+                    fingerprint  TEXT PRIMARY KEY,
+                    rewards_json TEXT,
+                    total_seen   INTEGER,
+                    updated_at   REAL
+                )
+                """
             )
             conn.commit()
             conn.close()
@@ -342,3 +357,96 @@ class MemoryStore(object):
         except Exception as exc:
             self.log.error("stats failed: %s", exc)
             return {"strategies": 0, "results": 0}
+
+    # ------------------------------------------------------------------ #
+    # Phase 5 / P5.2: persist the live strategy-council credibility so it
+    # survives restarts. The council itself (core/strategy/council.py) is a
+    # pure in-memory calculator; these two methods snapshot it into / restore it
+    # from the `council` SQLite table using its to_dict()/load_dict() hooks.
+    # Both degrade gracefully (log + no-op on any failure) so a DB problem never
+    # crashes the live path.
+    # ------------------------------------------------------------------ #
+    def save_council(self, council: Any) -> None:
+        """
+        Snapshot a StrategyCouncil's per-strategy rolling rewards into SQLite.
+
+        Uses INSERT OR REPLACE keyed on fingerprint so repeated saves simply
+        overwrite the latest window. Accepts anything exposing ``to_dict()``
+        returning {"arms": {fingerprint: {"rewards": [...], "total_seen": int}}}.
+        """
+        if council is None:
+            return
+        try:
+            snapshot = council.to_dict()
+        except Exception as exc:
+            self.log.error("save_council: to_dict failed: %s", exc)
+            return
+        arms = snapshot.get("arms", {}) if isinstance(snapshot, dict) else {}
+        if not isinstance(arms, dict):
+            return
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            now = time.time()
+            for fp, arm in arms.items():
+                if not fp or not isinstance(arm, dict):
+                    continue
+                rewards = arm.get("rewards", [])
+                try:
+                    total_seen = int(arm.get("total_seen", len(rewards)))
+                except (TypeError, ValueError):
+                    total_seen = len(rewards) if isinstance(rewards, list) else 0
+                cur.execute(
+                    "INSERT OR REPLACE INTO council "
+                    "(fingerprint, rewards_json, total_seen, updated_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (fp, json.dumps(rewards), total_seen, now),
+                )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            self.log.error("save_council failed: %s", exc)
+
+    def load_council(self, council: Any) -> Any:
+        """
+        Restore a StrategyCouncil's rolling rewards from SQLite into ``council``.
+
+        Reads every row of the `council` table and feeds it to the council's
+        ``load_dict``. Returns the same council object (for chaining). Missing
+        table / empty DB / malformed rows are tolerated and simply leave the
+        council cold.
+        """
+        if council is None:
+            return council
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT fingerprint, rewards_json, total_seen FROM council"
+            )
+            rows = cur.fetchall()
+            conn.close()
+        except Exception as exc:
+            self.log.error("load_council read failed: %s", exc)
+            return council
+        arms: Dict[str, Any] = {}
+        for row in rows:
+            fp = row["fingerprint"]
+            if not fp:
+                continue
+            try:
+                rewards = json.loads(row["rewards_json"] or "[]")
+            except (TypeError, ValueError):
+                rewards = []
+            if not isinstance(rewards, list):
+                rewards = []
+            try:
+                total_seen = int(row["total_seen"])
+            except (TypeError, ValueError):
+                total_seen = len(rewards)
+            arms[fp] = {"rewards": rewards, "total_seen": total_seen}
+        try:
+            council.load_dict({"arms": arms})
+        except Exception as exc:
+            self.log.error("load_council load_dict failed: %s", exc)
+        return council
