@@ -460,6 +460,11 @@ python tests/run_all.py
 The tests are designed to pass with only the standard library (optional deps
 like LightGBM/pandas make them stronger but are not required).
 
+This exact command (`python tests/run_all.py` on Python 3.8) is also run
+automatically in **GitHub Actions** on every push and pull request via the
+`offline-tests` workflow (`.github/workflows/ci.yml`), so regressions are caught
+in CI as well as locally. See the status badge at the top of this file.
+
 ---
 
 ## Hardware notes and limitations
