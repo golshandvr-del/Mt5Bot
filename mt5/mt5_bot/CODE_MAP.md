@@ -23,6 +23,12 @@ CPU-only, mid-range hardware**. Architecture is **"train offline / run light"**:
 heavy machine learning is optional and isolated; the live decision + execution
 path is lightweight and pure-Python-friendly.
 
+> NOTE ON REPO LAYOUT: the project itself lives ONLY under `mt5/mt5_bot/`. The
+> single exception is the GitHub Actions CI workflow (`.github/workflows/ci.yml`
+> at the REPO ROOT), because GitHub only recognizes workflows there. It merely
+> `cd`s into `mt5/mt5_bot` and runs the offline test suite; it ships nothing to
+> the Windows 7 runtime and adds no dependency.
+
 Four decoupled phases:
 
 - **Phase 1 - Learning core**: swappable learners (ML, RL, DL, transfer,
@@ -701,6 +707,19 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   - `run_all.py`: discovers and runs everything; non-zero exit on failure.
   Run: `python -m unittest discover -s tests -v` or `python tests/run_all.py`.
 
+### Continuous integration (.github/workflows/ci.yml, repo root)
+- `.github/workflows/ci.yml` (A7 / P4.1): a tiny GitHub Actions workflow named
+  `offline-tests` that, on every push and pull request, checks out the repo,
+  sets up Python 3.8 (matching the Windows 7 target), and runs
+  `python tests/run_all.py` from `mt5/mt5_bot`. It uses only stdlib (no MT5, no
+  network, no heavy deps) so it mirrors the local offline gate exactly and has
+  ZERO effect on the Windows 7 runtime. It lives at the repo root (not under
+  `mt5/mt5_bot/`) only because GitHub requires workflows there.
+  STATUS (2026-07-06): the file is written + verified locally but NOT yet
+  pushed to GitHub - the current GitHub App credential lacks the `workflows`
+  permission (push + Contents API both return 403). See structure.md section 5
+  P4.1 [~] for the blocker and the action needed to complete it.
+
 ---
 
 ## 14. requirements.txt (Windows 7 / Python 3.8 pins)
@@ -825,8 +844,16 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   test (`tests/test_per_symbol_learning.py`), P3.6 the weekend-swap + Monday-gap
   model in the backtester, P3.7 its test
   (`tests/test_backtester_swap_gap.py`), and P3.8 the A4/A5/A6 status flips
-  (docs-only) are all done. NEXT: Phase P4 (CI safety net, A7): add
-  `.github/workflows/ci.yml` running the offline suite on push (P4.1).
+  (docs-only) are all done. Phase P4 (CI safety net, A7) is IN PROGRESS but
+  P4.1 is BLOCKED-ON-PUSH (2026-07-06): the `.github/workflows/ci.yml` workflow
+  (`offline-tests`, runs `python tests/run_all.py` from `mt5/mt5_bot` on push/PR
+  under Python 3.8, stdlib-only, zero Windows-7-runtime impact) is written and
+  verified locally (64 tests green) and staged in the working tree, but the
+  GitHub App credential lacks the `workflows` permission, so the file cannot be
+  pushed yet (git push + Contents API both 403). See structure.md section 5
+  (P4.1 [~]) and section 7 for the blocker and the exact file contents. NEXT:
+  grant the App the `workflows` permission, push the workflow, and flip P4.1 to
+  [x]; only then P4.2 (add a CI note/badge to README and flip the A7 status).
 - PRIORITIZED NEXT STEPS: see `structure.md`. An expert-AI review flagged the
   biggest current risk as STATISTICAL (small samples), not software. The roadmap
   there sequences Track A (multi-year real data, more walk-forward segments +

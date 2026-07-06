@@ -399,9 +399,24 @@ gold realistically.
 
 ### Phase P4 - CI safety net (covers A7)
 
-- [ ] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
+- [~] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
       set up Python 3.8, run `python tests/run_all.py`. Zero impact on the
       Windows 7 runtime. [A7]
+      BLOCKED (2026-07-06): the workflow file is fully written, ASCII-only,
+      YAML-valid, and verified locally (the exact CI command is green, 64
+      tests), and is staged in the sandbox working tree at
+      `.github/workflows/ci.yml`. It CANNOT be pushed to GitHub yet because the
+      GitHub App credential used for pushes lacks the `workflows` permission:
+      `git push` is rejected with "refusing to allow a GitHub App to create or
+      update workflow `.github/workflows/ci.yml` without `workflows`
+      permission", and the Contents API returns 403 "Resource not accessible by
+      integration". This is an external permission blocker, not a code problem.
+      ACTION NEEDED FROM USER: grant the Genspark/GitHub App the `workflows`
+      permission for this repo (or add the file manually - its exact contents
+      are reproduced in the P4.1 change-log entry in section 7 below). Once the
+      permission is granted, commit + push `.github/workflows/ci.yml` and flip
+      this box to [x]. Per the scope rules the next sub-step (P4.2) is NOT
+      started until P4.1 is pushed.
 - [ ] P4.2 (docs) Add the CI badge/note to README.md; flip A7 status; sync docs.
 
 ### Phase P5 - Living adaptive core (covers B1, B3)
@@ -497,6 +512,50 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P4.1 IN PROGRESS / BLOCKED-ON-PUSH (infra, 2026-07-06): wrote
+  `.github/workflows/ci.yml`, a minimal GitHub Actions workflow named
+  `offline-tests` that runs the stdlib-only offline suite on every push and pull
+  request (Track A / A7). Steps: checkout (actions/checkout@v4) -> set up
+  Python 3.8 (actions/setup-python@v5, matching the Windows 7 / Python 3.8.x
+  target) -> run `python tests/run_all.py` with
+  `working-directory: mt5/mt5_bot`. It needs NO MetaTrader5, no network, and no
+  heavy dependencies, so it mirrors the local offline gate exactly and has ZERO
+  effect on the Windows 7 runtime. The workflow file lives at the REPO ROOT
+  (`.github/workflows/`) rather than under `mt5/mt5_bot/` only because GitHub
+  recognizes workflows only there; CODE_MAP.md section 1 documents this as the
+  single deliberate exception to the "everything under mt5/mt5_bot/" invariant.
+  Runner pinned to `ubuntu-22.04` because Python 3.8 is available there via
+  setup-python (ubuntu-latest/24.04 no longer ships it natively). Verified
+  locally: the YAML parses, is ASCII-only (0 non-ascii bytes), and the exact CI
+  command run from `mt5/mt5_bot` is green (64 tests).
+  BLOCKER: the file cannot be pushed to GitHub with the current GitHub App
+  credential, which lacks the `workflows` permission - both `git push` (remote
+  rejected: "refusing to allow a GitHub App to create or update workflow
+  `.github/workflows/ci.yml` without `workflows` permission") and the Contents
+  API (403 "Resource not accessible by integration") refuse it. This is an
+  external permission limit, not a code defect. The file is kept in the sandbox
+  working tree, and the DOC changes marking the blocker (this entry + the
+  section-4 P4.1 [~] note + CODE_MAP/Ideas) ARE pushed so the state is recorded.
+  ACTION NEEDED: grant the App the `workflows` permission, then commit + push
+  `.github/workflows/ci.yml` and flip P4.1 to [x]. Exact file contents to
+  reproduce it manually (12 lines of YAML under `.github/workflows/ci.yml`):
+      name: offline-tests
+      on:
+        push:
+        pull_request:
+      jobs:
+        tests:
+          runs-on: ubuntu-22.04
+          steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                python-version: "3.8"
+            - working-directory: mt5/mt5_bot
+              run: python tests/run_all.py
+  (The committed file also carries a short explanatory header comment.) Offline
+  suite still 64 tests, all green. Next sub-step: P4.1 push (blocked on the
+  permission grant) - do NOT start P4.2 until P4.1 is pushed.
 - P3.8 DONE (docs): Phase P3 documentation sync + status flips. Flipped the
   section-3 Track-A items A4, A5, and A6 to [x] with dated (2026-07-04) STATUS
   notes summarizing their whole sub-step chains: A4 = time-bucket higher

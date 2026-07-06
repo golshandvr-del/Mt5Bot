@@ -152,8 +152,12 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 - [x] **Tests** for all new modules (calibration, new indicators, regime,
   calendar, expanded sentiment) added to the stdlib-only suite.
 - [x] **CODE_MAP.md + README.md** updated to describe Phase 5.
-- [ ] **CI workflow file** (GitHub Actions) running the offline test suite on
-  push (nice-to-have; does not affect Windows 7 runtime).
+- [~] **CI workflow file** (GitHub Actions) running the offline test suite on
+  push (nice-to-have; does not affect Windows 7 runtime). WRITTEN in P4.1:
+  `.github/workflows/ci.yml` (`offline-tests`) runs `python tests/run_all.py`
+  from `mt5/mt5_bot` under Python 3.8 on every push/PR. BLOCKED-ON-PUSH
+  (2026-07-06): the GitHub App credential lacks the `workflows` permission, so
+  the file cannot be pushed to GitHub yet (see change-log P4.1 below).
 
 ---
 
@@ -170,6 +174,37 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P4.1 (Track A / A7, infra) [~] BLOCKED-ON-PUSH (2026-07-06). Wrote
+  `.github/workflows/ci.yml`, a minimal GitHub Actions workflow
+  (`offline-tests`) that runs the stdlib-only offline suite on every push and
+  pull request: checkout -> setup Python 3.8 (matching the Windows 7 /
+  Python 3.8.x target) -> `python tests/run_all.py` with
+  `working-directory: mt5/mt5_bot`. No MetaTrader5, no network, no heavy deps,
+  so it mirrors the local offline gate and has ZERO effect on the Windows 7
+  runtime. DECISION: the workflow file must sit at the REPO ROOT
+  (`.github/workflows/`) because GitHub recognizes workflows only there; this is
+  documented in CODE_MAP.md section 1 as the single deliberate exception to the
+  "everything under mt5/mt5_bot/" folder invariant (the project code itself is
+  untouched). Runner pinned to `ubuntu-22.04` since Python 3.8 is available
+  there via setup-python (newer default runners dropped it). Verified locally:
+  YAML parses, ASCII-only (0 non-ascii bytes), and the exact CI command run from
+  `mt5/mt5_bot` is green (64 tests).
+  BLOCKER: pushing the file is REFUSED by GitHub because the GitHub App
+  credential used here lacks the `workflows` permission - `git push` returns
+  "refusing to allow a GitHub App to create or update workflow
+  `.github/workflows/ci.yml` without `workflows` permission" and the Contents
+  API returns 403 "Resource not accessible by integration". This is an external
+  permission limit, not a code defect. The file remains in the sandbox working
+  tree; only these DOC changes (marking the [~] blocker) were pushed. ACTION
+  NEEDED FROM USER: grant the Genspark/GitHub App the `workflows` permission on
+  this repo (or add the file manually - its exact contents are in structure.md
+  section 7's P4.1 entry), then commit + push `.github/workflows/ci.yml` and
+  flip P4.1 / A7 to [x]. Per the scope rules, P4.2 is NOT started until P4.1 is
+  pushed. Offline suite still 64 tests, all green. Section-5 "CI workflow file"
+  checkbox set to [~]. Next: complete the P4.1 push once the permission exists.
+  DISCOVERY: the primary repo URL `Akskemdjfixosksns` now redirects to
+  `MtBot` (the repo was renamed); both are the same repository, so the earlier
+  remote pointing at `MtBot` was correct.
 - P3.8 (Track A / A4+A5+A6, docs) [x]. Phase P3 documentation sync + status
   flips. Flipped structure.md section-3 items A4 (time-bucket shrinkage +
   higher min_samples, P3.1-P3.2), A5 (per-symbol ML training + lookup + engine
