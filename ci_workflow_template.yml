@@ -27,5 +27,4 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.8"
-      - working-directory: main
-        run: python tests/run_all.py
+      - run: python tests/run_all.py

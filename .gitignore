@@ -16,7 +16,7 @@ env/
 ENV/
 
 # Logs (runtime, regenerated)
-main/logs/*.log
+logs/*.log
 *.log
 
 # IDE
