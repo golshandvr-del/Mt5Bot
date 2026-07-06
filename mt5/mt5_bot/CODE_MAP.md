@@ -715,13 +715,17 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   network, no heavy deps) so it mirrors the local offline gate exactly and has
   ZERO effect on the Windows 7 runtime. It lives at the repo root (not under
   `mt5/mt5_bot/`) only because GitHub requires workflows there.
-  STATUS (re-verified AGAIN 2026-07-06, third session): the file is written +
+  STATUS (re-verified AGAIN 2026-07-06, FOURTH session, now on the `Mt5Bot`
+  repo): the project's full commit history was moved this session into the
+  (previously empty) `golshandvr-del/Mt5Bot` repo - a fresh manual backup was
+  confirmed byte-identical to the prior HEAD (nothing lost) and the complete
+  history was pushed to `Mt5Bot`'s `main`. The workflow file is written +
   verified locally (64 tests green) but STILL NOT pushed to GitHub - the current
   GitHub App credential still lacks the `workflows` permission. Re-tested this
-  session: `git push` is rejected with "refusing to allow a GitHub App to create
-  or update workflow ... without `workflows` permission", and the GitHub
-  Contents API PUT for the workflow path still returns 403 "Resource not
-  accessible by integration". The active credential is a GitHub App
+  session against `Mt5Bot`: `git push` is rejected with "refusing to allow a
+  GitHub App to create or update workflow ... without `workflows` permission",
+  and the GitHub Contents API PUT for the workflow path still returns 403
+  "Resource not accessible by integration". The active credential is a GitHub App
   user-to-server token (ghu_...) governed by the App installation, which still
   lacks `workflows`. The unpushable commit was rolled back so HEAD stays in sync
   with origin/main. Because the App CAN push anywhere under
@@ -837,6 +841,11 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   the EA (supertrend/bbands) so the exporter can pass them through; optional
   annualized/risk-adjusted metrics; a self-contained CI workflow file; dedicated
   unit tests for the timing layer; expose timing session windows in the EA.
+- REPO NOTE (2026-07-06, fourth session): the project now lives in the
+  `golshandvr-del/Mt5Bot` GitHub repo on branch `main`. Its full commit history
+  was migrated this session from the earlier `golshandvr-del/MtBot` repo
+  (byte-identical content, so nothing was lost); `Mt5Bot` is the authoritative
+  primary repo going forward.
 - ROADMAP PROGRESS: Phases P1, P2, and P3 of `structure.md` are now COMPLETE.
   Phase P1 (Track A items A1 + A2 - honest evaluation: multi-year real-data
   workflow documented, more walk-forward segments via `min_segments`
@@ -857,7 +866,8 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   model in the backtester, P3.7 its test
   (`tests/test_backtester_swap_gap.py`), and P3.8 the A4/A5/A6 status flips
   (docs-only) are all done. Phase P4 (CI safety net, A7) is IN PROGRESS but
-  P4.1 is BLOCKED-ON-PUSH (blocker re-verified AGAIN 2026-07-06, third session):
+  P4.1 is BLOCKED-ON-PUSH (blocker re-verified AGAIN 2026-07-06, FOURTH session,
+  now on the Mt5Bot repo):
   the `.github/workflows/ci.yml` workflow
   (`offline-tests`, runs `python tests/run_all.py` from `mt5/mt5_bot` on push/PR
   under Python 3.8, stdlib-only, zero Windows-7-runtime impact) is written and
