@@ -1,5 +1,14 @@
 # MT5 Smart Trading Bot
 
+[![offline-tests](https://github.com/golshandvr-del/Mt5Bot/actions/workflows/ci.yml/badge.svg)](https://github.com/golshandvr-del/Mt5Bot/actions/workflows/ci.yml)
+
+> **CI:** every push and pull request runs the stdlib-only offline test suite
+> (`python tests/run_all.py`) on Python 3.8 via GitHub Actions (workflow
+> `offline-tests`, defined in `.github/workflows/ci.yml`). The badge above shows
+> the latest run status. The CI is offline-only (no MetaTrader5, no network, no
+> heavy deps) and has **zero** effect on the Windows 7 runtime; it simply guards
+> against regressions as the roadmap is executed.
+
 A modular, config-driven MetaTrader 5 (MT5) trading bot designed for
 **Windows 7 (64-bit), CPU-only, mid-range hardware**. It follows a
 **"train offline / run light"** architecture: heavy machine learning is
