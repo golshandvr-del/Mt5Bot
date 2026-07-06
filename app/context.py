@@ -28,6 +28,7 @@ from core.indicators.registry import build_enabled_indicators
 from core.learning.factory import build_active_model
 from core.learning.features import FeatureBuilder
 from core.memory.store import MemoryStore
+from core.strategy.council import StrategyCouncil
 from core.news.aggregator import NewsAnalyzer
 from core.timing.time_stats import TimeStats
 from core.timing.time_context import TimeContextProvider
@@ -55,6 +56,9 @@ class BotContext(object):
         self._symbol_learners: Dict[str, Any] = {}
         self._feature_builder: Optional[FeatureBuilder] = None
         self._memory: Optional[MemoryStore] = None
+        # Phase 5 / P5.3: optional live strategy council (built only when
+        # decision.council.enabled is true).
+        self._council: Optional[StrategyCouncil] = None
         self._news: Optional[NewsAnalyzer] = None
         self._time_stats: Optional[TimeStats] = None
         self._timing: Optional[TimeContextProvider] = None

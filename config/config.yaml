@@ -356,6 +356,25 @@ decision:
   short_threshold: 0.60
   # If true, require indicator and learning signals to agree in direction.
   require_agreement: false
+  # ---------------------------------------------------------------------- #
+  # Strategy council (Phase 5 / P5, Track B / B1). A light multi-armed-bandit
+  # (tabular UCB1, pure Python) that learns a LIVE per-strategy credibility
+  # weight from each strategy's own recent realized trade outcomes and uses it
+  # to blend the memory-selected ensemble by RECENT performance instead of a
+  # flat equal weight. DEFAULT OFF so the light path is unchanged; the council
+  # only MODULATES weights within [min_weight, max_weight], it never inverts a
+  # signal. Credibility is persisted across restarts (P5.2).
+  council:
+    enabled: false        # master switch; when false the ensemble stays a plain average
+    window: 30            # how many recent trades per strategy define "recent"
+    min_trades: 5         # below this many live trades an arm uses the neutral weight
+    exploration_c: 1.0    # UCB exploration coefficient (anti-burial for young arms)
+    default_weight: 1.0   # weight for unknown / still-warming-up strategies
+    min_weight: 0.25      # floor a persistently-losing strategy is damped toward
+    max_weight: 1.75      # cap a persistently-winning strategy is boosted toward
+    # PnL magnitude that saturates a trade's normalized reward. 0 = use the
+    # trade SIGN only (win=1, loss=0), which is robust and currency-independent.
+    reward_scale: 0.0
 
 # -----------------------------------------------------------------------------
 # Backtest engine (internal, for "backtest" mode)

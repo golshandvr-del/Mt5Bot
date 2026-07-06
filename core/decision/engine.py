@@ -92,7 +92,8 @@ class DecisionEngine(object):
                  news_analyzer: Optional[object] = None,
                  memory: Optional[object] = None,
                  timing: Optional[object] = None,
-                 learner_provider: Optional[object] = None):
+                 learner_provider: Optional[object] = None,
+                 council: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("decision.engine", cfg)
         self.learner = learner
@@ -103,6 +104,16 @@ class DecisionEngine(object):
         self.memory = memory
         # Phase 5 (user-update-request): optional time/session/season provider.
         self.timing = timing
+        # Phase 5 / P5.3 (Track B / B1): optional StrategyCouncil that supplies a
+        # LIVE per-strategy credibility weight, used to blend the memory ensemble
+        # by recent realized performance instead of a flat equal weight. It is
+        # config-gated (decision.council.enabled, default OFF): when disabled or
+        # absent, the ensemble blend stays the previous plain average so the
+        # default light path is byte-for-byte unchanged.
+        self.council = council
+        self.council_enabled = bool(
+            cfg.get_path("decision.council.enabled", False)
+        )
 
         dec = cfg.get_path("decision", {})
         weights = dec.get("weights", {}) if hasattr(dec, "get") else {}
@@ -160,21 +171,34 @@ class DecisionEngine(object):
         """
         ensemble = self._ensemble_for(symbol, timeframe)
         if ensemble:
-            total = 0.0
-            sl_acc = 0.0
-            tp_acc = 0.0
-            n = 0
+            use_council = self.council_enabled and self.council is not None
+            sig_acc = 0.0     # sum of weight * signal
+            sl_acc = 0.0      # sum of weight * sl_atr_mult
+            tp_acc = 0.0      # sum of weight * tp_atr_mult
+            w_total = 0.0     # sum of weights (== n when council is OFF)
             for strat in ensemble:
                 try:
-                    total += strat.blended_signal(ohlcv)
-                    sl_acc += strat.spec.sl_atr_mult
-                    tp_acc += strat.spec.tp_atr_mult
-                    n += 1
+                    sig = strat.blended_signal(ohlcv)
                 except Exception:
                     continue
-            if n > 0:
-                return (max(-1.0, min(1.0, total / n)), "ensemble",
-                        sl_acc / n, tp_acc / n)
+                # Live credibility weight (>=0). Equal weight (1.0) when the
+                # council is disabled/absent, preserving the old plain average.
+                w = 1.0
+                if use_council:
+                    try:
+                        w = float(self.council.weight(strat.spec.fingerprint()))
+                    except Exception:
+                        w = 1.0
+                    if w < 0.0:
+                        w = 0.0
+                sig_acc += w * sig
+                sl_acc += w * strat.spec.sl_atr_mult
+                tp_acc += w * strat.spec.tp_atr_mult
+                w_total += w
+            if w_total > 0.0:
+                label = "ensemble+council" if use_council else "ensemble"
+                return (max(-1.0, min(1.0, sig_acc / w_total)), label,
+                        sl_acc / w_total, tp_acc / w_total)
 
         # Fallback: equal-weight blend of stand-alone enabled indicators.
         if not self._indicators:
