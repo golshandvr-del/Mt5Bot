@@ -376,6 +376,24 @@ decision:
     # trade SIGN only (win=1, loss=0), which is robust and currency-independent.
     reward_scale: 0.0
 
+  # Strategy decay monitor (Phase 5 / P5.5-P5.7, Track B / B3): statistical
+  # expiry. A promoted strategy was validated on HISTORICAL walk-forward data;
+  # markets change, so its live edge can silently decay. This watches, per
+  # registry strategy, whether its RECENT realized-PnL distribution has drifted
+  # materially below the walk-forward distribution it was promoted on (a Welch
+  # two-sample z-test on mean trade PnL plus a relative mean-drop guard). A
+  # "suspect" strategy is zero-weighted (dropped) from the ensemble blend until
+  # the next search re-validates it. DEFAULT OFF so the light path is unchanged;
+  # it is conservative (too little live evidence -> never suspect) and never
+  # inverts a signal, it only removes a decayed strategy from the blend.
+  decay_monitor:
+    enabled: false        # master switch; when false no strategy is ever flagged
+    min_recent: 20        # need >= this many recent live trades before any verdict
+    min_reference: 20     # need >= this many walk-forward trades to compare against
+    z_threshold: 2.0      # |z| beyond which the mean drop is deemed statistically real
+    max_rel_drop: 0.5     # recent mean below (1-this)*ref_mean alone trips suspect; 0 disables
+    require_both: false   # true = BOTH z-test AND relative-drop must trip; false = EITHER trips
+
 # -----------------------------------------------------------------------------
 # Backtest engine (internal, for "backtest" mode)
 # -----------------------------------------------------------------------------
