@@ -293,7 +293,8 @@ class BotContext(object):
     @property
     def orders(self) -> OrderManager:
         if self._orders is None:
-            self._orders = OrderManager(self.cfg, self.connector, self.risk)
+            self._orders = OrderManager(self.cfg, self.connector, self.risk,
+                                        memory=self.memory)
         return self._orders
 
     @property

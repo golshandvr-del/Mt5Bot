@@ -28,7 +28,8 @@ class OrderManager(object):
     """Places and manages orders based on decisions and risk sizing."""
 
     def __init__(self, cfg: Any, connector: Optional[object] = None,
-                 risk_manager: Optional[RiskManager] = None):
+                 risk_manager: Optional[RiskManager] = None,
+                 memory: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("execution.order_manager", cfg)
         self.connector = connector
@@ -36,6 +37,15 @@ class OrderManager(object):
         self.mode = cfg.get_path("general.mode", "paper")
         self.magic = int(cfg.get_path("risk.magic_number", 990011))
         self.deviation = int(cfg.get_path("risk.deviation_points", 20))
+        # Phase 5 / P5.6 (Track B / B3): optional memory store used to CAPTURE
+        # realized live/paper PnL per strategy so the decay monitor can detect
+        # statistical expiry. Only recorded when decision.decay_monitor.enabled
+        # is true; otherwise record_trade_result is a no-op and the light path
+        # is byte-for-byte unchanged.
+        self.memory = memory
+        self.decay_enabled = bool(
+            cfg.get_path("decision.decay_monitor.enabled", False)
+        )
 
     # ------------------------------------------------------------------ #
     def open_positions(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -165,10 +175,38 @@ class OrderManager(object):
             return {"ok": False, "action": "error", "reason": str(exc)}
 
     # ------------------------------------------------------------------ #
-    def close_position(self, position: Dict[str, Any]) -> Dict[str, Any]:
-        """Close a single open position (live mode only)."""
+    def record_trade_result(self, fingerprint: Optional[str],
+                            pnl: Optional[float]) -> None:
+        """
+        Phase 5 / P5.6 (Track B / B3): capture one realized trade's PnL for the
+        strategy that produced it, so the decay monitor can compare the recent
+        live distribution against the walk-forward reference.
+
+        No-op unless decision.decay_monitor.enabled is true AND a memory store
+        and a non-empty fingerprint are available. Degrades gracefully so a
+        capture failure never affects order execution.
+        """
+        if not self.decay_enabled or self.memory is None:
+            return
+        if not fingerprint or pnl is None:
+            return
+        try:
+            self.memory.record_live_trade(str(fingerprint), float(pnl))
+        except Exception as exc:
+            self.log.error("record_trade_result failed: %s", exc)
+
+    def close_position(self, position: Dict[str, Any],
+                       fingerprint: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Close a single open position (live mode only).
+
+        When ``fingerprint`` is supplied and the decay monitor is enabled, the
+        position's realized ``profit`` is captured via record_trade_result so the
+        monitor can track that strategy's live PnL distribution.
+        """
         if self.mode != "live" or self.connector is None:
             self.log.info("PAPER CLOSE: %s", position)
+            self.record_trade_result(fingerprint, position.get("profit"))
             return {"ok": True, "action": "paper_close"}
         try:
             symbol = position.get("symbol")
@@ -193,6 +231,9 @@ class OrderManager(object):
             }
             result = self.connector.order_send(request)
             self.log.info("LIVE CLOSE result: %s", result)
+            # Capture realized PnL for the decay monitor (config-gated no-op
+            # otherwise). Uses the broker-reported profit on the position.
+            self.record_trade_result(fingerprint, position.get("profit"))
             return {"ok": bool(result.get("ok")), "result": result}
         except Exception as exc:
             self.log.error("close_position failed: %s", exc)
