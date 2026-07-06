@@ -93,7 +93,8 @@ class DecisionEngine(object):
                  memory: Optional[object] = None,
                  timing: Optional[object] = None,
                  learner_provider: Optional[object] = None,
-                 council: Optional[object] = None):
+                 council: Optional[object] = None,
+                 decay_suspects: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("decision.engine", cfg)
         self.learner = learner
@@ -113,6 +114,17 @@ class DecisionEngine(object):
         self.council = council
         self.council_enabled = bool(
             cfg.get_path("decision.council.enabled", False)
+        )
+        # Phase 5 / P5.6 (Track B / B3): set of strategy fingerprints the decay
+        # monitor has flagged "suspect" (recent live PnL has drifted materially
+        # below the walk-forward distribution they were promoted on). Suspect
+        # strategies are zero-weighted (dropped) from the ensemble blend until
+        # the next search re-validates them. Config-gated (decision.decay_monitor
+        # .enabled) and computed by BotContext; None/empty means "flag nobody",
+        # so the default light path is byte-for-byte unchanged.
+        self.decay_suspects = set(decay_suspects) if decay_suspects else set()
+        self.decay_enabled = bool(
+            cfg.get_path("decision.decay_monitor.enabled", False)
         )
 
         dec = cfg.get_path("decision", {})
@@ -172,11 +184,20 @@ class DecisionEngine(object):
         ensemble = self._ensemble_for(symbol, timeframe)
         if ensemble:
             use_council = self.council_enabled and self.council is not None
+            use_decay = self.decay_enabled and bool(self.decay_suspects)
             sig_acc = 0.0     # sum of weight * signal
             sl_acc = 0.0      # sum of weight * sl_atr_mult
             tp_acc = 0.0      # sum of weight * tp_atr_mult
             w_total = 0.0     # sum of weights (== n when council is OFF)
             for strat in ensemble:
+                # P5.6 (B3): a decay-suspect strategy is dropped entirely from
+                # the blend (zero weight) until the next search re-validates it.
+                if use_decay:
+                    try:
+                        if strat.spec.fingerprint() in self.decay_suspects:
+                            continue
+                    except Exception:
+                        pass
                 try:
                     sig = strat.blended_signal(ohlcv)
                 except Exception:
@@ -197,6 +218,8 @@ class DecisionEngine(object):
                 w_total += w
             if w_total > 0.0:
                 label = "ensemble+council" if use_council else "ensemble"
+                if use_decay:
+                    label += "+decay"
                 return (max(-1.0, min(1.0, sig_acc / w_total)), label,
                         sl_acc / w_total, tp_acc / w_total)
 
