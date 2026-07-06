@@ -155,9 +155,13 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 - [~] **CI workflow file** (GitHub Actions) running the offline test suite on
   push (nice-to-have; does not affect Windows 7 runtime). WRITTEN in P4.1:
   `.github/workflows/ci.yml` (`offline-tests`) runs `python tests/run_all.py`
-  from `mt5/mt5_bot` under Python 3.8 on every push/PR. BLOCKED-ON-PUSH
-  (2026-07-06): the GitHub App credential lacks the `workflows` permission, so
-  the file cannot be pushed to GitHub yet (see change-log P4.1 below).
+  from `mt5/mt5_bot` under Python 3.8 on every push/PR. STILL BLOCKED-ON-PUSH
+  (re-verified 2026-07-06): the GitHub App credential still lacks the
+  `workflows` permission, so the file cannot be pushed to GitHub yet. A
+  byte-for-byte committable copy is preserved at
+  `mt5/mt5_bot/ci_workflow_template.yml` (paste it into
+  `.github/workflows/ci.yml` once the permission is granted). See change-log
+  P4.1 below.
 
 ---
 
@@ -174,6 +178,26 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- P4.1 (Track A / A7, infra) [~] STILL BLOCKED-ON-PUSH, committable copy
+  preserved (2026-07-06, second session). Re-verified the blocker in a fresh
+  session: recreated `.github/workflows/ci.yml` (ASCII-only, YAML-valid, its
+  command `python tests/run_all.py` from `mt5/mt5_bot` is green - 64 tests),
+  committed it, and ran `git push origin main`. STILL rejected: "refusing to
+  allow a GitHub App to create or update workflow `.github/workflows/ci.yml`
+  without `workflows` permission" - the `workflows` permission has NOT been
+  granted. Rolled the unpushable commit back (`git reset --soft HEAD~1`, then
+  unstaged) so the branch stays in sync with origin and other doc commits stay
+  pushable; the ci.yml is left untracked in the working tree. DECISION / NEW
+  THIS SESSION: to stop losing the file across sessions, committed a byte-for-
+  byte copy at `mt5/mt5_bot/ci_workflow_template.yml` (pushable because it is
+  under mt5/mt5_bot/, not under .github/workflows/). Its header explains the two
+  activation paths (grant the `workflows` permission, or paste it into
+  `.github/workflows/ci.yml` via the GitHub web UI); the YAML body below its
+  marker line is the exact intended workflow. Docs synced (structure.md P4.1
+  note + change log, CODE_MAP.md section 13, this entry). Offline suite still 64
+  tests, all green. P4.1 stays [~]; per the scope rules P4.2 is NOT started
+  until P4.1 is actually pushed. ACTION NEEDED FROM USER: grant the App the
+  `workflows` permission, then push the workflow (or use the template/web UI).
 - P4.1 (Track A / A7, infra) [~] BLOCKED-ON-PUSH (2026-07-06). Wrote
   `.github/workflows/ci.yml`, a minimal GitHub Actions workflow
   (`offline-tests`) that runs the stdlib-only offline suite on every push and

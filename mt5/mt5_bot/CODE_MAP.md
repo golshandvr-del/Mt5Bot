@@ -715,10 +715,17 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   network, no heavy deps) so it mirrors the local offline gate exactly and has
   ZERO effect on the Windows 7 runtime. It lives at the repo root (not under
   `mt5/mt5_bot/`) only because GitHub requires workflows there.
-  STATUS (2026-07-06): the file is written + verified locally but NOT yet
-  pushed to GitHub - the current GitHub App credential lacks the `workflows`
-  permission (push + Contents API both return 403). See structure.md section 5
-  P4.1 [~] for the blocker and the action needed to complete it.
+  STATUS (re-verified 2026-07-06): the file is written + verified locally
+  (64 tests green) but STILL NOT pushed to GitHub - the current GitHub App
+  credential still lacks the `workflows` permission (`git push` is rejected
+  with "refusing to allow a GitHub App to create or update workflow ... without
+  `workflows` permission"). Because the App CAN push anywhere under
+  `mt5/mt5_bot/`, a byte-for-byte committable copy of the workflow is kept at
+  `mt5/mt5_bot/ci_workflow_template.yml` (a header explains how to copy it into
+  `.github/workflows/ci.yml`; the YAML body below its marker line is the exact
+  file). The unpushable `.github/workflows/ci.yml` is left untracked in the
+  working tree. See structure.md section 5 P4.1 [~] for the blocker and the
+  action needed (grant the App the `workflows` permission, then push).
 
 ---
 

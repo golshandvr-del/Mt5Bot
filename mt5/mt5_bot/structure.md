@@ -402,20 +402,31 @@ gold realistically.
 - [~] P4.1 (infra) Add `.github/workflows/ci.yml` (~15 lines): on push/PR,
       set up Python 3.8, run `python tests/run_all.py`. Zero impact on the
       Windows 7 runtime. [A7]
-      BLOCKED (2026-07-06): the workflow file is fully written, ASCII-only,
-      YAML-valid, and verified locally (the exact CI command is green, 64
-      tests), and is staged in the sandbox working tree at
-      `.github/workflows/ci.yml`. It CANNOT be pushed to GitHub yet because the
-      GitHub App credential used for pushes lacks the `workflows` permission:
-      `git push` is rejected with "refusing to allow a GitHub App to create or
-      update workflow `.github/workflows/ci.yml` without `workflows`
-      permission", and the Contents API returns 403 "Resource not accessible by
-      integration". This is an external permission blocker, not a code problem.
+      BLOCKED (re-verified 2026-07-06, second session): the workflow file is
+      fully written, ASCII-only, YAML-valid, and verified locally (the exact CI
+      command `python tests/run_all.py` from `mt5/mt5_bot` is green, 64 tests).
+      It STILL CANNOT be pushed to GitHub because the GitHub App credential used
+      for pushes still lacks the `workflows` permission. Re-tested this session:
+      committing `.github/workflows/ci.yml` and running `git push origin main`
+      is rejected with "refusing to allow a GitHub App to create or update
+      workflow `.github/workflows/ci.yml` without `workflows` permission". The
+      unpushable commit was rolled back (`git reset --soft HEAD~1`) so the
+      branch stays in sync with origin and OTHER doc commits can still be
+      pushed; the workflow file itself is left untracked at
+      `.github/workflows/ci.yml` in the working tree. This is an external
+      permission blocker, not a code problem.
+      COMMITTABLE COPY PRESERVED: because the App can push anywhere UNDER
+      `mt5/mt5_bot/` (just not under `.github/workflows/`), a byte-for-byte copy
+      of the intended workflow is committed at
+      `mt5/mt5_bot/ci_workflow_template.yml` (a header explains the copy-into-
+      place step; the YAML body below its marker line is the exact file). This
+      means the workflow content now lives in version control and survives.
       ACTION NEEDED FROM USER: grant the Genspark/GitHub App the `workflows`
-      permission for this repo (or add the file manually - its exact contents
-      are reproduced in the P4.1 change-log entry in section 7 below). Once the
-      permission is granted, commit + push `.github/workflows/ci.yml` and flip
-      this box to [x]. Per the scope rules the next sub-step (P4.2) is NOT
+      permission for this repo, then copy `mt5/mt5_bot/ci_workflow_template.yml`
+      (the part below its marker line) to `.github/workflows/ci.yml` and push
+      (or paste it in via the GitHub web UI). Its exact contents are also
+      reproduced in the P4.1 change-log entry in section 7 below. Once pushed,
+      flip this box to [x]. Per the scope rules the next sub-step (P4.2) is NOT
       started until P4.1 is pushed.
 - [ ] P4.2 (docs) Add the CI badge/note to README.md; flip A7 status; sync docs.
 
@@ -512,6 +523,30 @@ Goal: upgrade from "offline learner" to "live, self-doubting system".
 
 ## 7. Change log (append newest at top)
 
+- P4.1 STILL BLOCKED-ON-PUSH, committable copy preserved (infra, 2026-07-06,
+  second session): re-verified the P4.1 blocker in a fresh session. Recreated
+  `.github/workflows/ci.yml` (the previous session's sandbox tree was gone; the
+  earlier `b5b0a2a` commit only RECORDED the blocker in docs and never contained
+  the file). Confirmed the file is ASCII-only (0 non-ascii bytes), YAML-valid,
+  and that its command `python tests/run_all.py` from `mt5/mt5_bot` is green (64
+  tests). Committed it and ran `git push origin main` -> STILL rejected:
+  "refusing to allow a GitHub App to create or update workflow
+  `.github/workflows/ci.yml` without `workflows` permission". The `workflows`
+  permission has NOT been granted yet, so the blocker persists. Rolled the
+  unpushable commit back with `git reset --soft HEAD~1` (and unstaged the
+  workflow file) so the branch stays in sync with origin/main and future doc
+  commits remain pushable; the ci.yml stays untracked in the working tree.
+  NEW THIS SESSION: to stop losing the file across sessions, committed a
+  byte-for-byte copy at `mt5/mt5_bot/ci_workflow_template.yml` (pushable because
+  it is under mt5/mt5_bot/, not under .github/workflows/). It carries a header
+  explaining the two activation options (grant the `workflows` permission, or
+  paste it in via the GitHub web UI) and the YAML body below its marker line is
+  the exact intended `.github/workflows/ci.yml`. Verified the template is
+  ASCII-only and its YAML body parses (name = offline-tests). Docs synced
+  (this entry + the section-5 P4.1 [~] note + CODE_MAP section 13 CI note +
+  Ideas.md). Offline suite still 64 tests, all green. P4.1 remains [~]; per the
+  scope rules P4.2 is NOT started until P4.1 is actually pushed. ACTION NEEDED:
+  grant the App the `workflows` permission (see the section-5 P4.1 note).
 - P4.1 IN PROGRESS / BLOCKED-ON-PUSH (infra, 2026-07-06): wrote
   `.github/workflows/ci.yml`, a minimal GitHub Actions workflow named
   `offline-tests` that runs the stdlib-only offline suite on every push and pull
