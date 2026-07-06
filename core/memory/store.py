@@ -13,6 +13,7 @@ strategies(fingerprint PK, symbol, timeframe, spec_json, created_at)
 results(id PK, fingerprint, symbol, timeframe, segment, rank_metric,
         metrics_json, score, created_at)
 council(fingerprint PK, rewards_json, total_seen, updated_at)  -- Phase 5 / P5.2
+live_trades(id PK, fingerprint, pnl, created_at)  -- Phase 5 / P5.6 (decay monitor)
 
 The JSON registry (strategy_registry.json) stores, per (symbol, timeframe),
 the top-K specs and their aggregated walk-forward score so the live decision
@@ -129,6 +130,24 @@ class MemoryStore(object):
                     updated_at   REAL
                 )
                 """
+            )
+            # Phase 5 / P5.6 (Track B / B3): per-strategy realized live/paper trade
+            # PnLs. The decay monitor compares this RECENT distribution against the
+            # strategy's walk-forward reference to flag statistical expiry. One row
+            # per closed trade; append-only, read as a trailing window.
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS live_trades (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fingerprint TEXT,
+                    pnl         REAL,
+                    created_at  REAL
+                )
+                """
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_live_trades_fp "
+                "ON live_trades(fingerprint, id)"
             )
             conn.commit()
             conn.close()
@@ -450,3 +469,96 @@ class MemoryStore(object):
         except Exception as exc:
             self.log.error("load_council load_dict failed: %s", exc)
         return council
+
+    # ------------------------------------------------------------------ #
+    # Phase 5 / P5.6 (Track B / B3): realized live/paper PnL capture per strategy
+    # and the walk-forward reference distribution, both consumed by the decay
+    # monitor (core/strategy/decay_monitor.py). All degrade gracefully (log +
+    # no-op / empty on any failure) so a DB problem never crashes the live path.
+    # ------------------------------------------------------------------ #
+    def record_live_trade(self, fingerprint: str, pnl: float) -> None:
+        """
+        Append one realized live/paper trade PnL for a strategy fingerprint.
+
+        Append-only; the decay monitor reads a trailing window via
+        ``recent_live_pnls``. A missing/empty fingerprint is ignored so trades
+        not attributable to a registry strategy never pollute the table.
+        """
+        if not fingerprint:
+            return
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO live_trades (fingerprint, pnl, created_at) "
+                "VALUES (?, ?, ?)",
+                (str(fingerprint), float(pnl), time.time()),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            self.log.error("record_live_trade failed: %s", exc)
+
+    def recent_live_pnls(self, fingerprint: str,
+                         limit: int = 100) -> List[float]:
+        """
+        Return up to ``limit`` most-recent realized live/paper PnLs for a
+        strategy, oldest-first. Empty list when the strategy has no live trades
+        or on any error.
+        """
+        if not fingerprint:
+            return []
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT pnl FROM live_trades WHERE fingerprint=? "
+                "ORDER BY id DESC LIMIT ?",
+                (str(fingerprint), int(max(1, limit))),
+            )
+            rows = cur.fetchall()
+            conn.close()
+        except Exception as exc:
+            self.log.error("recent_live_pnls failed: %s", exc)
+            return []
+        # Rows come newest-first; reverse to oldest-first for a natural series.
+        pnls = [float(r["pnl"]) for r in rows if r["pnl"] is not None]
+        pnls.reverse()
+        return pnls
+
+    def reference_pnls(self, fingerprint: str,
+                       rank_metric: str = "expectancy") -> List[float]:
+        """
+        Return the strategy's walk-forward REFERENCE distribution of mean
+        per-trade PnL: one ``expectancy`` value per stored backtest segment.
+
+        The decay monitor compares the strategy's recent live mean PnL against
+        this distribution. Using the per-segment expectancy (mean trade PnL on
+        each walk-forward slice) keeps both sides on the same "mean trade PnL"
+        scale. Empty list when the strategy has no stored results or on error.
+        """
+        if not fingerprint:
+            return []
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT json_extract(metrics_json, '$.expectancy') AS exp "
+                "FROM results WHERE fingerprint=? AND rank_metric=?",
+                (str(fingerprint), rank_metric),
+            )
+            rows = cur.fetchall()
+            conn.close()
+        except Exception as exc:
+            self.log.error("reference_pnls failed: %s", exc)
+            return []
+        out: List[float] = []
+        for r in rows:
+            val = r["exp"]
+            if val is None:
+                continue
+            try:
+                out.append(float(val))
+            except (TypeError, ValueError):
+                continue
+        return out
