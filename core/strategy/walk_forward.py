@@ -67,6 +67,11 @@ class WalkForward(object):
         self.holdout_bars = int(wf.get("holdout_bars", 0)) if hasattr(wf, "get") else 0
         if self.holdout_bars < 0:
             self.holdout_bars = 0
+        # Recency weighting (B8 / P6.1): newer walk-forward segments can count
+        # more than older ones when aggregating the per-segment scores. Read
+        # defensively; a bad/missing value or anything outside (0, 1] falls back
+        # to 1.0 = plain average (byte-identical to before).
+        self.recency_decay = self._read_recency_decay(wf)
         self.rank_metric = cfg.get_path("memory.search.rank_metric", "expectancy")
         self.min_trades = int(cfg.get_path("memory.search.min_trades", 30))
 
@@ -76,6 +81,46 @@ class WalkForward(object):
         test window and never below 200 bars)."""
         floor = max(int(self.test_bars), 200)
         return floor
+
+    @staticmethod
+    def _read_recency_decay(wf: Any) -> float:
+        """Parse memory.walk_forward.recency_decay defensively.
+
+        Returns a float in (0, 1]; anything missing, non-numeric, <= 0, or > 1
+        falls back to 1.0 (recency weighting OFF = plain average).
+        """
+        raw = wf.get("recency_decay", 1.0) if hasattr(wf, "get") else 1.0
+        try:
+            d = float(raw)
+        except (TypeError, ValueError):
+            return 1.0
+        if d <= 0.0 or d > 1.0:
+            return 1.0
+        return d
+
+    def recency_weighted_mean(self, scores: List[float],
+                              decay: Optional[float] = None) -> float:
+        """Aggregate per-segment scores (OLDEST first, NEWEST last) into one
+        number, weighting newer segments more via a geometric decay.
+
+        The i-th score (0 = oldest) gets weight decay ** (last_index - i), so
+        the most recent segment always has weight 1.0 and older segments fade.
+        With decay == 1.0 (default) every weight is 1.0, i.e. the plain average,
+        so behavior is byte-identical to before. An empty list returns 0.0.
+        """
+        if not scores:
+            return 0.0
+        d = self.recency_decay if decay is None else float(decay)
+        if d <= 0.0 or d > 1.0:
+            d = 1.0
+        last = len(scores) - 1
+        num = 0.0
+        wsum = 0.0
+        for i, s in enumerate(scores):
+            w = d ** (last - i)
+            num += w * float(s)
+            wsum += w
+        return num / wsum if wsum > 0 else 0.0
 
     def searchable_bars(self, n_bars: int) -> int:
         """Number of leading bars the search is allowed to see.
@@ -192,7 +237,9 @@ class WalkForward(object):
             from core.strategy.metrics import rank_value
             scores.append(rank_value(result.metrics, self.rank_metric))
 
-        avg_score = sum(scores) / len(scores) if scores else 0.0
+        # B8 / P6.1: newer segments weigh more when recency_decay < 1.0. With
+        # the default 1.0 this is exactly the plain mean, so nothing changes.
+        avg_score = self.recency_weighted_mean(scores)
         avg_trades = (
             sum(m.get("num_trades", 0) for m in seg_metrics) / len(seg_metrics)
             if seg_metrics else 0.0
