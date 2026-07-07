@@ -110,6 +110,10 @@ A **realistic** self-improvement loop (NOT literal source-code self-rewriting):
 - The decision engine automatically **selects and blends the top-K** strategies
   per symbol/timeframe. The more the bot searches, the richer its memory and the
   better its future strategy selection. Knowledge survives restarts.
+- Optional **recency weighting** (`memory.walk_forward.recency_decay`, off by
+  default) lets newer walk-forward segments count more than older ones when
+  scoring/ranking strategies, so an edge that has quietly stopped working fades
+  behind one that is good now. See **Configuration** for details.
 
 ### Phase 4 - News analysis (`core/news/`)
 Fetches market news, scores sentiment, and feeds a per-symbol news signal into
@@ -283,8 +287,9 @@ python main.py --mode paper               # dry-run decisions
 - `indicators.*`: per-indicator `{enabled, params}` toggles.
 - `learning.active_model`, `learning.per_symbol` (default false; true = a
   separate ML model per symbol), and per-learner blocks.
-- `memory.*`: walk-forward windows (incl. `min_segments` / `holdout_bars`),
-  search settings (incl. the `significance` promotion filter), `ensemble_top_k`.
+- `memory.*`: walk-forward windows (incl. `min_segments` / `holdout_bars` /
+  `recency_decay`), search settings (incl. the `significance` promotion
+  filter), `ensemble_top_k`.
 - `news.*`: sources, sentiment backend, `signal_weight`, `blackout_minutes`.
 - `decision.weights` (indicators / learning / news) and entry thresholds.
 - `backtest.*`: initial balance, cost model, fixed lot, report dir.
@@ -386,6 +391,19 @@ lost. Tune the effort/breadth in `config/config.yaml` under `memory.search`
 > `memory.search.significance.enabled: false` to keep the previous behavior, or
 > raise `min_winrate_ci_low` (default `0.0` = off) to also require a minimum
 > win-rate lower bound.
+
+> Recency weighting (off by default): `memory.walk_forward.recency_decay`
+> controls how much newer walk-forward segments count versus older ones when the
+> per-segment scores are averaged into a strategy's final score (both in the
+> search aggregate and in the registry re-ranking used to pick the top-K). The
+> i-th oldest segment gets weight `recency_decay ** (last_index - i)`, so the
+> most recent segment always has weight `1.0` and older ones fade geometrically.
+> The default `1.0` is OFF (plain average, behavior byte-identical to before); a
+> value in `(0, 1)` such as `0.9` down-weights older segments so a strategy that
+> was great years ago but has quietly stopped working ranks below one that is
+> good *now*. Values `<= 0` or `> 1` are clamped back to `1.0`. This pairs well
+> with multi-year data, where the oldest segments may reflect a market regime
+> that no longer exists.
 
 **Step 3 - sanity-check, then train and dry-run:**
 
