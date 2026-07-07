@@ -215,6 +215,15 @@ memory:
     # a strategy is only promoted to the registry if it also passes on this
     # untouched holdout.
     holdout_bars: 0
+    # Recency weighting (Track B / B8, P6.1). When aggregating the per-segment
+    # walk-forward scores into a single number, newer segments can be made to
+    # count MORE than older ones via a geometric decay: the i-th oldest segment
+    # (0 = oldest) gets weight recency_decay ** (last_index - i), so the most
+    # recent segment always has weight 1.0. This guards against a strategy that
+    # was great years ago but has quietly stopped working. 1.0 = OFF (plain
+    # average, behavior byte-identical to before); a value in (0, 1) such as 0.9
+    # down-weights older segments. Values <= 0 or > 1 are clamped back to 1.0.
+    recency_decay: 1.0
   # Strategy/parameter search configuration.
   search:
     method: "random"         # "grid" or "random"
