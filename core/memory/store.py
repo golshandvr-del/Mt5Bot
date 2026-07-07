@@ -75,6 +75,17 @@ class MemoryStore(object):
             )
         except (TypeError, ValueError):
             self.sig_min_winrate_ci_low = 0.0
+        # Recency weighting (Track B / B8, P6.1). When aggregating a strategy's
+        # per-segment scores, newer segments can count more than older ones via
+        # a geometric decay. Read defensively; 1.0 (default) or anything outside
+        # (0, 1] means OFF = the plain SQL AVG(score), byte-identical to before.
+        try:
+            rd = float(cfg.get_path("memory.walk_forward.recency_decay", 1.0))
+        except (TypeError, ValueError):
+            rd = 1.0
+        if rd <= 0.0 or rd > 1.0:
+            rd = 1.0
+        self.recency_decay = rd
         self._init_db()
 
     # ------------------------------------------------------------------ #
@@ -260,6 +271,24 @@ class MemoryStore(object):
                  int(fetch_limit)),
             )
             rows = cur.fetchall()
+            # B8 / P6.1: when recency weighting is ON (decay < 1.0), replace the
+            # SQL plain-average score with a recency-weighted score (newer
+            # segments count more) and RE-RANK the candidate rows by it. With the
+            # default decay == 1.0 this block is skipped entirely, so the SQL
+            # AVG(score) ordering is preserved byte-for-byte.
+            recency_on = self.recency_decay < 1.0
+            rec_scores: Dict[str, float] = {}
+            if recency_on and rows:
+                fps = [r["fingerprint"] for r in rows]
+                rec_scores = self._recency_weighted_scores(
+                    conn, symbol, timeframe, rank_metric, fps
+                )
+                rows = sorted(
+                    rows,
+                    key=lambda r: rec_scores.get(r["fingerprint"],
+                                                 r["avg_score"] or 0.0),
+                    reverse=True,
+                )
             results: List[Dict[str, Any]] = []
             for row in rows:
                 fp = row["fingerprint"]
@@ -278,17 +307,22 @@ class MemoryStore(object):
                 srow = cur2.fetchone()
                 if not srow:
                     continue
-                results.append(
-                    {
-                        "fingerprint": fp,
-                        "avg_score": row["avg_score"],
-                        "n_segments": row["n_segments"],
-                        "avg_trades": row["avg_trades"],
-                        "avg_pvalue": row["avg_pvalue"],
-                        "avg_ci_low": row["avg_ci_low"],
-                        "spec": json.loads(srow["spec_json"]),
-                    }
-                )
+                entry = {
+                    "fingerprint": fp,
+                    "avg_score": row["avg_score"],
+                    "n_segments": row["n_segments"],
+                    "avg_trades": row["avg_trades"],
+                    "avg_pvalue": row["avg_pvalue"],
+                    "avg_ci_low": row["avg_ci_low"],
+                    "spec": json.loads(srow["spec_json"]),
+                }
+                if recency_on:
+                    # Expose the recency-weighted score used for ranking; keep
+                    # the plain average alongside it for transparency.
+                    entry["recency_score"] = rec_scores.get(
+                        fp, row["avg_score"]
+                    )
+                results.append(entry)
             conn.close()
             return results
         except Exception as exc:
@@ -317,6 +351,53 @@ class MemoryStore(object):
             if ci_low < self.sig_min_winrate_ci_low:
                 return False
         return True
+
+    def _recency_weighted_scores(self, conn: Any, symbol: str, timeframe: str,
+                                 rank_metric: str,
+                                 fingerprints: List[str]
+                                 ) -> Dict[str, float]:
+        """Compute a recency-weighted score per fingerprint (B8 / P6.1).
+
+        For each strategy, its per-segment scores are ordered OLDEST -> NEWEST
+        (by created_at, then id, so insertion order breaks ties) and combined
+        with a geometric decay: the i-th oldest gets weight decay ** (last - i),
+        so the newest segment always weighs 1.0. Returns {fingerprint: score}.
+        Only called when recency_decay < 1.0. On any failure a fingerprint is
+        simply omitted (its plain SQL average is used as the ranking fallback).
+        """
+        d = self.recency_decay
+        out: Dict[str, float] = {}
+        if d <= 0.0 or d >= 1.0 or not fingerprints:
+            return out
+        try:
+            cur = conn.cursor()
+            for fp in fingerprints:
+                cur.execute(
+                    "SELECT score FROM results "
+                    "WHERE symbol=? AND timeframe=? AND rank_metric=? "
+                    "  AND fingerprint=? "
+                    "ORDER BY created_at ASC, id ASC",
+                    (symbol, timeframe, rank_metric, fp),
+                )
+                seg_scores = [
+                    float(r["score"]) for r in cur.fetchall()
+                    if r["score"] is not None
+                ]
+                if not seg_scores:
+                    continue
+                last = len(seg_scores) - 1
+                num = 0.0
+                wsum = 0.0
+                for i, s in enumerate(seg_scores):
+                    w = d ** (last - i)
+                    num += w * s
+                    wsum += w
+                if wsum > 0:
+                    out[fp] = num / wsum
+        except Exception as exc:
+            self.log.error("_recency_weighted_scores failed: %s", exc)
+            return out
+        return out
 
     # ------------------------------------------------------------------ #
     def update_registry(self, symbol: str, timeframe: str,
