@@ -23,11 +23,13 @@ CPU-only, mid-range hardware**. Architecture is **"train offline / run light"**:
 heavy machine learning is optional and isolated; the live decision + execution
 path is lightweight and pure-Python-friendly.
 
-> NOTE ON REPO LAYOUT: the project itself lives ONLY under `main/`. The
-> single exception is the GitHub Actions CI workflow (`.github/workflows/ci.yml`
-> at the REPO ROOT), because GitHub only recognizes workflows there. It merely
-> `cd`s into `main` and runs the offline test suite; it ships nothing to
-> the Windows 7 runtime and adds no dependency.
+> NOTE ON REPO LAYOUT: the project lives at the REPOSITORY ROOT (moved from the
+> earlier `main/` subfolder in commit `0c1cfd6 Restructure: move all project
+> files from main/ to repository root`). The only file outside the app tree is
+> the GitHub Actions CI workflow (`.github/workflows/ci.yml`), because GitHub
+> only recognizes workflows under `.github/workflows/`. That workflow runs the
+> offline test suite from the repo root (no `working-directory` needed); it ships
+> nothing to the Windows 7 runtime and adds no dependency.
 
 Four decoupled phases:
 
@@ -49,7 +51,8 @@ news, decision, execution, config.
 ## 2. Top-level layout
 
 ```
-main/                             <- the ENTIRE project lives ONLY here
+<repo root>                       <- the ENTIRE project lives here (moved from
+                                     the old main/ subfolder in commit 0c1cfd6)
   install.bat                     <- ONE-CLICK Windows 7 automatic installer
   main.py                         <- CLI entry point; dispatches run modes
   requirements.txt                <- dependencies pinned for Win7 / Python 3.8
@@ -75,23 +78,26 @@ main/                             <- the ENTIRE project lives ONLY here
     indicators/                   <- Phase 2 (pluggable)
       base.py                     <- Indicator base class + math helpers
       registry.py                 <- register/build enabled indicators
-      trend.py momentum.py volatility.py volume.py patterns.py
+      trend.py momentum.py volatility.py volume.py patterns.py extra.py
       __init__.py                 <- imports submodules to trigger registration
     learning/                     <- Phase 1 (swappable learners)
       base_model.py               <- BaseModel common interface
       factory.py                  <- build learner by name (+ NeutralModel)
       features.py                 <- FeatureBuilder (OHLCV -> X, y)
+      calibration.py              <- probability calibration helpers
       ml_classifier.py            <- LightGBM / sklearn / pure-Python (DEFAULT)
       rl_agent.py                 <- tabular Q-learning (CPU-light, optional)
       dl_classifier.py            <- Keras MLP (HEAVY, off by default)
       transfer.py                 <- transfer learning on DL model (optional)
       self_supervised.py          <- autoencoder feature learner (optional)
-    strategy/                     <- Phase 3 (search/backtest)
+    strategy/                     <- Phase 3 (search/backtest) + Track-B living-bot
       strategy.py                 <- StrategySpec (recipe) + Strategy (executable)
       metrics.py                  <- performance metrics + ranking value
       backtester.py               <- fast bar-by-bar single-position simulator
-      walk_forward.py             <- rolling out-of-sample evaluation
+      walk_forward.py             <- rolling out-of-sample eval (+ recency weight)
       search.py                   <- random/grid strategy search (memory builder)
+      council.py                  <- P5.1 StrategyCouncil: live credibility (UCB1)
+      decay_monitor.py            <- P5.5 DecayMonitor: statistical strategy expiry
     memory/
       store.py                    <- SQLite + JSON registry of strategies/results
     news/                         <- Phase 4
@@ -132,6 +138,9 @@ main/                             <- the ENTIRE project lives ONLY here
     __init__.py helpers.py run_all.py
     test_config.py test_indicators.py test_learning.py
     test_memory.py test_news.py test_pipeline.py
+    test_metrics_significance.py test_walk_forward.py test_timing_stats.py
+    test_per_symbol_learning.py test_backtester_swap_gap.py
+    test_strategy_council.py test_decay_monitor.py
 
   examples/
     generate_sample_data.py       <- synthetic OHLCV CSVs for offline first run
@@ -820,7 +829,9 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
 ## 16. Conventions & invariants (do not break)
 
 1. **ASCII only** everywhere (code, comments, docs, strings, filenames).
-2. **Entire project stays under `main/`**; nothing else in that folder.
+2. **Entire project lives at the repository ROOT** (moved from the old `main/`
+   subfolder in commit `0c1cfd6`); the only file outside the app tree is
+   `.github/workflows/ci.yml`, which GitHub requires under `.github/workflows/`.
 3. **Config-driven**: no hard-coded feature flags; read from config.yaml.
 4. **Graceful degradation**: missing MT5 / missing optional dep / offline news
    must NOT crash the bot; components return neutral/empty and log a warning.
@@ -885,6 +896,13 @@ history CSV --> StrategySearch --> WalkForward --> Backtester --> metrics
   change-log entries that mention the old path describe events as they happened;
   the path token was updated for consistency since the files now live under
   `main/`.
+- ROOT-MOVE NOTE (later, commit `0c1cfd6 Restructure: move all project files
+  from main/ to repository root`): the `main/` subfolder wrapper was removed and
+  the entire project now lives at the REPOSITORY ROOT. The CI workflow was
+  updated accordingly (`419cdf4`) to run at the repo root with no
+  `working-directory`. This CODE_MAP layout tree (section 2), the REPO-LAYOUT
+  note (top), and invariant 2 (section 16) were resynced to the root layout;
+  the historical `main/`-era notes above are retained as provenance.
 - ROADMAP PROGRESS: Phases P1, P2, and P3 of `structure.md` are now COMPLETE.
   Phase P1 (Track A items A1 + A2 - honest evaluation: multi-year real-data
   workflow documented, more walk-forward segments via `min_segments`
