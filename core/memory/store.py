@@ -39,6 +39,50 @@ from core.utils.helpers import read_json, write_json, ensure_dir
 from core.utils.logger import get_logger
 
 
+def _py_json_extract(text: Any, path: Any) -> Any:
+    """
+    JSON1-independent replacement for SQLite's built-in ``json_extract``.
+
+    Older SQLite builds (notably the one bundled with some Windows 7 Python
+    distributions) are compiled WITHOUT the JSON1 extension, so a SQL call to
+    ``json_extract(metrics_json, '$.num_trades')`` raises
+    ``no such function: json_extract`` and every ranking query silently returns
+    nothing. To stay portable we register THIS Python implementation as a SQLite
+    user function named ``json_extract`` on every connection, so the same SQL
+    text works on every SQLite build regardless of JSON1.
+
+    Only the simple top-level path form ``$.<key>`` (and bare ``<key>``) that the
+    memory store actually uses is supported; any miss, malformed JSON, or
+    unsupported path returns ``None`` (SQL NULL), matching how the built-in
+    behaves for an absent key. It never raises, so a bad row can never crash a
+    ranking query.
+    """
+    if text is None or path is None:
+        return None
+    try:
+        obj = json.loads(text) if isinstance(text, (str, bytes, bytearray)) else text
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(obj, dict):
+        return None
+    key = str(path)
+    if key.startswith("$."):
+        key = key[2:]
+    elif key == "$":
+        return None
+    # We only need flat, single-level keys for the stored metrics_json.
+    value = obj.get(key)
+    # SQLite json_extract returns scalars as-is; nested objects/arrays are
+    # returned as JSON text. We only ever extract numeric scalars, but keep the
+    # behavior reasonable for other types.
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, sort_keys=True)
+        except (TypeError, ValueError):
+            return None
+    return value
+
+
 class MemoryStore(object):
     """SQLite-backed strategy/result memory with a JSON best-strategy registry."""
 
@@ -92,6 +136,15 @@ class MemoryStore(object):
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        # Portability guard (Windows 7 / SQLite without JSON1): always register a
+        # Python-side ``json_extract`` so ranking queries never hit
+        # "no such function: json_extract". On builds that already ship JSON1 the
+        # SQL text is identical and this user function simply shadows it with
+        # equivalent behavior for the flat "$.key" paths we use.
+        try:
+            conn.create_function("json_extract", 2, _py_json_extract)
+        except Exception as exc:  # pragma: no cover - extremely defensive
+            self.log.error("could not register json_extract shim: %s", exc)
         return conn
 
     def _init_db(self) -> None:
