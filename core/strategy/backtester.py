@@ -43,8 +43,17 @@ class BacktestResult(object):
         self.trade_pnls = trade_pnls
         # Phase 5 (user-update-request): optional per-trade records with the
         # entry-bar timestamp so the timing layer can attribute PnL to time
-        # buckets (session/day/season). Each item: {"entry_ts": int, "pnl": float,
-        # "direction": +1/-1}. Empty unless record_trades=True was requested.
+        # buckets (session/day/season).
+        #
+        # Phase U1.1 (transparency overhaul): when record_trades=True each item
+        # now carries the FULL trade receipt so the user can audit any trade:
+        #   entry_ts, exit_ts, direction (+1/-1), entry_price, exit_price,
+        #   stop_price, take_price, exit_reason (sl/tp/flip/eod),
+        #   pnl, gross_pnl, cost_spread, cost_slippage, cost_commission,
+        #   cost_swap, balance_after, signal (blended signal value at entry).
+        # The legacy keys (entry_ts, pnl, direction) are still present so the
+        # existing timing layer keeps working unchanged. Empty unless
+        # record_trades=True was requested.
         self.trades: List[Dict[str, Any]] = trades or []
 
     def to_dict(self) -> Dict[str, Any]:
@@ -184,6 +193,26 @@ class Backtester(object):
         commission = self.commission * self.fixed_lot * 2.0
         return cost_price + commission
 
+    def _cost_breakdown(self, point: float, contract: float) -> Dict[str, float]:
+        """
+        Split the round-trip cost into its named components (U1.1 transparency).
+
+        Returns a dict with separate spread / slippage / commission money
+        amounts (round-trip, i.e. entry + exit). Their sum equals
+        `_round_trip_cost` exactly so the per-trade CSV can attribute every
+        dollar of cost to a source and still reconcile with the metrics.
+        """
+        spread_money = self.spread_points * point * self.fixed_lot * contract
+        # Slippage is applied on BOTH entry and exit (2x), matching the
+        # round-trip cost formula above.
+        slippage_money = 2.0 * self.slippage_points * point * self.fixed_lot * contract
+        commission_money = self.commission * self.fixed_lot * 2.0
+        return {
+            "spread": spread_money,
+            "slippage": slippage_money,
+            "commission": commission_money,
+        }
+
     def _swap_money(self, direction: int, nights: float,
                     point: float, contract: float) -> float:
         """
@@ -198,6 +227,45 @@ class Backtester(object):
         if pts == 0.0:
             return 0.0
         return pts * point * contract * self.fixed_lot * nights
+
+    @staticmethod
+    def _make_trade_record(entry_ts: int, exit_ts: int, direction: int,
+                           entry_price: float, exit_price: float,
+                           stop_price: float, take_price: float,
+                           exit_reason: str, pnl: float, gross_pnl: float,
+                           cost_parts: Dict[str, float], swap: float,
+                           balance_after: float,
+                           signal: float) -> Dict[str, Any]:
+        """
+        Build one FULL per-trade receipt (U1.1 transparency).
+
+        The dict keeps the three legacy keys (entry_ts, pnl, direction) that the
+        Phase 5 timing layer already reads, and adds the full audit fields. The
+        cost components (spread/slippage/commission) plus swap are broken out
+        separately so a report can show "how much of my PnL went to costs".
+        By construction: pnl == gross_pnl - (cost_spread + cost_slippage +
+        cost_commission) - cost_swap.
+        """
+        return {
+            # --- legacy keys (do not remove: timing layer depends on them) ---
+            "entry_ts": int(entry_ts),
+            "pnl": float(pnl),
+            "direction": int(direction),
+            # --- U1.1 full receipt ---
+            "exit_ts": int(exit_ts),
+            "entry_price": float(entry_price),
+            "exit_price": float(exit_price),
+            "stop_price": float(stop_price),
+            "take_price": float(take_price),
+            "exit_reason": str(exit_reason),
+            "gross_pnl": float(gross_pnl),
+            "cost_spread": float(cost_parts.get("spread", 0.0)),
+            "cost_slippage": float(cost_parts.get("slippage", 0.0)),
+            "cost_commission": float(cost_parts.get("commission", 0.0)),
+            "cost_swap": float(swap),
+            "balance_after": float(balance_after),
+            "signal": float(signal),
+        }
 
     def run(self, strategy: Strategy, ohlcv: Any,
             warmup: int = 60, point: Optional[float] = None,
@@ -247,6 +315,15 @@ class Backtester(object):
         # -------------------------------------------------------------- #
         decision_series = strategy.decision_series(ohlcv)
         atr_series = strategy.atr_series(ohlcv)
+        # U1.1: the blended signal value AT ENTRY is part of the trade receipt.
+        # Stub strategies used in tests may not implement signal_series(); read
+        # it defensively so those keep working (signal recorded as 0.0 then).
+        signal_series: List[float] = []
+        if record_trades:
+            try:
+                signal_series = list(strategy.signal_series(ohlcv))
+            except Exception:
+                signal_series = []
 
         balance = self.initial_balance
         equity_curve: List[float] = [balance]
@@ -256,10 +333,14 @@ class Backtester(object):
         position = 0          # 0 flat, +1 long, -1 short
         entry_price = 0.0
         entry_ts = 0          # entry-bar timestamp (for the timing layer)
+        entry_signal = 0.0    # blended signal value at entry (U1.1 receipt)
         stop_price = 0.0
         take_price = 0.0
         swap_accum = 0.0      # money charged so far for holding this position
         cost = self._round_trip_cost(point, self.contract)
+        # U1.1: the named cost components (spread/slippage/commission) so each
+        # trade receipt can attribute every dollar of cost. Their sum == cost.
+        cost_parts = self._cost_breakdown(point, self.contract)
         # Detect a weekend/holiday gap: a bar whose gap from the previous bar is
         # noticeably larger than one normal bar spacing (A6 / P3.6). Only used
         # when model_weekend_gap is on; otherwise stops fill exactly at the stop.
@@ -292,6 +373,7 @@ class Backtester(object):
             if position != 0:
                 exit_now = False
                 exit_price = close[i]
+                exit_reason = ""     # "sl" / "tp" / "flip" (U1.1 receipt)
                 if position == 1:
                     if low[i] <= stop_price:
                         # Monday-gap model: if the bar OPENS below the stop, the
@@ -301,11 +383,14 @@ class Backtester(object):
                         else:
                             exit_price = stop_price
                         exit_now = True
+                        exit_reason = "sl"
                     elif high[i] >= take_price:
                         exit_price = take_price
                         exit_now = True
+                        exit_reason = "tp"
                     elif decision == -1:
                         exit_now = True
+                        exit_reason = "flip"
                 else:  # short
                     if high[i] >= stop_price:
                         # For a short, a gap UP through the stop fills worse (at
@@ -315,24 +400,39 @@ class Backtester(object):
                         else:
                             exit_price = stop_price
                         exit_now = True
+                        exit_reason = "sl"
                     elif low[i] <= take_price:
                         exit_price = take_price
                         exit_now = True
+                        exit_reason = "tp"
                     elif decision == 1:
                         exit_now = True
+                        exit_reason = "flip"
 
                 if exit_now:
                     move = (exit_price - entry_price) * position
-                    pnl = move * self.fixed_lot * self.contract - cost - swap_accum
+                    gross_pnl = move * self.fixed_lot * self.contract
+                    pnl = gross_pnl - cost - swap_accum
                     balance += pnl
                     trade_pnls.append(pnl)
                     equity_curve.append(balance)
                     if record_trades:
-                        trades.append({
-                            "entry_ts": entry_ts,
-                            "pnl": pnl,
-                            "direction": position,
-                        })
+                        trades.append(self._make_trade_record(
+                            entry_ts=entry_ts,
+                            exit_ts=cur_ts,
+                            direction=position,
+                            entry_price=entry_price,
+                            exit_price=exit_price,
+                            stop_price=stop_price,
+                            take_price=take_price,
+                            exit_reason=exit_reason,
+                            pnl=pnl,
+                            gross_pnl=gross_pnl,
+                            cost_parts=cost_parts,
+                            swap=swap_accum,
+                            balance_after=balance,
+                            signal=entry_signal,
+                        ))
                     position = 0
                     swap_accum = 0.0
 
@@ -341,6 +441,8 @@ class Backtester(object):
                 position = decision
                 entry_price = close[i]
                 entry_ts = times[i] if i < len(times) else 0
+                entry_signal = (signal_series[i]
+                                if i < len(signal_series) else 0.0)
                 swap_accum = 0.0
                 if position == 1:
                     stop_price = entry_price - strategy.spec.sl_atr_mult * atr
@@ -352,16 +454,29 @@ class Backtester(object):
         # Close any residual position at the last close.
         if position != 0:
             move = (close[-1] - entry_price) * position
-            pnl = move * self.fixed_lot * self.contract - cost - swap_accum
+            gross_pnl = move * self.fixed_lot * self.contract
+            pnl = gross_pnl - cost - swap_accum
             balance += pnl
             trade_pnls.append(pnl)
             equity_curve.append(balance)
             if record_trades:
-                trades.append({
-                    "entry_ts": entry_ts,
-                    "pnl": pnl,
-                    "direction": position,
-                })
+                last_ts = times[-1] if times else 0
+                trades.append(self._make_trade_record(
+                    entry_ts=entry_ts,
+                    exit_ts=last_ts,
+                    direction=position,
+                    entry_price=entry_price,
+                    exit_price=close[-1],
+                    stop_price=stop_price,
+                    take_price=take_price,
+                    exit_reason="eod",
+                    pnl=pnl,
+                    gross_pnl=gross_pnl,
+                    cost_parts=cost_parts,
+                    swap=swap_accum,
+                    balance_after=balance,
+                    signal=entry_signal,
+                ))
 
         metrics = compute_metrics(trade_pnls, equity_curve)
         return BacktestResult(metrics, equity_curve, trade_pnls, trades)

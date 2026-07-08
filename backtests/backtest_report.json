@@ -1,107 +1,16 @@
 {
   "symbols": {
-    "EURUSD": {
-      "metrics": {
-        "average_loss": -27.8436,
-        "average_win": 15.8607,
-        "expectancy": 4.873628,
-        "max_drawdown": 0.0342,
-        "net_profit": 872.3793,
-        "num_trades": 179,
-        "pnl_pvalue": 0.002,
-        "profit_factor": 1.6963,
-        "sharpe": 0.2274,
-        "win_rate": 0.7486,
-        "win_rate_ci_low": 0.6803
-      },
-      "source": "memory_top",
-      "spec": {
-        "indicators": {
-          "keltner": {
-            "atr_mult": 1.5,
-            "period": 14
-          },
-          "obv": {},
-          "sma": {
-            "period": 200
-          }
-        },
-        "long_threshold": 0.2,
-        "name": "d3e6d3a7e0fcc153",
-        "short_threshold": 0.15,
-        "sl_atr_mult": 2.7,
-        "symbol": "EURUSD",
-        "timeframe": "M15",
-        "tp_atr_mult": 4.9,
-        "weights": {
-          "keltner": 1.19,
-          "obv": 1.71,
-          "sma": 1.62
-        }
-      }
-    },
-    "GBPUSD": {
-      "metrics": {
-        "average_loss": -63.4076,
-        "average_win": 114.3274,
-        "expectancy": 15.126463,
-        "max_drawdown": 0.0807,
-        "net_profit": 2601.7516,
-        "num_trades": 172,
-        "pnl_pvalue": 0.028,
-        "profit_factor": 1.4274,
-        "sharpe": 0.1467,
-        "win_rate": 0.4419,
-        "win_rate_ci_low": 0.3697
-      },
-      "source": "memory_top",
-      "spec": {
-        "indicators": {
-          "bbands": {
-            "period": 20,
-            "std": 2.0
-          },
-          "candle_patterns": {},
-          "ichimoku": {
-            "kijun": 26,
-            "senkou": 52,
-            "tenkan": 9
-          },
-          "keltner": {
-            "atr_mult": 2.5,
-            "period": 20
-          },
-          "sma": {
-            "period": 100
-          }
-        },
-        "long_threshold": 0.3,
-        "name": "33cceb66fba83424",
-        "short_threshold": 0.21,
-        "sl_atr_mult": 2.5,
-        "symbol": "GBPUSD",
-        "timeframe": "M15",
-        "tp_atr_mult": 4.6,
-        "weights": {
-          "bbands": 0.96,
-          "candle_patterns": 1.59,
-          "ichimoku": 1.12,
-          "keltner": 0.63,
-          "sma": 1.61
-        }
-      }
-    },
     "XAUUSD": {
       "metrics": {
-        "average_loss": -108.5462,
-        "average_win": 204.9892,
-        "expectancy": 14.523762,
-        "max_drawdown": 0.311,
-        "net_profit": 3108.0852,
+        "average_loss": -55.3346,
+        "average_win": 101.408,
+        "expectancy": 6.190503,
+        "max_drawdown": 0.1646,
+        "net_profit": 1324.7676,
         "num_trades": 214,
-        "pnl_pvalue": 0.115,
-        "profit_factor": 1.2203,
-        "sharpe": 0.0813,
+        "pnl_pvalue": 0.164,
+        "profit_factor": 1.1842,
+        "sharpe": 0.0693,
         "win_rate": 0.3925,
         "win_rate_ci_low": 0.3295
       },
