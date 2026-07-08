@@ -142,23 +142,95 @@ def ensure_pip() -> bool:
 
 
 def upgrade_pip_tools() -> None:
-    """Best-effort upgrade of pip/setuptools/wheel. Never fatal."""
+    """Best-effort upgrade of pip/setuptools/wheel. Never fatal.
+
+    On Windows 7 we deliberately CAP pip/setuptools/wheel at the last versions
+    that still run on Windows 7 + Python 3.8. Blindly upgrading to the newest
+    pip can pull a build that refuses to run on Windows 7, or a resolver that
+    prefers newer wheels needing a Windows 8+ runtime.
+    """
     info("Upgrading pip, setuptools, wheel (best-effort)...")
     try:
-        subprocess.call([
-            sys.executable, "-m", "pip", "install", "--upgrade",
-            "pip", "setuptools", "wheel",
-        ])
+        if sys.platform.startswith("win"):
+            subprocess.call([
+                sys.executable, "-m", "pip", "install", "--upgrade",
+                # Last Win7/py3.8-safe lines:
+                "pip<24.1", "setuptools<69", "wheel<0.43",
+            ])
+        else:
+            subprocess.call([
+                sys.executable, "-m", "pip", "install", "--upgrade",
+                "pip", "setuptools", "wheel",
+            ])
     except Exception as exc:
         warn("pip self-upgrade skipped: %s" % exc)
+
+
+# --------------------------------------------------------------------------- #
+# Step 3b: guarantee the scientific stack is at its Windows-7 pins.
+# --------------------------------------------------------------------------- #
+# import_name -> (pip_name, pinned_version). Kept in sync with requirements.txt
+# and scripts/fix_windows_deps.py. A version MISMATCH here is exactly what
+# causes the WinRT-DLL error and the 'No module named numpy._core' model-load
+# failure, so we actively repair it instead of hoping requirements.txt wins.
+WIN7_PINS = [
+    ("numpy",   "numpy",        "1.24.4"),
+    ("pandas",  "pandas",       "1.5.3"),
+    ("scipy",   "scipy",        "1.10.1"),
+    ("sklearn", "scikit-learn", "1.3.2"),
+    ("lightgbm", "lightgbm",    "3.3.5"),
+]
+
+
+def enforce_win7_pins() -> None:
+    """
+    Detect any scientific package installed at a version that differs from its
+    Windows-7 pin and force-reinstall the correct binary wheel. This is what
+    actually cures a machine that already had NumPy 2.x installed (pip would
+    otherwise leave the too-new build in place).
+    """
+    line("=")
+    info("Verifying the scientific stack is at Windows-7 pins...")
+    for import_name, pip_name, version in WIN7_PINS:
+        try:
+            mod = importlib.import_module(import_name)
+            have = getattr(mod, "__version__", None)
+        except Exception:
+            have = None
+        if have == version:
+            ok("%-12s %s (matches pin)" % (import_name, have))
+            continue
+        if have is None:
+            info("%s not importable; installing pinned %s" % (import_name, version))
+        else:
+            warn("%s is %s but the Windows-7 pin is %s; repairing..."
+                 % (import_name, have, version))
+        # Uninstall a wrong/broken build, then force the exact pinned wheel.
+        try:
+            subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y",
+                             pip_name])
+        except Exception:
+            pass
+        _pip_install(["--force-reinstall", "%s==%s" % (pip_name, version)],
+                     retries=2)
 
 
 # --------------------------------------------------------------------------- #
 # Step 3: install dependencies with retries and per-package fallback.
 # --------------------------------------------------------------------------- #
 def _pip_install(args, retries: int = 3, sleep_s: int = 4) -> bool:
-    """Run 'pip install <args>' with a retry loop. Returns True on success."""
-    cmd = [sys.executable, "-m", "pip", "install", "--prefer-binary"] + list(args)
+    """Run 'pip install <args>' with a retry loop. Returns True on success.
+
+    On Windows we add --only-binary=:all: so pip NEVER tries to build a wheel
+    from source. A source build would compile against the host's newest
+    Windows runtime and produce a binary that depends on Windows 8+ DLLs
+    (e.g. api-ms-win-core-winrt-string-l1-1-0.dll), which do not exist on
+    Windows 7 and cause 'DLL load failed' at import time.
+    """
+    base = [sys.executable, "-m", "pip", "install", "--prefer-binary"]
+    if sys.platform.startswith("win"):
+        base.append("--only-binary=:all:")
+    cmd = base + list(args)
     for attempt in range(1, retries + 1):
         info("pip install attempt %d/%d: %s" % (attempt, retries, " ".join(args)))
         try:
@@ -297,6 +369,11 @@ def main() -> int:
 
     upgrade_pip_tools()
     install_requirements()
+    # On Windows, actively repair any too-new scientific package (the root of
+    # the WinRT-DLL error and the numpy._core model-load failure). Harmless on
+    # other platforms but only auto-run on Windows to keep dev boxes untouched.
+    if sys.platform.startswith("win"):
+        enforce_win7_pins()
     ensure_sample_data()
     all_ok = verify_imports()
 
