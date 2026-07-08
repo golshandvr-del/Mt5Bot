@@ -180,6 +180,20 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U2.1 DONE - PARITY hard guard on the EA exporter (2026-07-08). First step of
+  UPGRADE_PLAN.md Phase U2 (validated == traded), the phase that directly fixes
+  the "robot behaved stupidly in the Strategy Tester" incident (disconnects D1/D2).
+  `scripts/export_strategy_for_ea.py` now runs in `--strict` mode BY DEFAULT: if
+  the chosen strategy uses any indicator the EA cannot run (outside
+  ema/sma/rsi/macd/atr/adx), the export FAILS loudly and writes nothing, instead
+  of silently dropping indicators and shipping a crippled `.params`. The old
+  lenient behavior is opt-in via `--allow-partial`, which drops the unsupported
+  indicators, RESCALES the surviving weights to conserve total weight, and stamps
+  a big `!! WARNING: PARTIAL / DEGRADED EXPORT` block into the file header so no
+  human can mistake it for a faithful export. Added
+  `tests/test_ea_export_parity.py` (strict refuses, clean spec passes, partial
+  rescales+warns, all-unsupported fails, weight conservation). Suite 95 -> 100
+  green. NEXT: U2.2 (ea_compatible_only search mode).
 - U1.7 DONE - TRANSPARENCY docs synced (2026-07-08). Phase U1 of UPGRADE_PLAN.md
   (the "receipts" phase that fixes disconnect D1 "you cannot see WHY a trade
   happened") is now fully documented. README gained an "Auditing a run" section
