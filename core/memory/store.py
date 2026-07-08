@@ -496,6 +496,34 @@ class MemoryStore(object):
         section = registry.get(key, {})
         return section.get("top", [])
 
+    def known_symbol_timeframes(self) -> List[Dict[str, str]]:
+        """
+        Return every distinct (symbol, timeframe) pair that has stored results.
+
+        Used by the ``rebuild-registry`` recovery path so the JSON registry can
+        be regenerated from the already-collected SQLite data WITHOUT re-running
+        a search. Empty list on error / empty DB.
+        """
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT DISTINCT symbol, timeframe FROM results "
+                "WHERE symbol IS NOT NULL AND timeframe IS NOT NULL"
+            )
+            rows = cur.fetchall()
+            conn.close()
+        except Exception as exc:
+            self.log.error("known_symbol_timeframes failed: %s", exc)
+            return []
+        out: List[Dict[str, str]] = []
+        for r in rows:
+            sym = r["symbol"]
+            tf = r["timeframe"]
+            if sym and tf:
+                out.append({"symbol": str(sym), "timeframe": str(tf)})
+        return out
+
     def stats(self) -> Dict[str, Any]:
         """Return simple counters about what the memory currently holds."""
         try:
