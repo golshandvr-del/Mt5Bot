@@ -296,7 +296,11 @@ news:
   sources:
     rss:
       enabled: true
+      # Gold-focused feeds first (commodities / precious metals / Fed), plus a
+      # broad markets feed. The aggregator filters items by the XAUUSD keyword
+      # map, so general feeds still contribute only gold-relevant headlines.
       feeds:
+        - "https://www.investing.com/rss/commodities_Gold.rss"
         - "https://www.investing.com/rss/news_25.rss"
         - "https://feeds.marketwatch.com/marketwatch/topstories/"
     newsapi:
