@@ -114,6 +114,15 @@ A **realistic** self-improvement loop (NOT literal source-code self-rewriting):
   default) lets newer walk-forward segments count more than older ones when
   scoring/ranking strategies, so an edge that has quietly stopped working fades
   behind one that is good now. See **Configuration** for details.
+- **Portability note (Windows 7 / old SQLite):** the memory store no longer
+  depends on the SQLite **JSON1** extension. Ranking queries used to call the
+  built-in `json_extract`, which is missing on some older SQLite builds and
+  caused `no such function: json_extract` - the search would finish and store
+  all its results, yet the registry came out empty (`"top": 0`). The store now
+  registers its own equivalent `json_extract` on every connection, so ranking
+  works on every SQLite build. If you hit this on an earlier version, just run
+  `python main.py --mode rebuild-registry` once to populate the registry from
+  the results you already collected - no need to re-run the search.
 
 ### Phase 4 - News analysis (`core/news/`)
 Fetches market news, scores sentiment, and feeds a per-symbol news signal into
@@ -254,12 +263,20 @@ python main.py --mode paper    # single decision pass, logs intended orders only
 python main.py --mode live     # single pass, sends real MT5 orders (careful!)
 python main.py --mode backtest # internal walk-forward backtest report
 python main.py --mode search   # Phase 3 strategy/parameter search (build memory)
+python main.py --mode rebuild-registry  # rebuild the registry from stored memory
 python main.py --mode train    # Phase 1 offline learner training
 python main.py --mode loop     # continuous paper/live loop (for a VPS)
 python main.py --config other.yaml   # use an alternate config file
 ```
 
 `--mode loop` accepts `--iterations N` (0 = forever) and `--sleep SECONDS`.
+
+`--mode rebuild-registry` regenerates `strategy_registry.json` from the results
+already stored in the memory DB (`data_store/memory.sqlite`), **without** running
+a new search or connecting to MT5. Use it if a search finished but the registry
+came out empty (for example after the old `no such function: json_extract`
+error on a SQLite build without the JSON1 extension - see below): the thousands
+of already-evaluated results are turned into a populated registry in seconds.
 
 On Windows you can also double-click **`scripts\run_bot.bat`** (optionally with a
 mode argument), which locates Python and launches `main.py`.
