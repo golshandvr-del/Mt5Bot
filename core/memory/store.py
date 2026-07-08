@@ -456,7 +456,8 @@ class MemoryStore(object):
     def update_registry(self, symbol: str, timeframe: str,
                         rank_metric: str = "expectancy",
                         min_trades: int = 30,
-                        allowed_fingerprints: Optional[Any] = None
+                        allowed_fingerprints: Optional[Any] = None,
+                        apply_significance: bool = True
                         ) -> Dict[str, Any]:
         """
         Recompute the best strategies for symbol/timeframe and write them into
@@ -470,11 +471,14 @@ class MemoryStore(object):
         memory.search.significance gate by default, so a strategy that is not
         statistically distinguishable from random is recorded in SQLite but is
         never promoted into this registry. Disable it via config
-        (memory.search.significance.enabled: false).
+        (memory.search.significance.enabled: false) or, per-call, by passing
+        apply_significance=False (used by the rebuild-registry recovery path so
+        an over-strict gate cannot leave the registry empty).
         """
         best = self.top_strategies(symbol, timeframe, self.top_k,
                                    rank_metric, min_trades,
-                                   allowed_fingerprints=allowed_fingerprints)
+                                   allowed_fingerprints=allowed_fingerprints,
+                                   apply_significance=apply_significance)
         registry = read_json(self.registry_path, default={}) or {}
         key = "%s|%s" % (symbol, timeframe)
         registry[key] = {
