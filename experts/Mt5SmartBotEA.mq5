@@ -28,13 +28,20 @@
 #include <Trade\Trade.mqh>
 
 //--- Inputs (used as fallback when no params file is present) ------------------
+// IMPORTANT: for a meaningful test, ALWAYS load a real strategy via
+// InpParamsFile (exported by scripts/export_strategy_for_ea.py). The values
+// below are only a self-contained fallback so the EA still runs with no file.
+// They deliberately match the Python StrategySpec defaults (long/short=0.30,
+// sl=2.0, tp=3.0) so the fallback behaves like an un-tuned default strategy,
+// NOT like the decision engine's 0.60 threshold (that 0.60 gate is applied to
+// the FULL blend incl. ML+news, which the EA does not reproduce).
 input string InpParamsFile      = "";      // params file in MQL5\Files (optional)
 input double InpRiskPerTrade    = 0.01;    // fraction of equity risked per trade
 input double InpLongThreshold   = 0.30;    // blended score to go long
 input double InpShortThreshold  = 0.30;    // blended score (abs) to go short
 input double InpSlAtrMult       = 2.0;     // stop-loss in ATR multiples
 input double InpTpAtrMult       = 3.0;     // take-profit in ATR multiples
-input int    InpAtrPeriod       = 14;      // ATR period for SL/TP + labels
+input int    InpAtrPeriod       = 14;      // ATR period (Python uses 14 fixed)
 input long   InpMagic           = 990011;  // magic number to tag orders
 
 //--- Fallback indicator toggles / params (overridden by the params file) ------
