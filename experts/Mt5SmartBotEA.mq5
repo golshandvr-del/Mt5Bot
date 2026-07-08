@@ -433,6 +433,28 @@ void OnDeinit(const int reason)
   }
 
 //+------------------------------------------------------------------+
+//| Number of leading bars to skip so every indicator is stable.     |
+//| Mirrors the Python backtester's warmup (default 60). Without this |
+//| the EA could trade on half-formed indicators: e.g. before RSI has |
+//| enough data BufVal() returns 0.0, which the RSI rule reads as     |
+//| "deeply oversold" and votes a full BUY - a pure warmup artifact.  |
+//+------------------------------------------------------------------+
+int WarmupBars()
+  {
+   int w = g_cfg.atrPeriod;
+   if(g_cfg.useEma  && g_cfg.emaPeriod  > w) w = g_cfg.emaPeriod;
+   if(g_cfg.useSma  && g_cfg.smaPeriod  > w) w = g_cfg.smaPeriod;
+   if(g_cfg.useRsi  && g_cfg.rsiPeriod  > w) w = g_cfg.rsiPeriod;
+   if(g_cfg.useMacd && g_cfg.macdSlow   > w) w = g_cfg.macdSlow;
+   if(g_cfg.useAdx  && g_cfg.adxPeriod  > w) w = g_cfg.adxPeriod;
+   // Add generous head-room for Wilder-smoothed lines (RSI/ADX/ATR) to settle,
+   // and never go below the Python default of 60 leading bars.
+   w = w * 3 + 10;
+   if(w < 60) w = 60;
+   return(w);
+  }
+
+//+------------------------------------------------------------------+
 //| Main loop - act once per new bar (matches Python bar decisions)  |
 //+------------------------------------------------------------------+
 void OnTick()
@@ -441,6 +463,11 @@ void OnTick()
    if(barTime==g_lastBarTime)
       return;             // only act on a fresh bar
    g_lastBarTime = barTime;
+
+   // Skip until enough history exists for every enabled indicator to be
+   // stable (matches the Python backtester warmup and avoids fake signals).
+   if(Bars(_Symbol, _Period) < WarmupBars())
+      return;
 
    double atr = BufVal(g_hAtr, 0, 1);
    if(atr<=0.0)
