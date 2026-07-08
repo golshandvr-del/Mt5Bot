@@ -278,6 +278,28 @@ came out empty (for example after the old `no such function: json_extract`
 error on a SQLite build without the JSON1 extension - see below): the thousands
 of already-evaluated results are turned into a populated registry in seconds.
 
+If a rebuild still reports `0 strategies`, it is **not** a crash - it means the
+promotion filters rejected every candidate. The run now logs a `REASON ...` line
+telling you which filter emptied it, and you can loosen the gates for the rebuild
+**without editing `config.yaml`**:
+
+```bash
+# See exactly which filter empties each symbol (read-only, no changes):
+python scripts/diagnose_registry.py
+
+# Recover strategies the significance gate rejected (missing/high p-value):
+python main.py --mode rebuild-registry --no-significance
+
+# Recover strategies that simply did not trade enough:
+python main.py --mode rebuild-registry --min-trades 10
+
+# Or loosen the significance p-value threshold instead of disabling it:
+python main.py --mode rebuild-registry --max-pvalue 0.2
+```
+
+These flags only affect the rebuild run; the stored results and `config.yaml`
+are left untouched.
+
 On Windows you can also double-click **`scripts\run_bot.bat`** (optionally with a
 mode argument), which locates Python and launches `main.py`.
 
