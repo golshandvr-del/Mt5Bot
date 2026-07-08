@@ -214,17 +214,22 @@ memory:
   # JSON snapshot of the current best-strategy registry (human readable).
   registry_file: "data_store/strategy_registry.json"
   # Walk-forward configuration.
+  # OPTIMIZED for the large ~150k-bar XAUUSD M15 history: bigger train/test
+  # windows give each fold enough gold data to be statistically meaningful,
+  # while more segments (min_segments below) test robustness across many market
+  # regimes (trending gold, ranging gold, high-vol news spikes).
   walk_forward:
-    train_bars: 3000
-    test_bars: 750
-    step_bars: 750
+    train_bars: 8000
+    test_bars: 2000
+    step_bars: 2000
     # Statistical robustness (Track A / A2). These are read by later steps
     # (P1.3 segments, P1.4 holdout). Leaving them at the defaults below keeps
     # today's walk-forward behavior byte-identical.
     # Target number of rolling walk-forward segments. The segmenter will try to
     # produce at least this many by shrinking train_bars when the history is
     # long enough; short history still falls back to the 70/30 split.
-    min_segments: 6
+    # With ~150k bars we can afford many folds for a robust gold edge.
+    min_segments: 10
     # Bars reserved at the END of history as a locked "quarantine" holdout that
     # the search NEVER sees. 0 = OFF (no holdout, behavior unchanged). When > 0,
     # a strategy is only promoted to the registry if it also passes on this
@@ -238,16 +243,24 @@ memory:
     # was great years ago but has quietly stopped working. 1.0 = OFF (plain
     # average, behavior byte-identical to before); a value in (0, 1) such as 0.9
     # down-weights older segments. Values <= 0 or > 1 are clamped back to 1.0.
-    recency_decay: 1.0
+    # OPTIMIZED for gold: 0.9 down-weights old regimes so a strategy that only
+    # worked on years-old gold behavior is not promoted over one that works now.
+    recency_decay: 0.9
   # Strategy/parameter search configuration.
   search:
     method: "random"         # "grid" or "random"
-    max_trials: 200
+    # OPTIMIZED: single symbol + lots of data means we can explore more
+    # parameter combinations to find a genuinely good gold strategy.
+    max_trials: 400
     # Metric used to rank strategies in memory.
     rank_metric: "expectancy"   # win_rate, profit_factor, max_drawdown,
                                 #   expectancy, sharpe
-    # Minimum trades a strategy must produce to be trusted.
-    min_trades: 30
+    # Minimum trades a strategy must produce to be trusted. With ~150k bars a
+    # real gold edge should trade often, so 40 filters out lucky rare setups
+    # without being so high that it empties the registry (that earlier
+    # top:0 problem was caused by significance + min_trades together; the
+    # rebuild-registry recovery knobs still let you relax this per-run).
+    min_trades: 40
     # Statistical-significance filter (Track A / A3, P2.3-P2.4). A strategy
     # that cannot be statistically separated from randomness is still RECORDED
     # in memory but is NEVER promoted to the registry. Uses the pure-Python
@@ -424,12 +437,16 @@ decision:
 # -----------------------------------------------------------------------------
 backtest:
   initial_balance: 10000.0
-  # Cost model.
-  spread_points: 10
+  # Cost model - tuned for XAUUSD (gold). Gold spreads are far wider than FX:
+  # on M15 a typical broker spread is ~20-35 points (0.20-0.35 in price terms
+  # for a 2-digit gold quote). These make backtests realistic instead of
+  # optimistic; adjust to YOUR broker's actual gold spread/commission.
+  spread_points: 25
   commission_per_lot: 7.0
-  slippage_points: 2
-  # Position sizing for internal backtests.
-  fixed_lot: 0.10
+  slippage_points: 5
+  # Position sizing for internal backtests. Gold lots are large in $ terms, so
+  # a small fixed lot keeps the simulated equity curve realistic.
+  fixed_lot: 0.05
   # Where to store backtest reports.
   report_dir: "backtests"
   # ---------------------------------------------------------------------- #
@@ -441,8 +458,13 @@ backtest:
   # Money impact per rollover = swap_pts * point * contract * fixed_lot.
   # 0.0 (default) = no swap modeled = old behavior. Gold/carry pairs benefit
   # most from setting realistic values here.
-  swap_long_pts: 0.0
-  swap_short_pts: 0.0
+  # OPTIMIZED for gold: brokers usually charge a swap to HOLD XAUUSD overnight
+  # (both directions are often negative for gold). These modest defaults make
+  # multi-day holds pay a realistic carry cost so the backtest does not reward
+  # strategies that only look good because carry was ignored. Replace with your
+  # broker's exact XAUUSD swap points (positive = cost here).
+  swap_long_pts: 3.0
+  swap_short_pts: 1.5
   # Day of week (0=Mon .. 6=Sun, UTC) that is charged TRIPLE swap to cover the
   # weekend (MT5 convention is Wednesday = 2). Any other value disables the
   # triple-charge and every rollover costs a single swap.
@@ -451,4 +473,7 @@ backtest:
   # weekend gap, the position fills at the gapped OPEN price (worse than the
   # stop) instead of at the stop price. false (default) = old behavior where a
   # stop always fills exactly at the stop price.
-  model_weekend_gap: false
+  # OPTIMIZED for gold: XAUUSD gaps over the weekend, so model the Monday gap -
+  # a stop sitting inside the gap fills at the worse gapped open. This stops the
+  # backtest from over-crediting weekend-holding gold strategies.
+  model_weekend_gap: true
