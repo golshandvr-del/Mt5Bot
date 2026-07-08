@@ -53,39 +53,54 @@ mt5:
   # How long to wait for the terminal connection (milliseconds).
   connect_timeout_ms: 60000
   # Symbols the bot is allowed to trade / analyze.
+  # OPTIMIZED: this bot is dedicated to GOLD (XAUUSD) only. Every training run,
+  # strategy search and live decision targets XAUUSD, so nothing dilutes the
+  # gold model and every CPU cycle is spent on the one instrument we trade.
   symbols:
-    - "EURUSD"
-    - "GBPUSD"
     - "XAUUSD"
   # Default working timeframe for live decisions.
   timeframe: "M15"
   # Timeframes the data layer should fetch for multi-timeframe analysis.
+  # Kept to M15 (the decision timeframe) plus H1 context. Fewer timeframes =
+  # less data to pull and a faster loop on a weak CPU. Add H4 back only if you
+  # actually consume it somewhere.
   timeframes:
-    - "M5"
     - "M15"
     - "H1"
-    - "H4"
   # Number of historical bars to pull for analysis.
-  history_bars: 5000
+  # OPTIMIZED for the ~150k-bar XAUUSD M15 CSV you exported: pulling up to
+  # 200000 bars means train/search/backtest use your FULL history instead of
+  # only the last 5000 bars. The CSV loader safely uses however many bars exist
+  # (it never pads), so a smaller file still works. If a live decision pass ever
+  # feels slow on the weak box, the live loop only needs recent bars - lower
+  # this or pass an explicit count there.
+  history_bars: 200000
 
 # -----------------------------------------------------------------------------
 # Risk and order management (execution layer)
 # -----------------------------------------------------------------------------
 risk:
   # Risk per trade as a fraction of account equity (0.01 = 1%).
+  # Gold moves fast; 1% keeps a single bad trade from hurting while still
+  # letting the account compound. ATR-based sizing (below) does the heavy work.
   risk_per_trade: 0.01
-  # Hard cap on simultaneous open positions.
-  max_open_positions: 3
+  # Hard cap on simultaneous open positions. Single-symbol bot: allow a small
+  # number of concurrent XAUUSD entries (e.g. pyramiding / different strategies)
+  # but keep it tight because they are all correlated (same instrument).
+  max_open_positions: 2
   # Maximum daily loss as fraction of equity before the bot stops trading.
-  max_daily_loss: 0.05
+  # Gold's volatility warrants a slightly tighter daily circuit-breaker.
+  max_daily_loss: 0.04
   # Default stop-loss / take-profit in ATR multiples (used if strategy omits).
-  default_sl_atr_mult: 2.0
-  default_tp_atr_mult: 3.0
-  # Minimum and maximum lot sizes (broker-dependent; adjust per symbol).
+  # Wider SL for gold's noise; TP gives a ~1.75:1 reward:risk by default.
+  default_sl_atr_mult: 2.5
+  default_tp_atr_mult: 4.0
+  # Minimum and maximum lot sizes for XAUUSD (broker-dependent - verify with
+  # your broker's contract specs). Gold lots are large in $ terms, so cap max.
   min_lot: 0.01
-  max_lot: 1.0
-  # Slippage tolerance in points.
-  deviation_points: 20
+  max_lot: 0.50
+  # Slippage tolerance in points. Gold spreads/slippage are wider than FX.
+  deviation_points: 30
   # Magic number to tag this bot's orders inside MT5.
   magic_number: 990011
 
