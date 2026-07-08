@@ -100,27 +100,27 @@ had NO artifact to inspect. Trust requires receipts.
 Goal: the user can see and audit every single simulated or live decision.
 No behavior change to trading logic yet - only visibility.
 
-- [ ] U1.1 (code) `Backtester.run(record_trades=True)` becomes the default in
+- [x] U1.1 (code) `Backtester.run(record_trades=True)` becomes the default in
       backtest mode and records FULL trade records: entry_ts, exit_ts,
       direction, entry/exit price, SL, TP, exit_reason (sl/tp/flip/eod),
       pnl, costs paid (spread/commission/slippage/swap separately),
       balance_after, and the blended signal value at entry.
-- [ ] U1.2 (code) New `core/utils/trade_log.py`: writes
+- [x] U1.2 (code) New `core/utils/trade_log.py`: writes
       `backtests/trades_<SYMBOL>_<TF>_<timestamp>.csv` plus
       `equity_<...>.csv` (bar-indexed equity curve). Pure stdlib csv.
-- [ ] U1.3 (code) New `scripts/make_report.py`: renders a single-file HTML
+- [x] U1.3 (code) New `scripts/make_report.py`: renders a single-file HTML
       report (no external deps, inline SVG for the equity/drawdown chart)
       from the trade CSV: summary table, per-month PnL, top-10 worst trades,
       exit-reason breakdown, cost share of PnL. Runs on Win7 offline.
-- [ ] U1.4 (code) Decision explainer: `Decision.reasons` is extended to carry
+- [x] U1.4 (code) Decision explainer: `Decision.reasons` is extended to carry
       per-component values (each strategy's signal, learner prob, news score,
       threshold used) and paper/live append one JSON line per decision to
       `logs/decisions_<date>.jsonl`. A new `scripts/explain_decisions.py`
       pretty-prints the last N decisions with WHY (which components pushed it
       over/under the threshold).
-- [ ] U1.5 (code) Backtest report gains a `config_snapshot` section (the
+- [x] U1.5 (code) Backtest report gains a `config_snapshot` section (the
       exact effective config values used) so every artifact is reproducible.
-- [ ] U1.6 (test) Offline tests: trade CSV row count == num_trades metric;
+- [x] U1.6 (test) Offline tests: trade CSV row count == num_trades metric;
       costs in the CSV sum to the metrics' implied total cost; HTML report
       builds from a synthetic run without exceptions.
 - [ ] U1.7 (docs) README section "Auditing a run"; sync CODE_MAP/Ideas.
@@ -339,6 +339,13 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-08 Phase U1 (Transparency) COMPLETE through U1.6. U1.1-U1.5 code
+  landed earlier (backtester full receipts, core/utils/trade_log.py CSVs,
+  scripts/make_report.py HTML, decision journal + explainer, config snapshot);
+  U1.6 adds tests/test_transparency.py (offline: CSV row count == num_trades,
+  per-trade pnl == gross - costs, implied_total_cost reconciliation, HTML
+  report builds incl. empty-trades edge case). Suite: 95 tests green. Only
+  U1.7 (docs) remains before U2.
 - 2026-07-08 Initial version. Derived from full code review + the user's
   real-world XAUUSD tester loss report. Root causes D1-D5 documented;
   six phases U1-U6 defined with steps and acceptance criteria.
