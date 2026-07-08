@@ -435,6 +435,14 @@ The "learn from trial-and-error" loop / memory builder.
   fingerprints that pass are passed as an `allowed_fingerprints` allowlist to
   `update_registry`, so a spec that only worked in-sample is never promoted.
   When the holdout is OFF the allowlist is None and promotion is unchanged.
+- EA-compatible search (UPGRADE_PLAN U2.2): when
+  `memory.search.ea_compatible_only` is true (default false), the directional
+  voter pool is filtered to `_EA_SUPPORTED_DIRECTIONAL` (ema, sma, rsi, macd,
+  adx - the directional subset of the exporter's `EA_SUPPORTED_INDICATORS`).
+  Every generated spec then exports to the MQL5 EA 1:1 with no dropped
+  indicators, so it is the RECOMMENDED mode for MT5-tester-validated workflows.
+  The `_available_directional()` helper applies the filter; the grid path
+  already uses only ema+rsi so it is naturally compatible.
 
 ### council.py - `StrategyCouncil` (Phase 5 / P5.1, Track B / B1)
 A pure-stdlib tabular UCB1 bandit that learns a LIVE per-strategy credibility

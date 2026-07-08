@@ -180,6 +180,21 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U2.2 DONE - EA-compatible search mode (2026-07-08). New config
+  `memory.search.ea_compatible_only` (default false). When true, the strategy
+  search filters its directional voter pool to the EA-exportable set
+  (ema, sma, rsi, macd, adx - the directional subset of the exporter's
+  `EA_SUPPORTED_INDICATORS`), so every promoted strategy exports to the MQL5 EA
+  1:1 with zero dropped indicators. This is the recommended workflow for anyone
+  who validates strategies in the MT5 Strategy Tester: it pairs with the U2.1
+  hard guard so search never even PRODUCES a strategy the exporter would reject.
+  Implemented in `core/strategy/search.py` (`_EA_SUPPORTED_DIRECTIONAL`
+  constant + `_available_directional()` filter + `__init__` flag read). Grid
+  path already used only ema+rsi so it was naturally compatible. Added
+  `tests/test_ea_compatible_search.py` (4 tests, incl. a drift guard that the
+  search set stays a subset of the exporter set). Suite 100 -> 104 green.
+  NEXT: U2.3 (grow the EA in MQL5) / U2.4 (live parity mode).
+
 - U2.1 DONE - PARITY hard guard on the EA exporter (2026-07-08). First step of
   UPGRADE_PLAN.md Phase U2 (validated == traded), the phase that directly fixes
   the "robot behaved stupidly in the Strategy Tester" incident (disconnects D1/D2).

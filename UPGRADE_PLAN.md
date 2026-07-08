@@ -142,7 +142,7 @@ Goal: kill both parity gaps. This is the phase that directly addresses the
       keeps the old behavior for experiments, and then it also rescales the
       remaining weights AND writes a prominent warning block into the .params
       file header.
-- [ ] U2.2 (code) EA-compatible search mode: new config
+- [x] U2.2 (code) EA-compatible search mode: new config
       `memory.search.ea_compatible_only` (default false). When true the
       random/grid/evolutionary spec generators draw ONLY from the EA-supported
       indicator set, so anything promoted is exportable 1:1. RECOMMENDED
@@ -339,6 +339,16 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-08 U2.2 DONE - EA-compatible search mode. New config
+  `memory.search.ea_compatible_only` (default false). When true,
+  `core/strategy/search.py` filters its directional voter pool to
+  `_EA_SUPPORTED_DIRECTIONAL` (ema, sma, rsi, macd, adx - the directional
+  subset of the exporter's EA_SUPPORTED_INDICATORS), so every promoted strategy
+  exports to the MQL5 EA 1:1 with no dropped indicators. Pairs with the U2.1
+  hard guard: search never even produces a strategy the exporter would reject.
+  Grid path already used only ema+rsi (naturally compatible). Added
+  tests/test_ea_compatible_search.py (4 tests incl. a set-drift guard). Suite
+  100 -> 104 green. NEXT: U2.3 (grow the EA in MQL5) / U2.4 (live parity mode).
 - 2026-07-08 U2.1 DONE - EA export HARD GUARD. `scripts/export_strategy_for_ea.py`
   gained `--strict` (DEFAULT ON): any EA-unsupported indicator now FAILS the
   export with a listing instead of silently shipping a crippled strategy.
