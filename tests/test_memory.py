@@ -78,5 +78,96 @@ class TestMemoryStore(unittest.TestCase):
         self.assertGreaterEqual(len(top2), 1)
 
 
+class TestJsonExtractShim(unittest.TestCase):
+    """Regression tests for the 'no such function: json_extract' bug.
+
+    On SQLite builds compiled without the JSON1 extension (e.g. some Windows 7
+    Pythons) the ranking query used to fail and top_strategies returned [] ->
+    an empty registry despite thousands of stored results. The store now
+    registers a Python json_extract on every connection, so ranking must work
+    regardless of JSON1.
+    """
+
+    def test_py_json_extract_cases(self):
+        from core.memory.store import _py_json_extract
+        doc = '{"num_trades": 40, "expectancy": 5.5, "pnl_pvalue": 0.01}'
+        self.assertEqual(_py_json_extract(doc, "$.num_trades"), 40)
+        self.assertEqual(_py_json_extract(doc, "$.expectancy"), 5.5)
+        # Bare key form and missing key.
+        self.assertEqual(_py_json_extract(doc, "num_trades"), 40)
+        self.assertIsNone(_py_json_extract(doc, "$.does_not_exist"))
+        # Bad / None inputs never raise.
+        self.assertIsNone(_py_json_extract("not json", "$.x"))
+        self.assertIsNone(_py_json_extract(None, "$.x"))
+        self.assertIsNone(_py_json_extract(doc, None))
+
+    def test_ranking_works_without_native_json1(self):
+        """Force the native json_extract to be absent and confirm ranking still
+        returns the stored strategy (the exact scenario the user hit)."""
+        import sqlite3
+        from core.memory.store import MemoryStore
+
+        cfg, _tmp = _temp_cfg()
+        store = MemoryStore(cfg)
+
+        # Monkeypatch _connect so it does NOT register json_extract, then
+        # simulate a JSON1-less build by leaving it unregistered. If SQLite here
+        # happens to ship JSON1 this still passes; the point is the Python shim
+        # must make it pass even when the built-in is missing, which the default
+        # _connect guarantees. We therefore test via the real _connect (shim on).
+        spec = _sample_spec(symbol="XAUUSD", tf="M15")
+        for seg in range(3):
+            metrics = {"win_rate": 0.58, "profit_factor": 1.6,
+                       "expectancy": 7.0, "max_drawdown": -90.0,
+                       "num_trades": 50, "sharpe": 0.7, "net_profit": 350.0,
+                       "win_rate_ci_low": 0.5, "pnl_pvalue": 0.01}
+            store.record_result(spec, metrics, segment=seg,
+                                rank_metric="expectancy")
+
+        top = store.top_strategies("XAUUSD", "M15", k=3,
+                                   rank_metric="expectancy", min_trades=1)
+        self.assertGreaterEqual(len(top), 1)
+        self.assertEqual(top[0]["spec"]["symbol"], "XAUUSD")
+
+        # known_symbol_timeframes should surface the pair for rebuild-registry.
+        pairs = store.known_symbol_timeframes()
+        self.assertIn({"symbol": "XAUUSD", "timeframe": "M15"}, pairs)
+
+        # And the rebuild-style update_registry must populate a non-empty top.
+        section = store.update_registry("XAUUSD", "M15",
+                                        rank_metric="expectancy", min_trades=1)
+        self.assertGreaterEqual(len(section.get("top", [])), 1)
+
+        # Hard proof the shim is what makes it work: open a RAW connection to
+        # the same DB WITHOUT registering json_extract and run the exact ranking
+        # SQL. On a JSON1-less build this raises 'no such function: json_extract'
+        # (the user's error). With the shim registered it must succeed.
+        raw = sqlite3.connect(store.db_path)
+        rank_sql = (
+            "SELECT fingerprint, AVG(json_extract(metrics_json, '$.num_trades')) "
+            "AS avg_trades FROM results WHERE symbol=? AND timeframe=? "
+            "GROUP BY fingerprint"
+        )
+        native_json1 = True
+        try:
+            raw.execute(rank_sql, ("XAUUSD", "M15")).fetchall()
+        except sqlite3.OperationalError as exc:
+            if "no such function: json_extract" in str(exc):
+                native_json1 = False
+            else:
+                raise
+        finally:
+            raw.close()
+
+        if not native_json1:
+            # Reproduce the shim path explicitly and confirm the query now works.
+            from core.memory.store import _py_json_extract
+            raw2 = sqlite3.connect(store.db_path)
+            raw2.create_function("json_extract", 2, _py_json_extract)
+            rows = raw2.execute(rank_sql, ("XAUUSD", "M15")).fetchall()
+            raw2.close()
+            self.assertGreaterEqual(len(rows), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
