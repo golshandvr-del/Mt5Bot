@@ -249,6 +249,13 @@ memory:
   # Strategy/parameter search configuration.
   search:
     method: "random"         # "grid" or "random"
+    # EA-COMPATIBLE SEARCH (U2.2). When true, the random/grid/evolutionary
+    # spec generators draw ONLY from the indicator set the MQL5 EA can run
+    # (ema, sma, rsi, macd, adx among directional voters). Anything promoted
+    # is then exportable to the EA 1:1 with no dropped indicators. This is the
+    # RECOMMENDED workflow for anyone who validates strategies in the MT5
+    # Strategy Tester. Default false keeps the full research indicator set.
+    ea_compatible_only: false
     # OPTIMIZED: single symbol + lots of data means we can explore more
     # parameter combinations to find a genuinely good gold strategy.
     max_trials: 400
