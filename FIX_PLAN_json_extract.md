@@ -2,6 +2,8 @@
 
 Status legend: [ ] pending · [~] in progress · [x] done
 
+**ALL STEPS DONE — fix implemented, tested (85/85 tests pass), documented.**
+
 ---
 
 ## 1. Symptom (what the user saw)
