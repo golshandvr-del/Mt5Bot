@@ -41,8 +41,16 @@ _DEFAULT_SYMBOL_KEYWORDS: Dict[str, List[str]] = {
                "united kingdom", "britain", "dollar", "usd", "fed"],
     "USDJPY": ["yen", "jpy", "boj", "bank of japan", "japan", "dollar", "usd",
                "fed"],
-    "XAUUSD": ["gold", "xau", "bullion", "precious metal", "safe haven",
-               "dollar", "usd", "inflation"],
+    # XAUUSD (gold) is this bot's dedicated instrument, so its keyword set is
+    # richer: the drivers that actually move gold are the USD, Fed policy /
+    # interest rates, real yields, inflation/CPI, and safe-haven / geopolitical
+    # risk. More relevant keywords -> a more informative news signal for gold.
+    "XAUUSD": ["gold", "xau", "xauusd", "bullion", "precious metal",
+               "safe haven", "safe-haven", "dollar", "usd", "dxy",
+               "inflation", "cpi", "ppi", "fed", "federal reserve",
+               "interest rate", "rate cut", "rate hike", "fomc",
+               "treasury yield", "real yield", "bond yield",
+               "geopolitical", "war", "recession", "risk-off"],
     "USDCAD": ["loonie", "cad", "boc", "bank of canada", "canada", "oil",
                "crude", "dollar", "usd"],
     "AUDUSD": ["aussie", "aud", "rba", "reserve bank of australia",

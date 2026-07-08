@@ -40,8 +40,10 @@ from core.utils.logger import get_logger
 # Helpers shared by runners.
 # --------------------------------------------------------------------------- #
 def _symbols(ctx: BotContext) -> List[str]:
-    syms = ctx.cfg.get_path("mt5.symbols", ["EURUSD"])
-    return [str(s) for s in syms] if syms else ["EURUSD"]
+    # This bot is dedicated to XAUUSD, so the safety fallback (used only if
+    # mt5.symbols is missing/empty in config) is XAUUSD - never a random FX pair.
+    syms = ctx.cfg.get_path("mt5.symbols", ["XAUUSD"])
+    return [str(s) for s in syms] if syms else ["XAUUSD"]
 
 
 def _timeframe(ctx: BotContext) -> str:
