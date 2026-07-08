@@ -135,7 +135,7 @@ any trade and see when/why/what-it-cost. Nothing about trading changed yet.
 Goal: kill both parity gaps. This is the phase that directly addresses the
 "robot behaved stupidly in the Strategy Tester" incident.
 
-- [ ] U2.1 (code) EA export HARD GUARD: `export_strategy_for_ea.py` gains
+- [x] U2.1 (code) EA export HARD GUARD: `export_strategy_for_ea.py` gains
       `--strict` (DEFAULT ON): if the spec contains ANY indicator the EA does
       not implement, the export FAILS with a clear message listing them,
       instead of silently exporting a crippled strategy. `--allow-partial`
@@ -339,6 +339,14 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-08 U2.1 DONE - EA export HARD GUARD. `scripts/export_strategy_for_ea.py`
+  gained `--strict` (DEFAULT ON): any EA-unsupported indicator now FAILS the
+  export with a listing instead of silently shipping a crippled strategy.
+  `--allow-partial` restores the lenient path but drops the unsupported
+  indicators, RESCALES surviving weights to conserve total weight, and stamps a
+  prominent WARNING block into the .params header. Added
+  tests/test_ea_export_parity.py. Suite 95 -> 100 green. NEXT: U2.2
+  (memory.search.ea_compatible_only).
 - 2026-07-08 U1.7 DONE - Phase U1 (Transparency) fully COMPLETE. Added the
   "Auditing a run" section to README (three receipt types: per-trade + equity
   CSVs, single-file HTML report via scripts/make_report.py, decision journal +
