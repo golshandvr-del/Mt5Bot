@@ -24,3 +24,13 @@ logs/*.log
 .vscode/
 *.swp
 .DS_Store
+
+# Trained model artifacts (rebuilt locally by `python main.py --mode train`).
+# These are environment-specific pickles: a model saved on a NumPy 2.x machine
+# CANNOT be unpickled on the Windows 7 / NumPy 1.x live box (raises
+# "No module named 'numpy._core'"). Never commit them; train on the target box.
+models/*.pkl
+models/*.h5
+models/*.joblib
+models/*.incompatible
+!models/.gitkeep
