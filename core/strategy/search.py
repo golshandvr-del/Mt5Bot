@@ -10,6 +10,11 @@ Two methods (config.memory.search.method):
   - "random" : sample max_trials random specs from the indicator param spaces.
   - "grid"   : enumerate a (bounded) grid over a small chosen indicator subset.
 
+When config.memory.search.ea_compatible_only is true (U2.2) both methods draw
+directional voters ONLY from the EA-supported set (ema, sma, rsi, macd, adx),
+so any promoted strategy is exportable to the MQL5 EA 1:1 with no dropped
+indicators. Default false keeps the full research indicator set.
+
 This is the realistic "learn from trial-and-error on years of data" loop: the
 more it searches and stores, the better future strategy selection becomes. It
 never rewrites source code.
@@ -37,6 +42,14 @@ _DIRECTIONAL = [
     "candle_patterns",
 ]
 
+# EA-compatible DIRECTIONAL subset (U2.2). Mirrors the exporter's
+# EA_SUPPORTED_INDICATORS = (ema, sma, rsi, macd, atr, adx); atr is dropped
+# here because it is a non-directional exits-only indicator and never appears
+# in _DIRECTIONAL. When memory.search.ea_compatible_only is true the search
+# draws voters ONLY from this list, so any promoted strategy exports to the
+# MQL5 EA 1:1 with zero dropped indicators.
+_EA_SUPPORTED_DIRECTIONAL = ["ema", "sma", "rsi", "macd", "adx"]
+
 
 class StrategySearch(object):
     def __init__(self, cfg: Any, memory: object,
@@ -53,11 +66,23 @@ class StrategySearch(object):
         self.max_trials = int(s.get("max_trials", 200)) if hasattr(s, "get") else 200
         self.rank_metric = s.get("rank_metric", "expectancy") if hasattr(s, "get") else "expectancy"
         self.min_trades = int(s.get("min_trades", 30)) if hasattr(s, "get") else 30
+        # U2.2: restrict the search to the EA-exportable indicator set so that
+        # anything promoted can be run in the MT5 EA 1:1 (no dropped voters).
+        self.ea_compatible_only = bool(
+            s.get("ea_compatible_only", False)) if hasattr(s, "get") else False
+        if self.ea_compatible_only:
+            self.log.info(
+                "EA-compatible search ON: voters restricted to %s.",
+                ", ".join(_EA_SUPPORTED_DIRECTIONAL),
+            )
 
     # ------------------------------------------------------------------ #
     def _available_directional(self) -> List[str]:
         registered = set(list_indicators())
-        return [n for n in _DIRECTIONAL if n in registered]
+        pool = [n for n in _DIRECTIONAL if n in registered]
+        if self.ea_compatible_only:
+            pool = [n for n in pool if n in _EA_SUPPORTED_DIRECTIONAL]
+        return pool
 
     def _random_params(self, indicator_name: str) -> Dict[str, Any]:
         """Sample one parameter set for an indicator from its param_space."""
