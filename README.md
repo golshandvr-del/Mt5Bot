@@ -315,6 +315,60 @@ python main.py --mode paper               # dry-run decisions
 
 ---
 
+## Auditing a run
+
+Every backtest and every paper/live decision now leaves human-readable
+"receipts" so you can answer "why did it enter HERE, and what did it cost?" for
+any trade. All artifacts are plain files under `backtests/` and `logs/`, written
+with the Python standard library only (they open on a bare Windows 7 install
+with no extra tools).
+
+**1. Per-trade CSV + equity curve (from `--mode backtest`).**
+A backtest records a FULL receipt per trade and writes two CSV files:
+
+```
+backtests/trades_<SYMBOL>_<TF>_<timestamp>.csv   # one row per closed trade
+backtests/equity_<SYMBOL>_<TF>_<timestamp>.csv   # bar-indexed equity curve
+```
+
+The trades CSV has one row per trade with: entry/exit time, direction,
+entry/exit price, SL, TP, `exit_reason` (`sl` / `tp` / `flip` / `eod`), gross
+pnl, the cost paid split into `spread` / `commission` / `slippage` / `swap`,
+`balance_after`, and the blended `signal` value at entry. The backtest report
+(`backtests/backtest_report.json`) also carries a `config_snapshot` of the exact
+effective settings used, so any run is reproducible.
+
+**2. Single-file HTML report (`scripts/make_report.py`).**
+Turn the trade CSV into ONE self-contained `.html` file (inline SVG charts, no
+external dependencies or internet):
+
+```bash
+python scripts/make_report.py backtests/trades_XAUUSD_M15_<timestamp>.csv \
+    --equity backtests/equity_XAUUSD_M15_<timestamp>.csv \
+    --out backtests/report_XAUUSD.html --title "XAUUSD M15"
+```
+
+The report shows a summary table, an equity/drawdown chart, per-month PnL, the
+10 worst trades, the exit-reason breakdown, and what share of gross PnL the costs
+ate. Double-click the resulting `.html` to open it in any browser.
+
+**3. Decision journal (paper/live).**
+In `paper` and `live` mode the engine appends one JSON line per decision to
+`logs/decisions_<YYYY-MM-DD>.jsonl` (UTC date), including each component's
+contribution (every strategy's signal, the learner probability, the news score,
+and the threshold used). Pretty-print the most recent decisions with the WHY:
+
+```bash
+python scripts/explain_decisions.py --n 20            # newest journal, last 20
+python scripts/explain_decisions.py --date 2026-07-08 # a specific day
+python scripts/explain_decisions.py --symbol XAUUSD   # filter by symbol
+```
+
+Each printed decision shows which components pushed the score over (or kept it
+under) the entry threshold, so a "no trade" is as explainable as a trade.
+
+---
+
 ## Configuration
 
 `config/config.yaml` is the single source of truth. Highlights:
