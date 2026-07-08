@@ -123,7 +123,7 @@ No behavior change to trading logic yet - only visibility.
 - [x] U1.6 (test) Offline tests: trade CSV row count == num_trades metric;
       costs in the CSV sum to the metrics' implied total cost; HTML report
       builds from a synthetic run without exceptions.
-- [ ] U1.7 (docs) README section "Auditing a run"; sync CODE_MAP/Ideas.
+- [x] U1.7 (docs) README section "Auditing a run"; sync CODE_MAP/Ideas.
 
 Acceptance: after any backtest the user opens ONE html file and can point at
 any trade and see when/why/what-it-cost. Nothing about trading changed yet.
@@ -339,6 +339,12 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-08 U1.7 DONE - Phase U1 (Transparency) fully COMPLETE. Added the
+  "Auditing a run" section to README (three receipt types: per-trade + equity
+  CSVs, single-file HTML report via scripts/make_report.py, decision journal +
+  scripts/explain_decisions.py); synced CODE_MAP (trade_log.py, decision_log.py,
+  make_report.py, explain_decisions.py) and Ideas change log. No code change;
+  suite unchanged at 95 green. NEXT: U2.1 (parity - EA export hard guard).
 - 2026-07-08 Phase U1 (Transparency) COMPLETE through U1.6. U1.1-U1.5 code
   landed earlier (backtester full receipts, core/utils/trade_log.py CSVs,
   scripts/make_report.py HTML, decision journal + explainer, config snapshot);
