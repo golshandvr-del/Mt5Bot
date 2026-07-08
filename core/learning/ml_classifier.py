@@ -317,6 +317,63 @@ class MLClassifier(BaseModel):
             self.log.error("save error: %s", exc)
             return False
 
+    @staticmethod
+    def _is_incompatible_pickle_error(exc: Exception) -> bool:
+        """
+        True when `exc` looks like a model file that was written by an
+        INCOMPATIBLE version of a scientific library and therefore can never be
+        unpickled in this environment (so retrying is pointless and the file
+        should be quarantined + retrained).
+
+        The classic case on the Windows 7 / Python 3.8 / NumPy 1.x live box is a
+        model that was trained elsewhere on NumPy 2.x: NumPy 2 moved its C guts
+        from ``numpy.core`` to the private ``numpy._core`` module, so unpickling
+        raises ``ModuleNotFoundError: No module named 'numpy._core'`` (or the
+        reverse when a NumPy-1 file is opened on NumPy 2). We also catch the
+        analogous scikit-learn / LightGBM cross-version breakages.
+        """
+        msg = str(exc).lower()
+        needles = (
+            "numpy._core",          # NumPy 2.x file opened on NumPy 1.x
+            "numpy.core",           # NumPy 1.x file opened on NumPy 2.x
+            "no module named 'numpy",
+            "no module named 'sklearn",
+            "no module named 'lightgbm",
+            "incompatible",
+            "unsupported pickle protocol",
+        )
+        if any(n in msg for n in needles):
+            return True
+        # ModuleNotFoundError from a stale library layout is always terminal.
+        return isinstance(exc, ModuleNotFoundError)
+
+    def _quarantine_bad_model(self, path: str, reason: str) -> None:
+        """
+        Move an unloadable model file aside (``<path>.incompatible``) so the very
+        next training run writes a clean file instead of tripping over the old
+        one forever. Best-effort: never fatal if the rename itself fails.
+        """
+        try:
+            bad_path = path + ".incompatible"
+            # If a previous quarantine file exists, drop it first so rename works
+            # on platforms (Windows) where os.replace onto an existing name is OK
+            # but a plain rename is not.
+            if os.path.exists(bad_path):
+                try:
+                    os.remove(bad_path)
+                except OSError:
+                    pass
+            os.replace(path, bad_path)
+            self.log.warning(
+                "Quarantined incompatible model %s -> %s (%s). "
+                "Re-run training to rebuild a clean model.",
+                path, bad_path, reason,
+            )
+        except Exception as exc:  # pragma: no cover - defensive only
+            self.log.warning(
+                "Could not quarantine incompatible model %s (%s); "
+                "delete it manually and retrain.", path, exc)
+
     def load(self, path: str) -> bool:
         try:
             if not os.path.exists(path):
@@ -336,5 +393,22 @@ class MLClassifier(BaseModel):
             self.log.info("Loaded MLClassifier from %s", path)
             return self.trained
         except Exception as exc:
-            self.log.error("load error: %s", exc)
+            # A cross-version pickle (e.g. a NumPy 2.x model on a NumPy 1.x box:
+            # "No module named 'numpy._core'") can NEVER be read here, so we
+            # quarantine the file and start fresh instead of failing forever.
+            if self._is_incompatible_pickle_error(exc):
+                self.log.error(
+                    "Model %s was saved by an incompatible library version "
+                    "(%s). It cannot be loaded on this machine; quarantining "
+                    "it so the next 'train' run rebuilds a clean model.",
+                    path, exc,
+                )
+                self._quarantine_bad_model(path, str(exc))
+            else:
+                self.log.error("load error: %s", exc)
+            # Reset to a clean, un-trained state so a stale/partial blob can
+            # never leak into predictions.
+            self.model = None
+            self.fallback = None
+            self.trained = False
             return False
