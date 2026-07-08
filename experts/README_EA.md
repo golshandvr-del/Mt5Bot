@@ -28,14 +28,30 @@ supports natively, so the tester evaluates the same idea the bot learned.
 The EA implements these natively (kept in sync with
 `scripts/export_strategy_for_ea.py` -> `EA_SUPPORTED_INDICATORS`):
 
-| Indicator | Signal mapping in the EA                                  |
-|-----------|----------------------------------------------------------|
-| `ema`     | +1 if close > EMA, -1 if close < EMA                      |
-| `sma`     | +1 if close > SMA, -1 if close < SMA                      |
-| `rsi`     | `(RSI - 50) / 50`, clamped to [-1, +1]                    |
-| `macd`    | sign of (MACD main - signal) histogram                   |
-| `adx`     | +1 if +DI > -DI, -1 if -DI > +DI                          |
-| `atr`     | used for SL/TP distance (not a directional vote)          |
+The mappings below are kept **byte-for-byte identical** to the Python
+implementations (`core/indicators/*.py` and `core/strategy/strategy.py`). They
+are CONTINUOUS `[-1, +1]` signals, not hard `+/-1` votes - matching this
+exactly is what makes the tester result meaningful.
+
+| Indicator | Signal mapping in the EA (identical to Python)                       |
+|-----------|---------------------------------------------------------------------|
+| `ema`     | `clamp((close - EMA)/EMA * 50, -1, +1)` (distance-scaled trend)      |
+| `sma`     | `clamp((close - SMA)/SMA * 50, -1, +1)` (distance-scaled trend)      |
+| `rsi`     | mean-reversion: `<=30` bullish `min(1,(30-rsi)/30+0.5)`, `>=70` bearish `-min(1,(rsi-70)/30+0.5)`, else `(rsi-50)/50*0.3` |
+| `macd`    | `base*(0.5+0.5*strength)`, `base=+1 if hist>0 else -1`, `strength=min(1,|hist|/(|macd|+1e-9))` |
+| `adx`     | `direction * clamp((ADX-20)/30, 0, 1)`, `direction=+1 if +DI>-DI else -1` (strength-gated) |
+| `atr`     | used for SL/TP distance and lot sizing (not a directional vote)     |
+
+The final blend is `sum(w_i * s_i) / sum(|w_i|)`, clamped to `[-1, +1]`, exactly
+as in `Strategy.blended_signal()`.
+
+> **Historical note / why old test results were poor:** earlier versions of this
+> EA used hard `+/-1` votes for EMA/SMA/MACD, ignored the ADX strength gate, and
+> - most damaging - used a plain `(RSI-50)/50` for RSI, which is the OPPOSITE
+> sign of Python's mean-reversion reading in the overbought/oversold zones (it
+> bought when Python sold). Those divergences made the tester evaluate a
+> different, often inverted strategy than the one the bot actually learned. All
+> are fixed now; re-run your test after recompiling.
 
 Indicators the Python strategy uses that the EA does not implement (e.g.
 `supertrend`, `bbands`, `candle_patterns`) are **skipped** by the exporter with a
@@ -109,9 +125,19 @@ ind.rsi.period=14
 6. Press **Start**.
 
 The EA acts **once per new bar** (matching how the Python bot makes bar-based
-decisions), enters when the blended score crosses the long/short threshold, sets
-ATR-based SL/TP, sizes the lot so a stop-out loses about `InpRiskPerTrade` of
-equity, and closes when the signal flips.
+decisions), skips a **warmup** of leading bars so every indicator is stable
+(mirrors the Python backtester and avoids trading on half-formed RSI/ADX/ATR),
+enters when the blended score crosses the long/short threshold, sets ATR-based
+SL/TP, sizes the lot so a stop-out loses about `InpRiskPerTrade` of equity, and
+closes when the signal flips.
+
+> **Always load a real params file.** For a meaningful test set `InpParamsFile`
+> to your exported `<SYMBOL>_<TF>.params`. The built-in input defaults are only
+> a self-contained fallback (they match the Python StrategySpec defaults:
+> long/short = 0.30, sl = 2.0, tp = 3.0). Note the strategy threshold `0.30` is
+> intentionally NOT the decision engine's `0.60` gate: that `0.60` is applied to
+> the FULL blend (indicators + ML + news), which the EA does not reproduce - the
+> EA validates the indicator/strategy component only.
 
 ---
 
