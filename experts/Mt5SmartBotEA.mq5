@@ -272,13 +272,35 @@ double BlendedSignal()
       wsum     += MathAbs(g_cfg.smaWeight);
      }
    // ---------------------------------------------------------------- //
-   // RSI (core/indicators/momentum.py): (RSI - 50)/50 clamped [-1,+1]. //
-   // This one already matched Python; kept identical.                  //
+   // RSI (core/indicators/momentum.py RSI._signal_at) - MEAN REVERSION://
+   //   if rsi <= 30: signal = min(1, (30 - rsi)/30 + 0.5)   (BULLISH)  //
+   //   if rsi >= 70: signal = -min(1, (rsi - 70)/30 + 0.5)  (BEARISH)  //
+   //   else:         signal = (rsi - 50)/50 * 0.3   (mild trend bias)  //
+   // CRITICAL FIX: the old EA used a plain (rsi-50)/50 which is the     //
+   // OPPOSITE sign in the overbought/oversold zones (it went LONG when  //
+   // Python went SHORT and vice versa). That single sign inversion, on  //
+   // a strongly-weighted RSI strategy, is enough to flip a winning      //
+   // recipe into a losing one in the tester.                            //
    // ---------------------------------------------------------------- //
    if(g_cfg.useRsi)
      {
       double rsi = BufVal(g_hRsi, 0, shift);
-      double s = Clamp1((rsi-50.0)/50.0);
+      double s = 0.0;
+      if(rsi <= 30.0)
+        {
+         s = (30.0 - rsi)/30.0 + 0.5;
+         if(s > 1.0) s = 1.0;
+        }
+      else if(rsi >= 70.0)
+        {
+         double m = (rsi - 70.0)/30.0 + 0.5;
+         if(m > 1.0) m = 1.0;
+         s = -m;
+        }
+      else
+        {
+         s = (rsi - 50.0)/50.0 * 0.3;
+        }
       weighted += g_cfg.rsiWeight * s;
       wsum     += MathAbs(g_cfg.rsiWeight);
      }
