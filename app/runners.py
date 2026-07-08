@@ -238,16 +238,31 @@ def run_search(ctx: BotContext) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # REBUILD-REGISTRY (recovery)
 # --------------------------------------------------------------------------- #
-def run_rebuild_registry(ctx: BotContext) -> Dict[str, Any]:
+def run_rebuild_registry(ctx: BotContext,
+                         min_trades_override: Optional[int] = None,
+                         disable_significance: bool = False,
+                         max_pvalue_override: Optional[float] = None
+                         ) -> Dict[str, Any]:
     """
     Rebuild strategy_registry.json from EXISTING stored results, no search.
 
-    This is the recovery path for the "no such function: json_extract" bug: a
-    completed search may have stored thousands of results in SQLite while the
-    registry stayed empty because the ranking query failed. Once the store no
-    longer depends on the SQLite JSON1 extension, this recomputes the top
-    strategies for every (symbol, timeframe) already in memory and writes them
-    into the registry, so a long search never has to be re-run.
+    This is the recovery path when a completed search stored thousands of
+    results in SQLite but the registry came out empty. Two distinct causes have
+    been seen and are both handled here:
+
+      1. "no such function: json_extract" - the ranking query itself failed on a
+         SQLite build without the JSON1 extension (now fixed by a Python shim).
+      2. Over-strict promotion filters - the query runs fine, but EVERY strategy
+         is dropped by ``min_trades`` and/or the statistical-significance gate,
+         so ``top`` stays 0 even though good candidates exist in the DB.
+
+    To recover from (2) without editing config, callers may override the gates:
+      * ``min_trades_override``   - use this min-trades instead of config.
+      * ``disable_significance``  - ignore the p-value / CI significance gate.
+      * ``max_pvalue_override``   - loosen the significance p-value threshold.
+
+    When a pair still yields 0 strategies, this logs a data-driven REASON (which
+    filter emptied it) so the user knows exactly which knob to turn.
 
     It does NOT connect to MT5 and does NOT load any price history: it only
     reads the memory DB. The (symbol, timeframe) pairs come from the DB itself
@@ -258,9 +273,24 @@ def run_rebuild_registry(ctx: BotContext) -> Dict[str, Any]:
     s = ctx.cfg.get_path("memory.search", {})
     rank_metric = s.get("rank_metric", "expectancy") if hasattr(s, "get") else "expectancy"
     try:
-        min_trades = int(s.get("min_trades", 30)) if hasattr(s, "get") else 30
+        cfg_min_trades = int(s.get("min_trades", 30)) if hasattr(s, "get") else 30
     except (TypeError, ValueError):
-        min_trades = 30
+        cfg_min_trades = 30
+    min_trades = cfg_min_trades if min_trades_override is None else int(min_trades_override)
+
+    # Optionally loosen the significance gate for this recovery run only.
+    if max_pvalue_override is not None:
+        try:
+            ctx.memory.sig_max_pvalue = float(max_pvalue_override)
+        except (TypeError, ValueError):
+            pass
+    apply_significance = not disable_significance
+
+    log.info("Rebuild settings: rank_metric=%s min_trades=%d "
+             "significance=%s max_pvalue=%s",
+             rank_metric, min_trades,
+             "ON" if apply_significance else "OFF",
+             getattr(ctx.memory, "sig_max_pvalue", "n/a"))
 
     pairs = ctx.memory.known_symbol_timeframes()
     log.info("Rebuilding registry from memory for %d symbol/timeframe pair(s).",
@@ -271,15 +301,60 @@ def run_rebuild_registry(ctx: BotContext) -> Dict[str, Any]:
         tf = pair["timeframe"]
         section = ctx.memory.update_registry(
             symbol, tf, rank_metric=rank_metric, min_trades=min_trades,
+            apply_significance=apply_significance,
         )
         n_top = len(section.get("top", []))
         summary["rebuilt"]["%s|%s" % (symbol, tf)] = {"top": n_top}
         log.info("Rebuilt %s %s -> %d strategy(ies) in registry top.",
                  symbol, tf, n_top)
+        if n_top == 0:
+            _log_empty_reason(ctx, log, symbol, tf, rank_metric, min_trades,
+                              apply_significance)
+
     summary["memory_stats"] = ctx.memory.stats()
     log.info("Registry rebuild finished. Memory holds: %s",
              summary["memory_stats"])
     return summary
+
+
+def _log_empty_reason(ctx: BotContext, log, symbol: str, timeframe: str,
+                      rank_metric: str, min_trades: int,
+                      apply_significance: bool) -> None:
+    """Explain, from the data, why a pair produced 0 promoted strategies."""
+    try:
+        # Raw ranking with significance OFF and min_trades=1 shows how many
+        # candidates exist before the gates, so we can attribute the loss.
+        raw = ctx.memory.top_strategies(
+            symbol, timeframe, k=10_000, rank_metric=rank_metric,
+            min_trades=1, apply_significance=False,
+        )
+        n_raw = len(raw)
+        n_trades_ok = sum(
+            1 for e in raw
+            if e.get("avg_trades") is not None and e["avg_trades"] >= min_trades
+        )
+        if n_raw == 0:
+            log.warning("  REASON %s %s: no ranked candidates at all (check "
+                        "that rank_metric='%s' matches what the search stored).",
+                        symbol, timeframe, rank_metric)
+        elif n_trades_ok == 0:
+            best = max((e.get("avg_trades") or 0) for e in raw)
+            log.warning("  REASON %s %s: all %d candidates average < "
+                        "min_trades=%d (best avg_trades=%.1f). Re-run with "
+                        "--min-trades <=%d to recover them.",
+                        symbol, timeframe, n_raw, min_trades, best, int(best))
+        elif apply_significance:
+            log.warning("  REASON %s %s: %d candidate(s) pass min_trades but the "
+                        "significance gate rejected them all (p-value too high "
+                        "or missing). Re-run with --no-significance (or "
+                        "--max-pvalue 0.2) to recover them.",
+                        symbol, timeframe, n_trades_ok)
+        else:
+            log.warning("  REASON %s %s: unexpected empty result despite %d "
+                        "trade-eligible candidates.", symbol, timeframe,
+                        n_trades_ok)
+    except Exception as exc:  # pragma: no cover - diagnostics must never crash
+        log.error("  could not compute empty-registry reason: %s", exc)
 
 
 # --------------------------------------------------------------------------- #

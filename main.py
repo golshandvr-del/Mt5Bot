@@ -62,6 +62,27 @@ def _parse_args(argv):
         default=60,
         help="For --mode loop: seconds to sleep between passes.",
     )
+    # --mode rebuild-registry overrides (recovery knobs). None = use config.
+    parser.add_argument(
+        "--min-trades",
+        type=int,
+        default=None,
+        help="For --mode rebuild-registry: override memory.search.min_trades "
+             "(lower it to recover strategies that traded too rarely).",
+    )
+    parser.add_argument(
+        "--no-significance",
+        action="store_true",
+        help="For --mode rebuild-registry: ignore the statistical-significance "
+             "gate so strategies without/with weak p-values are still promoted.",
+    )
+    parser.add_argument(
+        "--max-pvalue",
+        type=float,
+        default=None,
+        help="For --mode rebuild-registry: override "
+             "memory.search.significance.max_pvalue (raise it to be lenient).",
+    )
     return parser.parse_args(argv)
 
 
@@ -88,7 +109,12 @@ def main(argv=None) -> int:
     elif mode == "search":
         result = runners.run_search(ctx)
     elif mode in ("rebuild-registry", "rebuild_registry"):
-        result = runners.run_rebuild_registry(ctx)
+        result = runners.run_rebuild_registry(
+            ctx,
+            min_trades_override=args.min_trades,
+            disable_significance=args.no_significance,
+            max_pvalue_override=args.max_pvalue,
+        )
     elif mode == "backtest":
         result = runners.run_backtest(ctx)
     elif mode in ("paper", "live"):
