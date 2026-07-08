@@ -236,6 +236,53 @@ def run_search(ctx: BotContext) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# REBUILD-REGISTRY (recovery)
+# --------------------------------------------------------------------------- #
+def run_rebuild_registry(ctx: BotContext) -> Dict[str, Any]:
+    """
+    Rebuild strategy_registry.json from EXISTING stored results, no search.
+
+    This is the recovery path for the "no such function: json_extract" bug: a
+    completed search may have stored thousands of results in SQLite while the
+    registry stayed empty because the ranking query failed. Once the store no
+    longer depends on the SQLite JSON1 extension, this recomputes the top
+    strategies for every (symbol, timeframe) already in memory and writes them
+    into the registry, so a long search never has to be re-run.
+
+    It does NOT connect to MT5 and does NOT load any price history: it only
+    reads the memory DB. The (symbol, timeframe) pairs come from the DB itself
+    (via known_symbol_timeframes), so it works even if config.mt5.symbols has
+    since changed.
+    """
+    log = get_logger("app.runners.rebuild_registry", ctx.cfg)
+    s = ctx.cfg.get_path("memory.search", {})
+    rank_metric = s.get("rank_metric", "expectancy") if hasattr(s, "get") else "expectancy"
+    try:
+        min_trades = int(s.get("min_trades", 30)) if hasattr(s, "get") else 30
+    except (TypeError, ValueError):
+        min_trades = 30
+
+    pairs = ctx.memory.known_symbol_timeframes()
+    log.info("Rebuilding registry from memory for %d symbol/timeframe pair(s).",
+             len(pairs))
+    summary: Dict[str, Any] = {"rebuilt": {}}
+    for pair in pairs:
+        symbol = pair["symbol"]
+        tf = pair["timeframe"]
+        section = ctx.memory.update_registry(
+            symbol, tf, rank_metric=rank_metric, min_trades=min_trades,
+        )
+        n_top = len(section.get("top", []))
+        summary["rebuilt"]["%s|%s" % (symbol, tf)] = {"top": n_top}
+        log.info("Rebuilt %s %s -> %d strategy(ies) in registry top.",
+                 symbol, tf, n_top)
+    summary["memory_stats"] = ctx.memory.stats()
+    log.info("Registry rebuild finished. Memory holds: %s",
+             summary["memory_stats"])
+    return summary
+
+
+# --------------------------------------------------------------------------- #
 # BACKTEST (Phase 3)
 # --------------------------------------------------------------------------- #
 def _default_spec(symbol: str, timeframe: str) -> StrategySpec:

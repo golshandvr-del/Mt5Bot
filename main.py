@@ -8,6 +8,7 @@ Usage
     python main.py --mode live          # single live pass (sends orders)
     python main.py --mode backtest      # internal backtest report
     python main.py --mode search        # Phase 3 strategy search (memory build)
+    python main.py --mode rebuild-registry  # rebuild registry from stored memory
     python main.py --mode train         # Phase 1 offline learner training
     python main.py --mode loop          # continuous paper/live loop (VPS)
     python main.py --config other.yaml  # use an alternate config file
@@ -41,8 +42,8 @@ def _parse_args(argv):
     parser.add_argument(
         "--mode",
         default=None,
-        help="Run mode: train, search, backtest, paper, live, loop. "
-             "Defaults to config.general.mode.",
+        help="Run mode: train, search, rebuild-registry, backtest, paper, "
+             "live, loop. Defaults to config.general.mode.",
     )
     parser.add_argument(
         "--config",
@@ -86,13 +87,15 @@ def main(argv=None) -> int:
         result = runners.run_train(ctx)
     elif mode == "search":
         result = runners.run_search(ctx)
+    elif mode in ("rebuild-registry", "rebuild_registry"):
+        result = runners.run_rebuild_registry(ctx)
     elif mode == "backtest":
         result = runners.run_backtest(ctx)
     elif mode in ("paper", "live"):
         result = runners.run_once(ctx)
     else:
-        print("Unknown mode '%s'. Use train/search/backtest/paper/live/loop."
-              % mode)
+        print("Unknown mode '%s'. Use train/search/rebuild-registry/backtest/"
+              "paper/live/loop." % mode)
         return 2
 
     # Print a compact summary so schedulers/consoles can capture it.
