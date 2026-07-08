@@ -180,6 +180,18 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U1.7 DONE - TRANSPARENCY docs synced (2026-07-08). Phase U1 of UPGRADE_PLAN.md
+  (the "receipts" phase that fixes disconnect D1 "you cannot see WHY a trade
+  happened") is now fully documented. README gained an "Auditing a run" section
+  covering the three receipt types shipped in U1.1-U1.6: (1) per-trade + equity
+  CSVs written by `core/utils/trade_log.py` under `backtests/` with a full cost
+  split and a `config_snapshot` in `backtest_report.json`; (2) a single-file HTML
+  audit report via `scripts/make_report.py` (inline SVG, no deps, opens on bare
+  Windows 7); (3) a per-decision journal (`logs/decisions_<date>.jsonl` via
+  `core/utils/decision_log.py`) explained by `scripts/explain_decisions.py`, so a
+  "no trade" is as auditable as a trade. CODE_MAP updated (utils + scripts
+  sections). Suite still 95 green. U1 COMPLETE; next is U2 (parity: validated ==
+  traded).
 - P5.1-P5.4 DONE - STRATEGY COUNCIL (Track B / B1) complete (2026-07-06, SIXTH
   session). Built `core/strategy/council.py`: a pure-stdlib tabular UCB1 bandit
   (`StrategyCouncil` + `ArmStats`) that learns a LIVE per-strategy credibility
