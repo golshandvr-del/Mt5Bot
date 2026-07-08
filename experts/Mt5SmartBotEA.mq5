@@ -220,67 +220,119 @@ double BufVal(int handle, int buffer, int shift)
   }
 
 //+------------------------------------------------------------------+
+//| Clamp a value into [-1, +1] (matches Python max(-1,min(1,x))).    |
+//+------------------------------------------------------------------+
+double Clamp1(double v)
+  {
+   if(v >  1.0) return( 1.0);
+   if(v < -1.0) return(-1.0);
+   return(v);
+  }
+
+//+------------------------------------------------------------------+
 //| Compute the blended [-1,+1] signal at the last CLOSED bar        |
 //| Mirrors the Python decision blend for the supported indicators.  |
+//|                                                                  |
+//| IMPORTANT: this must reproduce the SAME per-indicator signal      |
+//| mapping and the SAME weighted-blend math as the Python side       |
+//| (core/indicators/*.py and core/strategy/strategy.py). Any         |
+//| divergence makes the tester result meaningless. The Python blend  |
+//| is: acc = sum(w_i * s_i); total_w = sum(|w_i|); blend = acc/total_w|
+//| clamped to [-1,+1]. Each s_i is CONTINUOUS, not just +/-1.        |
 //+------------------------------------------------------------------+
 double BlendedSignal()
   {
    int shift = 1; // last fully closed bar
    double close1 = iClose(_Symbol, _Period, shift);
 
-   double weighted = 0.0;
-   double wsum     = 0.0;
+   double weighted = 0.0;   // acc  = sum(w * s)
+   double wsum     = 0.0;   // total_w = sum(|w|)   (Python uses abs(weight))
 
-   // EMA / SMA: sign of price vs moving average (trend follow).
+   // ---------------------------------------------------------------- //
+   // EMA / SMA (core/indicators/trend.py _signal_at):                  //
+   //   diff = (close - ma) / ma;  signal = clamp(diff * 50.0, -1, +1)  //
+   // A CONTINUOUS distance-scaled signal, NOT a hard +/-1 sign. Using  //
+   // +/-1 (the old EA behavior) made the EA enter far too aggressively //
+   // because a price barely above the MA already voted a full +1.      //
+   // ---------------------------------------------------------------- //
    if(g_cfg.useEma)
      {
       double ema = BufVal(g_hEma, 0, shift);
       double s = 0.0;
-      if(ema>0.0) s = (close1>ema) ? 1.0 : ((close1<ema) ? -1.0 : 0.0);
+      if(ema>0.0) s = Clamp1(((close1-ema)/ema) * 50.0);
       weighted += g_cfg.emaWeight * s;
-      wsum     += g_cfg.emaWeight;
+      wsum     += MathAbs(g_cfg.emaWeight);
      }
    if(g_cfg.useSma)
      {
       double sma = BufVal(g_hSma, 0, shift);
       double s = 0.0;
-      if(sma>0.0) s = (close1>sma) ? 1.0 : ((close1<sma) ? -1.0 : 0.0);
+      if(sma>0.0) s = Clamp1(((close1-sma)/sma) * 50.0);
       weighted += g_cfg.smaWeight * s;
-      wsum     += g_cfg.smaWeight;
+      wsum     += MathAbs(g_cfg.smaWeight);
      }
-   // RSI: map 0..100 around 50 into [-1,+1] (>70 strong long, <30 strong short).
+   // ---------------------------------------------------------------- //
+   // RSI (core/indicators/momentum.py): (RSI - 50)/50 clamped [-1,+1]. //
+   // This one already matched Python; kept identical.                  //
+   // ---------------------------------------------------------------- //
    if(g_cfg.useRsi)
      {
       double rsi = BufVal(g_hRsi, 0, shift);
-      double s = (rsi-50.0)/50.0;
-      if(s> 1.0) s= 1.0;
-      if(s<-1.0) s=-1.0;
+      double s = Clamp1((rsi-50.0)/50.0);
       weighted += g_cfg.rsiWeight * s;
-      wsum     += g_cfg.rsiWeight;
+      wsum     += MathAbs(g_cfg.rsiWeight);
      }
-   // MACD: sign of (main - signal) histogram.
+   // ---------------------------------------------------------------- //
+   // MACD (core/indicators/trend.py _signal_at):                       //
+   //   base = +1 if hist>0 else -1                                     //
+   //   strength = min(1, |hist| / (|macd| + 1e-9))                     //
+   //   signal = base * (0.5 + 0.5*strength)   -> magnitude in [0.5,1]  //
+   // The old EA used a hard +/-1, over-weighting MACD vs Python.       //
+   // ---------------------------------------------------------------- //
    if(g_cfg.useMacd)
      {
       double macdMain = BufVal(g_hMacd, 0, shift);
       double macdSig  = BufVal(g_hMacd, 1, shift);
       double hist = macdMain - macdSig;
-      double s = (hist>0.0) ? 1.0 : ((hist<0.0) ? -1.0 : 0.0);
+      double s = 0.0;
+      if(hist != 0.0)
+        {
+         double base = (hist>0.0) ? 1.0 : -1.0;
+         double denom = MathAbs(macdMain) + 1e-9;
+         double strength = MathAbs(hist) / denom;
+         if(strength > 1.0) strength = 1.0;
+         s = base * (0.5 + 0.5*strength);
+        }
       weighted += g_cfg.macdWeight * s;
-      wsum     += g_cfg.macdWeight;
+      wsum     += MathAbs(g_cfg.macdWeight);
      }
-   // ADX: strength gate turned into a mild trend-confirmation in DI direction.
+   // ---------------------------------------------------------------- //
+   // ADX (core/indicators/trend.py _signal_at):                        //
+   //   direction = +1 if +DI > -DI else -1                             //
+   //   strength  = clamp((ADX - 20)/30, 0, 1)   <- STRENGTH GATE       //
+   //   signal    = direction * strength                                //
+   // The old EA ignored the ADX strength gate and voted a full +/-1    //
+   // on every bar, so a flat/rangebound market (low ADX, where Python  //
+   // votes ~0) got a full-strength directional vote here. That single  //
+   // bug alone can wreck results when ADX is enabled.                  //
+   // ---------------------------------------------------------------- //
    if(g_cfg.useAdx)
      {
+      double adx     = BufVal(g_hAdx, 0, shift); // main ADX buffer
       double diPlus  = BufVal(g_hAdx, 1, shift);
       double diMinus = BufVal(g_hAdx, 2, shift);
-      double s = (diPlus>diMinus) ? 1.0 : ((diPlus<diMinus) ? -1.0 : 0.0);
+      double direction = (diPlus>diMinus) ? 1.0 : -1.0;
+      double strength = (adx - 20.0) / 30.0;
+      if(strength < 0.0) strength = 0.0;
+      if(strength > 1.0) strength = 1.0;
+      double s = direction * strength;
       weighted += g_cfg.adxWeight * s;
-      wsum     += g_cfg.adxWeight;
+      wsum     += MathAbs(g_cfg.adxWeight);
      }
 
    if(wsum<=0.0)
       return(0.0);
-   return(weighted/wsum);
+   return(Clamp1(weighted/wsum));
   }
 
 //+------------------------------------------------------------------+
