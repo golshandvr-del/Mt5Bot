@@ -169,5 +169,82 @@ class TestJsonExtractShim(unittest.TestCase):
             self.assertGreaterEqual(len(rows), 1)
 
 
+class TestRebuildRegistryRecovery(unittest.TestCase):
+    """The empty-registry-after-search bug had a SECOND cause beyond
+    json_extract: even with the query working, an over-strict significance /
+    min_trades gate could reject every strategy so `top` stayed 0. The
+    rebuild-registry recovery path must be able to bypass those gates."""
+
+    def _seed_insignificant_but_active(self, symbol="XAUUSD", tf="M15"):
+        from core.memory.store import MemoryStore
+        cfg, _tmp = _temp_cfg()
+        # Force significance ON with a strict threshold, like the real config.
+        cfg["memory"]["search"]["significance"]["enabled"] = True
+        cfg["memory"]["search"]["significance"]["max_pvalue"] = 0.05
+        store = MemoryStore(cfg)
+        spec = _sample_spec(symbol=symbol, tf=tf)
+        # Many trades, but NO pnl_pvalue field -> treated as p=1.0 -> rejected.
+        for seg in range(4):
+            metrics = {"win_rate": 0.55, "profit_factor": 1.4,
+                       "expectancy": 6.0, "max_drawdown": -120.0,
+                       "num_trades": 80, "sharpe": 0.6, "net_profit": 480.0}
+            store.record_result(spec, metrics, segment=seg,
+                                rank_metric="expectancy")
+        return store, cfg
+
+    def test_significance_gate_empties_then_override_recovers(self):
+        store, _cfg = self._seed_insignificant_but_active()
+        # With significance ON the registry comes out empty (the user's bug).
+        section_on = store.update_registry(
+            "XAUUSD", "M15", rank_metric="expectancy", min_trades=30,
+            apply_significance=True,
+        )
+        self.assertEqual(len(section_on.get("top", [])), 0)
+        # Disabling significance recovers the strategy.
+        section_off = store.update_registry(
+            "XAUUSD", "M15", rank_metric="expectancy", min_trades=30,
+            apply_significance=False,
+        )
+        self.assertGreaterEqual(len(section_off.get("top", [])), 1)
+
+    def test_min_trades_override_recovers(self):
+        from core.memory.store import MemoryStore
+        cfg, _tmp = _temp_cfg()
+        cfg["memory"]["search"]["significance"]["enabled"] = False
+        store = MemoryStore(cfg)
+        spec = _sample_spec(symbol="XAUUSD", tf="M15")
+        # Only ~8 trades on average: rejected by min_trades=30, kept by 1.
+        for seg in range(3):
+            metrics = {"win_rate": 0.6, "profit_factor": 1.8, "expectancy": 9.0,
+                       "max_drawdown": -40.0, "num_trades": 8, "sharpe": 0.9,
+                       "net_profit": 300.0, "pnl_pvalue": 0.01,
+                       "win_rate_ci_low": 0.55}
+            store.record_result(spec, metrics, segment=seg,
+                                rank_metric="expectancy")
+        high = store.update_registry("XAUUSD", "M15", rank_metric="expectancy",
+                                     min_trades=30, apply_significance=False)
+        self.assertEqual(len(high.get("top", [])), 0)
+        low = store.update_registry("XAUUSD", "M15", rank_metric="expectancy",
+                                    min_trades=1, apply_significance=False)
+        self.assertGreaterEqual(len(low.get("top", [])), 1)
+
+    def test_runner_override_end_to_end(self):
+        """run_rebuild_registry with disable_significance must populate top."""
+        from app import runners
+        store, cfg = self._seed_insignificant_but_active()
+
+        class _Ctx:
+            pass
+        ctx = _Ctx()
+        ctx.cfg = cfg
+        ctx.memory = store
+
+        default = runners.run_rebuild_registry(ctx)
+        self.assertEqual(default["rebuilt"]["XAUUSD|M15"]["top"], 0)
+
+        recovered = runners.run_rebuild_registry(ctx, disable_significance=True)
+        self.assertGreaterEqual(recovered["rebuilt"]["XAUUSD|M15"]["top"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
