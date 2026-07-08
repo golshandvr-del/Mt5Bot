@@ -488,6 +488,23 @@ def run_once(ctx: BotContext) -> Dict[str, Any]:
             continue
 
         decision = ctx.engine.decide(ohlcv, symbol, tf)
+        # U1.4 transparency: append one JSON line per decision to
+        # logs/decisions_<date>.jsonl so every paper/live decision is auditable.
+        try:
+            from core.utils import decision_log
+            comps = getattr(decision, "components", {}) or {}
+            thresholds = {
+                "long": float(comps.get("_threshold_long", 0.0)),
+                "short": float(comps.get("_threshold_short", 0.0)),
+            }
+            log_dir = resolve_path(ctx.cfg,
+                                   ctx.cfg.get_path("logging.log_dir", "logs"))
+            decision_log.append_decision(decision, symbol, tf,
+                                         thresholds=thresholds,
+                                         log_dir=log_dir)
+        except Exception as exc:
+            log.warning("Decision journal append failed for %s: %s",
+                        symbol, exc)
         # ATR for SL/TP placement (reuse a Strategy just for its ATR helper).
         atr = None
         try:

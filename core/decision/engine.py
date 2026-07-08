@@ -404,6 +404,14 @@ class DecisionEngine(object):
             size_hint = max(0.0, min(1.0, size_hint * time_sig.size_multiplier))
             reasons.append("time_size_mult=%.2f" % time_sig.size_multiplier)
 
+        # U1.4 transparency: record the thresholds the score was tested against
+        # and the blackout flag so the decision journal / explainer can show
+        # exactly WHY the score did or did not cross into an action. These are
+        # stored under reserved keys so they never collide with a signal source.
+        components["_threshold_long"] = self.long_threshold
+        components["_threshold_short"] = self.short_threshold
+        components["_blackout"] = 1.0 if blackout else 0.0
+
         return Decision(
             action=action,
             score=score,

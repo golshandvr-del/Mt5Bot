@@ -1,6 +1,23 @@
 {
+  "config_snapshot": {
+    "commission_per_lot": 7.0,
+    "fixed_lot": 0.05,
+    "initial_balance": 10000.0,
+    "model_weekend_gap": true,
+    "risk_default_sl_atr_mult": 2.5,
+    "risk_default_tp_atr_mult": 4.0,
+    "slippage_points": 5,
+    "spread_points": 25,
+    "swap_long_pts": 3.0,
+    "swap_short_pts": 1.5,
+    "swap_triple_day": 2
+  },
   "symbols": {
     "XAUUSD": {
+      "artifacts": {
+        "equity": "/home/user/webapp/backtests/equity_XAUUSD_M15_20260708_144806.csv",
+        "trades": "/home/user/webapp/backtests/trades_XAUUSD_M15_20260708_144806.csv"
+      },
       "metrics": {
         "average_loss": -55.3346,
         "average_win": 101.408,
@@ -14,6 +31,7 @@
         "win_rate": 0.3925,
         "win_rate_ci_low": 0.3295
       },
+      "num_trades": 214,
       "source": "memory_top",
       "spec": {
         "indicators": {
