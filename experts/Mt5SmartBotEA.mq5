@@ -323,15 +323,12 @@ double BlendedSignal()
       double macdMain = BufVal(g_hMacd, 0, shift);
       double macdSig  = BufVal(g_hMacd, 1, shift);
       double hist = macdMain - macdSig;
-      double s = 0.0;
-      if(hist != 0.0)
-        {
-         double base = (hist>0.0) ? 1.0 : -1.0;
-         double denom = MathAbs(macdMain) + 1e-9;
-         double strength = MathAbs(hist) / denom;
-         if(strength > 1.0) strength = 1.0;
-         s = base * (0.5 + 0.5*strength);
-        }
+      // Python: base = 1.0 if hist>0 else -1.0  (hist==0 -> base=-1, matched).
+      double base = (hist>0.0) ? 1.0 : -1.0;
+      double denom = MathAbs(macdMain) + 1e-9;
+      double strength = MathAbs(hist) / denom;
+      if(strength > 1.0) strength = 1.0;
+      double s = base * (0.5 + 0.5*strength);
       weighted += g_cfg.macdWeight * s;
       wsum     += MathAbs(g_cfg.macdWeight);
      }
