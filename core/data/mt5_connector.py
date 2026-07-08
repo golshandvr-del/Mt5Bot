@@ -86,7 +86,31 @@ class MT5Connector:
         try:
             ok = self.mt5.initialize(**kwargs)
             if not ok:
-                self.log.error("mt5.initialize failed: %s", self.mt5.last_error())
+                last = self.mt5.last_error()
+                self.log.error("mt5.initialize failed: %s", last)
+                # (-10005, 'IPC timeout') is by far the most common cause and it
+                # is almost always an environment issue, not a bug. Emit a short,
+                # actionable checklist so the user knows exactly what to do.
+                code = None
+                try:
+                    code = last[0] if isinstance(last, (tuple, list)) else None
+                except Exception:
+                    code = None
+                if code == -10005 or "ipc timeout" in str(last).lower():
+                    self.log.warning(
+                        "MT5 IPC timeout. This is an environment issue, not a "
+                        "code bug. Checklist: (1) the MetaTrader 5 *terminal* "
+                        "(terminal64.exe) must be OPEN and logged in to an "
+                        "account BEFORE running the bot; (2) enable "
+                        "Tools > Options > Expert Advisors > 'Allow algorithmic "
+                        "trading'; (3) if you run several terminals, set "
+                        "mt5.terminal_path in config.yaml to the exact "
+                        "terminal64.exe you want; (4) run the bot with the same "
+                        "Windows user/bitness (64-bit) as the terminal. NOTE: "
+                        "'--mode train', 'search', 'rebuild-registry' and "
+                        "'backtest' do NOT need MT5 at all - they run entirely "
+                        "on the CSV files in data_store/history."
+                    )
                 if raise_on_fail:
                     raise RuntimeError("mt5.initialize failed")
                 return False
