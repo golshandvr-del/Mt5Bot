@@ -34,6 +34,7 @@ from core.strategy.backtester import Backtester
 from core.strategy.search import StrategySearch
 from core.utils.helpers import write_json
 from core.utils.logger import get_logger
+from core.utils import trade_log
 
 
 # --------------------------------------------------------------------------- #
@@ -397,13 +398,27 @@ def run_backtest(ctx: BotContext) -> Dict[str, Any]:
             spec = _default_spec(symbol, tf)
             source = "default_ema_rsi"
 
-        result = bt.run(Strategy(spec), ohlcv, warmup=60)
+        # U1.1/U1.2: record FULL per-trade receipts and write the audit CSVs
+        # (per-trade + equity curve) so every backtest is inspectable.
+        result = bt.run(Strategy(spec), ohlcv, warmup=60, record_trades=True)
+        artifacts = trade_log.write_artifacts(
+            result, symbol, tf, report_dir=report_dir)
+        if artifacts.get("trades") is None:
+            log.warning("Could not write trade CSV for %s", symbol)
+        if artifacts.get("equity") is None:
+            log.warning("Could not write equity CSV for %s", symbol)
         report["symbols"][symbol] = {
             "source": source,
             "spec": spec.to_dict(),
             "metrics": result.metrics,
+            "num_trades": len(result.trade_pnls),
+            "artifacts": artifacts,
         }
         log.info("Backtest %s (%s): %s", symbol, source, result.metrics)
+
+    # U1.5: attach the exact effective config values used so every report is
+    # reproducible from its own contents.
+    report["config_snapshot"] = _backtest_config_snapshot(ctx.cfg)
 
     # Save the report as JSON.
     out = os.path.join(report_dir, "backtest_report.json")
@@ -412,6 +427,36 @@ def run_backtest(ctx: BotContext) -> Dict[str, Any]:
     log.info("Backtest report saved to %s", out)
     ctx.shutdown()
     return report
+
+
+def _backtest_config_snapshot(cfg: Any) -> Dict[str, Any]:
+    """
+    Collect the effective config values that shape a backtest (U1.5).
+
+    This makes each report self-describing: the user can see the exact costs,
+    sizing and risk settings that produced the numbers without re-reading the
+    live config.yaml (which may have changed since). Read defensively so a
+    missing block never breaks the report.
+    """
+    def gp(path: str, default: Any) -> Any:
+        try:
+            return cfg.get_path(path, default)
+        except Exception:
+            return default
+
+    return {
+        "initial_balance": gp("backtest.initial_balance", 10000.0),
+        "spread_points": gp("backtest.spread_points", 10),
+        "commission_per_lot": gp("backtest.commission_per_lot", 7.0),
+        "slippage_points": gp("backtest.slippage_points", 2),
+        "fixed_lot": gp("backtest.fixed_lot", 0.10),
+        "swap_long_pts": gp("backtest.swap_long_pts", 0.0),
+        "swap_short_pts": gp("backtest.swap_short_pts", 0.0),
+        "swap_triple_day": gp("backtest.swap_triple_day", 2),
+        "model_weekend_gap": gp("backtest.model_weekend_gap", False),
+        "risk_default_sl_atr_mult": gp("risk.default_sl_atr_mult", 2.0),
+        "risk_default_tp_atr_mult": gp("risk.default_tp_atr_mult", 3.0),
+    }
 
 
 # --------------------------------------------------------------------------- #
