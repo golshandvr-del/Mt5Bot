@@ -681,8 +681,17 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   symbol/timeframe from `data_store/strategy_registry.json` and flattens it into
   `experts/params/<SYMBOL>_<TF>.params` (simple key=value) for the MT5 EA. Only
   EA-supported indicators (`EA_SUPPORTED_INDICATORS`: ema, sma, rsi, macd, atr,
-  adx) are exported; others are skipped with a note. Keep that list in sync with
-  the EA's `ApplyParam()`.
+  adx) are runnable. Keep that list in sync with the EA's `ApplyParam()`.
+  PARITY HARD GUARD (U2.1): `--strict` is the DEFAULT - if the chosen strategy
+  uses ANY unsupported indicator the export FAILS (writes nothing) with a message
+  listing the offenders, so a crippled strategy can never be shipped silently.
+  `--allow-partial` (experiments only) drops the unsupported indicators, RESCALES
+  the surviving supported weights to conserve total weight
+  (`_flatten_spec` returns `(lines, skipped, rescaled)`), and stamps a prominent
+  `!! WARNING: PARTIAL / DEGRADED EXPORT` block into the `.params` header. Helper
+  `_unsupported_indicators(spec)` lists the offenders. If EVERY indicator is
+  unsupported the export fails even with `--allow-partial`. Covered by
+  `tests/test_ea_export_parity.py`.
 - **scripts/make_report.py** (U1 transparency): turns a trade CSV into ONE
   self-contained `.html` audit report (inline SVG charts, no external deps or
   internet). argparse: positional `trades_csv`, `--equity`, `--out`, `--title`;
