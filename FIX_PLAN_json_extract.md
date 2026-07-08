@@ -2,7 +2,37 @@
 
 Status legend: [ ] pending · [~] in progress · [x] done
 
-**ALL STEPS DONE — fix implemented, tested (85/85 tests pass), documented.**
+**ALL STEPS DONE — fix implemented, tested, documented.**
+
+---
+
+## FOLLOW-UP (second root cause found after the json_extract fix)
+
+After the json_extract shim, `--mode rebuild-registry` no longer errored but
+still reported `top: 0` for EURUSD/GBPUSD/XAUUSD. Diagnosis showed the ranking
+query now runs fine, but the **promotion filters reject every strategy**:
+
+1. `memory.search.significance.enabled: true` + `max_pvalue: 0.05` — stored
+   metrics that lack a `pnl_pvalue` (or have a high one) are treated as p=1.0
+   and dropped.
+2. `min_trades: 30` — strategies that traded too rarely are dropped.
+
+Fix (implemented + tested):
+- `store.update_registry(..., apply_significance=)` now forwards the flag to
+  `top_strategies` (previously it always used the strict default).
+- `run_rebuild_registry(ctx, min_trades_override, disable_significance,
+  max_pvalue_override)` + CLI flags `--min-trades`, `--no-significance`,
+  `--max-pvalue` let the user recover the registry without editing config.
+- When a pair is still empty, `_log_empty_reason` logs a data-driven REASON.
+- `scripts/diagnose_registry.py` reports how many strategies survive each
+  filter, per symbol/timeframe.
+
+Recovery command for the user:
+```
+python main.py --mode rebuild-registry --no-significance
+```
+
+Tests: 88/88 pass (added TestRebuildRegistryRecovery, 3 cases).
 
 ---
 
