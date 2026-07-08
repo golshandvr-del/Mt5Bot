@@ -640,6 +640,20 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
 - **helpers.py**: `set_global_seed`, `safe_div`, `clamp`, `is_finite_number`,
   `timeframe_to_mt5` (+ fallback table so no MT5 import needed), `timeframe_seconds`,
   `read_json`/`write_json` (never crash), `ensure_dir`.
+- **trade_log.py** (U1 transparency): audit "receipts" for a backtest.
+  `write_trade_csv(trades, path)` writes one row per closed trade (entry/exit
+  time, direction, entry/exit price, SL, TP, `exit_reason` sl/tp/flip/eod, gross
+  pnl, cost split spread/commission/slippage/swap, `balance_after`, entry
+  `signal`); `write_equity_csv(equity_curve, path)` writes the bar-indexed equity
+  curve; `write_artifacts(result, symbol, timeframe, ...)` writes both under
+  `backtests/` with a `_timestamp_tag()` filename and returns the paths;
+  `implied_total_cost(trades)` sums the per-trade cost fields. Stdlib `csv` only.
+- **decision_log.py** (U1 transparency): per-decision journal for paper/live.
+  `decision_to_record(...)` flattens a decision into a JSON-safe dict (per-strategy
+  signals, learner probability, news score, threshold, final action);
+  `append_decision(decision, symbol, timeframe, ...)` appends one JSON line to
+  `logs/decisions_<YYYY-MM-DD>.jsonl` (UTC date). Stdlib `json` only; append-only
+  so a crash never corrupts prior lines.
 
 ---
 
@@ -669,6 +683,16 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   EA-supported indicators (`EA_SUPPORTED_INDICATORS`: ema, sma, rsi, macd, atr,
   adx) are exported; others are skipped with a note. Keep that list in sync with
   the EA's `ApplyParam()`.
+- **scripts/make_report.py** (U1 transparency): turns a trade CSV into ONE
+  self-contained `.html` audit report (inline SVG charts, no external deps or
+  internet). argparse: positional `trades_csv`, `--equity`, `--out`, `--title`;
+  `main(argv=None)`. Report has a summary table, equity/drawdown chart, per-month
+  PnL, 10 worst trades, exit-reason breakdown, and cost-vs-gross share.
+- **scripts/explain_decisions.py** (U1 transparency): pretty-prints the decision
+  journal with the WHY per decision. argparse: `--n` (default 20), `--date`,
+  `--file`, `--log-dir` (default "logs"), `--symbol`. Reads
+  `logs/decisions_*.jsonl` and shows which components pushed the score over/under
+  the entry threshold (so a "no trade" is as explainable as a trade).
 - **examples/generate_sample_data.py**: writes synthetic OHLCV CSVs so the whole
   pipeline runs offline with no MT5.
 
