@@ -297,6 +297,69 @@ double Clamp1(double v)
   }
 
 //+------------------------------------------------------------------+
+//| SuperTrend direction at the last CLOSED bar (shift=1).           |
+//| Mirrors core/indicators/trend.py SuperTrend EXACTLY:            |
+//|   hl2   = (high+low)/2                                          |
+//|   upper = hl2 + mult*atr ; lower = hl2 - mult*atr              |
+//|   seed: prev_st=lower, prev_dir=1 at the first valid ATR bar    |
+//|   dir = +1 if close>prev_st ; -1 if close<prev_st ; else prev   |
+//|   st  = lower if dir==1 else upper                              |
+//| ATR is Wilder-smoothed true range (MT5 iATR == Wilder), so the  |
+//| stateful recursion must be replayed forward from the first bar   |
+//| where ATR is defined. Returns +1 / -1 (0 if not enough data).   |
+//| signal_at() in Python returns exactly 1.0/-1.0 from direction.   |
+//+------------------------------------------------------------------+
+double SuperTrendDir()
+  {
+   int need = g_cfg.stPeriod + 3;                 // ATR warmup head-room
+   int bars = Bars(_Symbol, _Period);
+   if(bars < need + 2 || g_hStAtr==INVALID_HANDLE)
+      return(0.0);
+
+   // Replay from an oldest usable shift down to shift=1 (the closed bar).
+   // Cap the replay window so OnTick stays cheap on huge histories; the
+   // SuperTrend recursion converges quickly, and a few hundred bars of
+   // warmup reproduces the steady-state direction to full parity.
+   int startShift = bars - 2;                      // oldest fully-closed bar
+   int maxWindow  = g_cfg.stPeriod * 20 + 200;
+   if(startShift > maxWindow)
+      startShift = maxWindow;
+
+   double prev_st = 0.0;
+   int    prev_dir = 1;
+   bool   seeded = false;
+   int    cur_dir = 0;
+
+   for(int sh = startShift; sh >= 1; sh--)
+     {
+      double atr = BufVal(g_hStAtr, 0, sh);
+      if(atr <= 0.0)
+         continue;                                 // ATR not defined yet
+      double hi = iHigh(_Symbol, _Period, sh);
+      double lo = iLow(_Symbol, _Period, sh);
+      double cl = iClose(_Symbol, _Period, sh);
+      double hl2 = (hi + lo) / 2.0;
+      double upper = hl2 + g_cfg.stMult * atr;
+      double lower = hl2 - g_cfg.stMult * atr;
+      if(!seeded)
+        {
+         prev_st = lower;                           // Python seed: prev_st=lower
+         prev_dir = 1;                              //              prev_dir=1
+         seeded = true;
+        }
+      if(cl > prev_st)       cur_dir = 1;
+      else if(cl < prev_st)  cur_dir = -1;
+      else                   cur_dir = prev_dir;
+      double cur_st = (cur_dir==1) ? lower : upper;
+      prev_st = cur_st;
+      prev_dir = cur_dir;
+     }
+   if(cur_dir==0)
+      return(0.0);
+   return(cur_dir > 0 ? 1.0 : -1.0);
+  }
+
+//+------------------------------------------------------------------+
 //| Compute the blended [-1,+1] signal at the last CLOSED bar        |
 //| Mirrors the Python decision blend for the supported indicators.  |
 //|                                                                  |
