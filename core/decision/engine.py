@@ -319,6 +319,147 @@ class DecisionEngine(object):
             return None
 
     # ------------------------------------------------------------------ #
+    # Parity mode (UPGRADE_PLAN U2.4): trade the validated top-1 strategy.
+    # ------------------------------------------------------------------ #
+    def _decide_parity(self, ohlcv: Any, symbol: str,
+                       timeframe: str) -> Decision:
+        """
+        Trade the TOP-1 registry strategy EXACTLY as it was validated.
+
+        The action, per-spec long/short thresholds, and SL/TP ATR multiples all
+        come from the single best strategy in memory - the same object the
+        walk-forward search scored. The learner, news, and timing layers are
+        applied as VETO-ONLY gates: each may BLOCK the strategy's entry, but
+        none can create an entry, flip its direction, or enlarge it. This is
+        what makes "validated == traded" true on the live/paper path.
+
+        Falls back to a flat, clearly-labelled Decision when no registry
+        strategy exists for this symbol/timeframe (so the bot never silently
+        trades an unvalidated signal in parity mode).
+        """
+        reasons: List[str] = []
+        components: Dict[str, float] = {}
+
+        ensemble = self._ensemble_for(symbol, timeframe)
+        # Respect the decay monitor: skip any top strategy flagged suspect so
+        # parity trades the best SURVIVING validated strategy.
+        strat = None
+        if ensemble:
+            use_decay = self.decay_enabled and bool(self.decay_suspects)
+            for cand in ensemble:
+                if use_decay:
+                    try:
+                        if cand.spec.fingerprint() in self.decay_suspects:
+                            continue
+                    except Exception:
+                        pass
+                strat = cand
+                break
+
+        if strat is None:
+            reasons.append("parity=no_registry_strategy")
+            components["_threshold_long"] = 0.0
+            components["_threshold_short"] = 0.0
+            components["_blackout"] = 0.0
+            return Decision(
+                action=0, score=0.0, size_hint=0.0,
+                sl_atr_mult=self.default_sl, tp_atr_mult=self.default_tp,
+                reasons=reasons, components=components,
+            )
+
+        # The validated signal and its OWN thresholds decide the action.
+        try:
+            sig = float(strat.blended_signal(ohlcv))
+        except Exception as exc:
+            self.log.error("Parity signal error for %s: %s", symbol, exc)
+            sig = 0.0
+        lt = float(strat.spec.long_threshold)
+        st = float(strat.spec.short_threshold)
+        sl_mult = float(strat.spec.sl_atr_mult)
+        tp_mult = float(strat.spec.tp_atr_mult)
+
+        action = 0
+        if sig >= lt:
+            action = 1
+        elif sig <= -st:
+            action = -1
+
+        components["strategy"] = sig
+        components["_threshold_long"] = lt
+        components["_threshold_short"] = st
+        try:
+            reasons.append("parity_strategy=%s" % strat.spec.fingerprint())
+        except Exception:
+            reasons.append("parity_strategy=?")
+        reasons.append("strategy_signal=%.3f(lt=%.2f,st=%.2f)" % (sig, lt, st))
+
+        # ---- VETO-ONLY gates (never create or resize a trade) -------------- #
+        vetoed = False
+
+        # News blackout veto.
+        blackout = False
+        if self.parity_veto_news and self.news is not None:
+            try:
+                blackout = bool(self.news.in_blackout(symbol))
+            except Exception:
+                blackout = False
+            if blackout:
+                reasons.append("veto_news_blackout=1")
+
+        # Timing gate veto (only blocks; direction still from the strategy).
+        time_sig = self._timing_signal(ohlcv, symbol, timeframe)
+        if (self.parity_veto_timing and time_sig is not None
+                and time_sig.enabled
+                and (time_sig.blackout or time_sig.unfavorable)):
+            vetoed = True
+            reasons.append("veto_time_gate=1")
+
+        # Learner-disagreement veto: only when the learner STRONGLY opposes the
+        # strategy's direction (magnitude past the configured level).
+        if self.parity_veto_learner and action != 0 and (
+                self.learner is not None or self.learner_provider is not None):
+            learn_sig = self._learning_signal(ohlcv, symbol)
+            components["learning"] = learn_sig
+            lvl = self.parity_learner_veto_level
+            if lvl > 0.0:
+                if action == 1 and learn_sig <= -lvl:
+                    vetoed = True
+                    reasons.append("veto_learner=%.3f<=-%.2f" % (learn_sig, lvl))
+                elif action == -1 and learn_sig >= lvl:
+                    vetoed = True
+                    reasons.append("veto_learner=%.3f>=%.2f" % (learn_sig, lvl))
+
+        if blackout or vetoed:
+            components["_blackout"] = 1.0
+            final_action = 0
+        else:
+            components["_blackout"] = 0.0
+            final_action = action
+
+        # Size hint: how far past its own threshold the validated signal is
+        # (parity keeps sizing on the validated signal, then the timing size
+        # multiplier may scale it DOWN in learned-weak windows).
+        size_hint = 0.0
+        if final_action == 1 and lt < 1.0:
+            size_hint = (sig - lt) / (1.0 - lt)
+        elif final_action == -1 and st < 1.0:
+            size_hint = (-sig - st) / (1.0 - st)
+        size_hint = max(0.0, min(1.0, size_hint))
+        if (final_action != 0 and time_sig is not None and time_sig.enabled):
+            size_hint = max(0.0, min(1.0, size_hint * time_sig.size_multiplier))
+            reasons.append("time_size_mult=%.2f" % time_sig.size_multiplier)
+
+        return Decision(
+            action=final_action,
+            score=sig,
+            size_hint=size_hint,
+            sl_atr_mult=sl_mult,
+            tp_atr_mult=tp_mult,
+            reasons=reasons,
+            components=components,
+        )
+
+    # ------------------------------------------------------------------ #
     # Public: produce a decision.
     # ------------------------------------------------------------------ #
     def decide(self, ohlcv: Any, symbol: str, timeframe: str) -> Decision:
@@ -331,7 +472,15 @@ class DecisionEngine(object):
              components that actually contributed (non-None).
           3. Apply optional news blackout and agreement rules.
           4. Threshold the final score into an action and derive a size hint.
+
+        UPGRADE_PLAN U2.4: in "parity" mode (the default) this dispatches to
+        `_decide_parity`, which trades the validated top-1 strategy exactly and
+        applies the learner/news/timing only as veto gates. The blend path below
+        runs only in "blend" mode.
         """
+        if self.mode == "parity":
+            return self._decide_parity(ohlcv, symbol, timeframe)
+
         reasons: List[str] = []
         components: Dict[str, float] = {}
 
