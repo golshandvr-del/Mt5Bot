@@ -478,6 +478,77 @@ double BlendedSignal()
       weighted += g_cfg.adxWeight * s;
       wsum     += MathAbs(g_cfg.adxWeight);
      }
+   // ---------------------------------------------------------------- //
+   // SuperTrend (core/indicators/trend.py SuperTrend._signal_at):      //
+   //   signal = +1.0 if direction==+1 else -1.0  (a hard trend vote).  //
+   // SuperTrendDir() replays the exact stateful recursion and returns  //
+   // +1.0 / -1.0 (0.0 when there is not enough data -> no vote, which  //
+   // matches Python returning 0.0 before the indicator is defined).    //
+   // ---------------------------------------------------------------- //
+   if(g_cfg.useSt)
+     {
+      double s = SuperTrendDir();
+      if(s != 0.0)
+        {
+         weighted += g_cfg.stWeight * s;
+         wsum     += MathAbs(g_cfg.stWeight);
+        }
+     }
+   // ---------------------------------------------------------------- //
+   // Bollinger Bands (core/indicators/volatility.py BollingerBands.    //
+   // _signal_at) - MEAN REVERSION:                                     //
+   //   if price <= lower: +0.7                                         //
+   //   if price >= upper: -0.7                                         //
+   //   else: position = (price-mid)/(band/2); s = -clamp(position)*0.3 //
+   // MT5 iBands buffers: 0=base(middle), 1=upper, 2=lower. iBands uses //
+   // population std (divide by N), matching Python _rolling_std.       //
+   // ---------------------------------------------------------------- //
+   if(g_cfg.useBb)
+     {
+      double mid   = BufVal(g_hBb, 0, shift);
+      double upper = BufVal(g_hBb, 1, shift);
+      double lower = BufVal(g_hBb, 2, shift);
+      if(upper != 0.0 || lower != 0.0 || mid != 0.0)
+        {
+         double s = 0.0;
+         if(close1 <= lower)
+            s = 0.7;
+         else if(close1 >= upper)
+            s = -0.7;
+         else
+           {
+            double band = upper - lower;
+            if(band != 0.0)
+              {
+               double position = (close1 - mid) / (band / 2.0);
+               s = -Clamp1(position) * 0.3;
+              }
+           }
+         weighted += g_cfg.bbWeight * s;
+         wsum     += MathAbs(g_cfg.bbWeight);
+        }
+     }
+   // ---------------------------------------------------------------- //
+   // Stochastic (core/indicators/momentum.py Stochastic._signal_at):   //
+   //   base = +0.7 if %K < 20 ; -0.7 if %K > 80 ; else 0              //
+   //   cross = +0.3 if %K > %D else -0.3                               //
+   //   signal = clamp(base + cross, -1, +1)                            //
+   // MT5 iStochastic buffers: 0=MAIN(%K), 1=SIGNAL(%D). Built with     //
+   // MODE_SMA + STO_LOWHIGH to match Python's SMA-smoothed %K over the //
+   // low/high range.                                                   //
+   // ---------------------------------------------------------------- //
+   if(g_cfg.useStoch)
+     {
+      double kv = BufVal(g_hStoch, 0, shift);   // %K (MAIN)
+      double dv = BufVal(g_hStoch, 1, shift);   // %D (SIGNAL)
+      double base = 0.0;
+      if(kv < 20.0)      base = 0.7;
+      else if(kv > 80.0) base = -0.7;
+      double cross = (kv > dv) ? 0.3 : -0.3;
+      double s = Clamp1(base + cross);
+      weighted += g_cfg.stochWeight * s;
+      wsum     += MathAbs(g_cfg.stochWeight);
+     }
 
    if(wsum<=0.0)
       return(0.0);
