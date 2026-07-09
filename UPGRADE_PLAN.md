@@ -150,7 +150,7 @@ Goal: kill both parity gaps. This is the phase that directly addresses the
 - [ ] U2.3 (code) Alternatively grow the EA: implement supertrend, bbands,
       stoch and candle_patterns(subset) in MQL5 to widen the exportable set.
       Each new EA indicator ships with a cross-check fixture (see U2.6).
-- [ ] U2.4 (code+config) Live parity mode: new config
+- [x] U2.4 (code+config) Live parity mode: new config
       `decision.mode: "parity" | "blend"` (default "parity").
       In parity mode the engine trades the TOP-1 registry strategy EXACTLY as
       validated: same indicators, same per-spec thresholds, same SL/TP mults.
@@ -339,6 +339,20 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-09 U2.4 DONE - Live PARITY mode (fixes diagnosis D2). New config
+  `decision.mode: "parity" | "blend"` (default "parity"). In parity mode
+  `DecisionEngine._decide_parity` trades the TOP-1 registry strategy EXACTLY as
+  it was walk-forward validated: its own blended signal, its own long/short
+  thresholds, and its own SL/TP ATR multiples - never the old global 0.60
+  threshold on an unvalidated ensemble+ML+news composite. The learner, news
+  blackout, and timing gate become VETO-ONLY (new `decision.parity_vetoes.*`
+  switches + `decision.parity_learner_veto_level`): each can BLOCK an entry the
+  validated strategy wanted, but can never create one, flip its direction, or
+  resize it. With no promoted strategy for a symbol, parity stays flat (never
+  guesses). `decay_monitor` still applies: parity trades the best SURVIVING
+  (non-suspect) top strategy. `mode: "blend"` preserves the legacy research
+  path byte-for-byte. Added tests/test_parity_mode.py (7 tests). Suite
+  104 -> 111 green. NEXT: U2.5 (validate the blend composite) / U2.3 (grow EA).
 - 2026-07-08 U2.2 DONE - EA-compatible search mode. New config
   `memory.search.ea_compatible_only` (default false). When true,
   `core/strategy/search.py` filters its directional voter pool to
