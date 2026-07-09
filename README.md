@@ -565,6 +565,29 @@ See `experts/README_EA.md` for the exact steps and parameter mapping.
 > faithfully than any lightweight Python simulator. Always confirm there before
 > going live.
 
+**The EA trades the same signal the search validated (parity).** The EA now
+implements **eight directional indicators natively** - `ema`, `sma`, `rsi`,
+`macd`, `adx`, `supertrend`, `bbands`, and `stoch` - each mapped bar-for-bar to
+the exact Python signal math (`core/indicators/*.py`). Two guards keep this
+honest:
+
+- **Strict export (default).** `scripts/export_strategy_for_ea.py` refuses to
+  write a params file if the winning strategy uses ANY indicator the EA cannot
+  reproduce, instead of silently shipping a crippled version. Pass
+  `--allow-partial` only for experiments; it then rescales the surviving weights
+  and stamps a loud WARNING into the `.params` header. To guarantee every
+  promoted strategy is exportable 1:1, set `memory.search.ea_compatible_only:
+  true` so the search only ever draws from the EA-supported set.
+- **Automated parity harness.** `tests/test_parity_harness.py` diffs a
+  line-by-line Python port of the EA's `BlendedSignal()` against the real
+  `Strategy` on a shared fixture and fails if they drift by more than `1e-6`, so
+  a sign/edge-case bug on one side (the class of bug behind the original tester
+  loss) is caught in CI. For an end-to-end check against the *real* compiled
+  MQL5, run `experts/ParityDump.mq5` in MT5 on the fixture produced by
+  `python scripts/parity_fixture.py`, drop its output at
+  `tests/fixtures/parity_ea.csv`, and re-run the test - it then diffs the actual
+  EA output bar-by-bar.
+
 ---
 
 ## Deploying on a VPS
