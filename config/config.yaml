@@ -272,7 +272,17 @@ memory:
   # profile - what 24 hours buys you".
   # ---------------------------------------------------------------------------
   search:
-    method: "random"         # "grid" or "random"
+    method: "random"         # "random", "grid", or "evolution" (U4.2)
+    # Evolutionary search knobs (U4.2). Only used when method == "evolution".
+    # The loop keeps an elite pool (the top elite_fraction of everything scored
+    # so far) and breeds mutate_fraction of each new generation from those
+    # elites (mutate one param step / swap one indicator / +-0.05 thresholds /
+    # crossover two elites); the rest are fresh random specs for exploration.
+    # Every child is deduped by fingerprint. Leaving these at the defaults is
+    # safe; they are ignored entirely by the "random" and "grid" methods.
+    evolution:
+      elite_fraction: 0.10   # top 10% kept as breeding parents
+      mutate_fraction: 0.60  # 60% bred from elites, 40% fresh random
     # EA-COMPATIBLE SEARCH (U2.2). When true, the random/grid/evolutionary
     # spec generators draw ONLY from the indicator set the MQL5 EA can run
     # (ema, sma, rsi, macd, adx among directional voters). Anything promoted
