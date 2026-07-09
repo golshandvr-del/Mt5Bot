@@ -516,3 +516,47 @@ backtest:
   # a stop sitting inside the gap fills at the worse gapped open. This stops the
   # backtest from over-crediting weekend-holding gold strategies.
   model_weekend_gap: true
+  # ---------------------------------------------------------------------- #
+  # Phase U3 - PESSIMISTIC, REALISTIC SIMULATION (fixes diagnosis D3).
+  # These knobs make internal backtest numbers move much closer to (and never
+  # wildly above) the real MT5 Strategy Tester. Every ambiguity resolves
+  # AGAINST the strategy. The DEFAULTS below are the realistic ones; the legacy
+  # optimistic behavior stays reachable for before/after sensitivity studies.
+  # ---------------------------------------------------------------------- #
+  # U3.1 fill policy. "next_open" (DEFAULT, realistic): entries and signal-flip
+  # exits fill at the NEXT bar's OPEN plus half-spread and slippage, because a
+  # real EA can only act on the open of a new bar - never on the signal bar's
+  # close. "signal_close" restores the legacy same-bar-close fills (optimistic;
+  # for comparison only). SL/TP always fill intrabar in both modes.
+  fill_policy: "next_open"
+  # U3.2 intrabar ambiguity. When ONE bar's range touches BOTH the stop and the
+  # take, which counts first? "pessimistic" (DEFAULT): the STOP is counted first
+  # for both longs and shorts (worst case). "optimistic": the TAKE first.
+  # "midpoint": average the two outcomes (for sensitivity analysis only).
+  intrabar_policy: "pessimistic"
+  # U3.3 session-aware spread. When this sub-block is present the spread WIDENS
+  # during the rollover window (and, when wired, around news). Leave it out to
+  # keep a constant spread (spread_points above). Money is charged with the
+  # widened spread only for trades ENTERED inside the window.
+  #   base_points       : normal spread in points (defaults to spread_points).
+  #   rollover_mult     : multiply base_points during rollover_hours_utc.
+  #   rollover_hours_utc: either an explicit list of UTC hours, or a two-element
+  #                       [start, end] inclusive window (wraps past midnight).
+  #   news_mult         : reserved for news-window widening (1.0 = no effect).
+  spread_model:
+    base_points: 25
+    rollover_mult: 4.0
+    rollover_hours_utc: [21, 23]
+    news_mult: 1.0
+  # U3.4 position sizing in backtest. "risk_pct" (DEFAULT): size each entry by
+  # risk.risk_per_trade of the SIMULATED equity using the SAME formula as
+  # RiskManager.position_size (clamped to risk.min_lot / risk.max_lot), so the
+  # backtest and live equity curves share geometry AND the risk.max_daily_loss
+  # circuit breaker is enforced in simulation. "fixed_lot" restores the legacy
+  # constant-lot behavior (fixed_lot above) for comparison.
+  sizing: "risk_pct"
+  # U3.5 broker minimum stop distance (in points). Simulated entries whose SL
+  # sits CLOSER than this are REJECTED (never opened), exactly as the MT5 tester
+  # rejects orders inside the broker's stop level. 0 (DEFAULT) disables the
+  # check. Set to your broker's XAUUSD stops-level (often ~30-50 points).
+  min_stop_points: 0
