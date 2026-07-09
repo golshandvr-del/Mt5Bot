@@ -401,6 +401,34 @@ Strategy Tester (see README).
   stop price - a long fills at open when `open < stop`, a short at open when
   `open > stop`. Config is read defensively (`_cfg_float`/`_cfg_int`/`_cfg_bool`
   fall back to safe defaults on bad values).
+- Phase U3 pessimistic/realistic execution (fixes diagnosis D3): every knob
+  DEFAULTS to the realistic (pessimistic) behavior; the legacy optimistic path
+  stays reachable for sensitivity studies.
+  - U3.1 `backtest.fill_policy` (`next_open` default | `signal_close`): a
+    directional decision no longer fills same-bar. `pending_entry`/
+    `pending_flip_exit` queue the entry / signal-flip exit and it fills at the
+    NEXT bar's OPEN with an adverse `(0.5*spread + slippage) * point` shift
+    (buy pays up, sell gets down) so next_open is never a better fill. SL/TP
+    still fill intrabar in both modes.
+  - U3.2 `backtest.intrabar_policy` (`pessimistic` default | `optimistic` |
+    `midpoint`): `_resolve_ambiguous()` decides which side wins when one bar
+    touches BOTH SL and TP - pessimistic books the stop first (both
+    directions), optimistic the take, midpoint the average.
+  - U3.3 `backtest.spread_model` (`{base_points, rollover_mult,
+    rollover_hours_utc, news_mult}`): `_spread_points_at(ts)` widens the spread
+    during the rollover window (`_cfg_hours` expands a `[start,end]` window,
+    wrapping midnight). Absent sub-block => flat `spread_points` (byte-identical
+    old cost). Cost is charged at the ENTRY bar's spread via `_entry_cost_parts`.
+  - U3.4 `backtest.sizing` (`risk_pct` default | `fixed_lot`): `_sized_lot()`
+    reuses the RiskManager formula (`risk.risk_per_trade` of simulated equity /
+    stop-distance, clamped to `risk.min_lot`/`risk.max_lot`) so lots vary per
+    trade and the backtest/live curves share geometry; swap now scales by the
+    actual `lot`. The `risk.max_daily_loss` circuit breaker is enforced per UTC
+    day (`use_breaker`/`breaker_tripped`): once a day's realized loss crosses
+    the limit no NEW entries open that day (open positions still exit).
+  - U3.5 `backtest.min_stop_points` (0 = off): `_stop_ok()` rejects entries
+    whose SL sits closer than the broker minimum stop distance, exactly as the
+    MT5 tester rejects them.
 
 ### walk_forward.py - `WalkForward`
 Splits history into rolling (train, test) windows from `memory.walk_forward`.
@@ -793,6 +821,13 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
     the triple day=3, same-day=0). A long stopped by a Monday bar that gaps DOWN
     through the stop fills at the stop (98.0) with `model_weekend_gap` OFF and at
     the worse gapped OPEN (96.0) with it ON.
+  - `test_realism.py` (U3.6): locks the Phase U3 pessimism guarantees with
+    deterministic `_StubStrategy` fixtures - `next_open` fills are never better
+    than `signal_close`; `pessimistic <= midpoint <= optimistic` on a bar that
+    touches both SL and TP; a trade entered inside the rollover window costs more
+    (and a flat spread is identical without a `spread_model`); `risk_pct` sizing
+    clamps to min/max lot; the `max_daily_loss` circuit breaker cuts the trade
+    count; and too-tight stops are rejected by `min_stop_points` (12 tests).
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.
