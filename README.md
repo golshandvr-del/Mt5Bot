@@ -386,7 +386,9 @@ under) the entry threshold, so a "no trade" is as explainable as a trade.
 - `news.*`: sources, sentiment backend, `signal_weight`, `blackout_minutes`.
 - `decision.mode` (**`parity`** default, or `blend`), `decision.weights`
   (blend mode only) and entry thresholds. See the golden rule below.
-- `backtest.*`: initial balance, cost model, fixed lot, report dir.
+- `backtest.*`: initial balance, cost model, sizing, report dir, and the
+  **Phase U3 realism knobs** (`fill_policy`, `intrabar_policy`, `spread_model`,
+  `sizing`, `min_stop_points`) - see "Simulation realism" below.
 
 To run heavier on a capable training machine, set
 `general.enable_heavy_compute: true` and enable `dl_classifier` / `rl_agent`.
@@ -426,6 +428,39 @@ before it blocks a trade; default `0.5`, `0` disables the learner veto).
 > the EA silently traded a crippled single-indicator version of the winner.
 > Parity mode + the strict EA exporter (below) close both gaps. See
 > `UPGRADE_PLAN.md` (diagnoses D1/D2) for the full story.
+
+---
+
+## Simulation realism - why the internal numbers are now pessimistic
+
+The internal backtester used to be **silently optimistic** about execution
+(diagnosis D3 in `UPGRADE_PLAN.md`): it filled entries at the signal bar's
+*close*, never modelled the intrabar SL-vs-TP race pessimistically, used a
+constant spread, and sized with a fixed lot while live sized by risk %. Those
+four gaps made the internal equity curve look far better than the MT5 Strategy
+Tester's. Phase U3 closes all four. **Every knob below now defaults to the
+realistic (pessimistic) behavior**; the legacy optimistic behavior stays
+reachable by explicit config for before/after sensitivity studies.
+
+All settings live under `backtest.*` in `config/config.yaml`:
+
+| Knob | Default (realistic) | Legacy / alternatives | What it does |
+|------|--------------------|-----------------------|--------------|
+| `fill_policy` | `next_open` | `signal_close` | **U3.1** Entries and signal-flip exits fill at the **next bar's open** + half-spread + slippage - what a real EA can actually do (it only acts on a new bar). `signal_close` restores same-bar-close fills. SL/TP always fill intrabar in both modes. |
+| `intrabar_policy` | `pessimistic` | `optimistic`, `midpoint` | **U3.2** When one bar's range touches **both** the SL and the TP, `pessimistic` counts the **stop first** (worst case) for both longs and shorts. `optimistic` counts the take first; `midpoint` averages the two (sensitivity only). |
+| `spread_model` | present (widens) | omit for constant spread | **U3.3** Session-aware spread. `base_points` is the normal spread; it is multiplied by `rollover_mult` during `rollover_hours_utc` (a list, or a `[start, end]` inclusive window that may wrap past midnight). `news_mult` is reserved for news-window widening. Omit the whole sub-block to keep a constant `spread_points`. |
+| `sizing` | `risk_pct` | `fixed_lot` | **U3.4** `risk_pct` sizes each entry by `risk.risk_per_trade` of the **simulated equity** using the *same* formula as `RiskManager.position_size` (clamped to `risk.min_lot` / `risk.max_lot`), so the backtest and live equity curves share geometry. It also enforces the `risk.max_daily_loss` **circuit breaker** in simulation (no new entries once a day's realized loss crosses the limit). `fixed_lot` restores the constant `fixed_lot`. |
+| `min_stop_points` | `0` (off) | any point count | **U3.5** Simulated entries whose SL sits **closer** than this many points are **rejected** (never opened), exactly as the MT5 tester rejects orders inside the broker's stop level. Set to your broker's XAUUSD stops-level (often ~30-50 points). |
+
+Guarantees locked by `tests/test_realism.py` (U3.6): `next_open` fills are
+**never** better than `signal_close`; `pessimistic <= midpoint <= optimistic`;
+the rollover window only ever **costs more**; `risk_pct` respects the min/max
+lot clamp; the daily breaker cuts the trade count; too-tight stops are rejected.
+
+**Re-baseline.** After enabling the realistic defaults, re-run search + backtest
+and archive the before/after metric deltas in
+`backtests/realism_baseline.md` (a template is committed there) so you have a
+written record of how much the pessimism moved the numbers on *your* data.
 
 ---
 
