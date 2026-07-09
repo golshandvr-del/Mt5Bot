@@ -111,13 +111,16 @@ void EmaSeries(int period, double &out[])
    if(g_n == 0 || period <= 0)
       return;
    double alpha = 2.0 / (period + 1.0);
-   // Python pandas ewm(span, adjust=False) seeds with the first value.
+   // core/indicators/base._ema: seed with the first value, but only EMIT once
+   // i >= period-1 (before that Python returns None -> the EMA vote is skipped).
+   // We emit 0.0 in the warm-up so BlendedAt's `ema[i] > 0.0` guard skips it,
+   // matching Python's None-> no-vote behavior exactly.
    double ema = g_close[0];
-   out[0] = ema;
-   for(int i=1; i<g_n; i++)
+   for(int i=0; i<g_n; i++)
      {
-      ema = alpha * g_close[i] + (1.0 - alpha) * ema;
-      out[i] = ema;
+      if(i == 0) ema = g_close[0];
+      else       ema = alpha * g_close[i] + (1.0 - alpha) * ema;
+      out[i] = (i >= period-1) ? ema : 0.0;
      }
   }
 
@@ -126,25 +129,37 @@ void EmaSeries(int period, double &out[])
 //------------------------------------------------------------------
 void RsiSeries(int period, double &out[])
   {
+   // EXACT match to core/indicators/momentum.py RSI + base._wilder_smooth:
+   //  - gains/losses index 0 = 0.0 (there is no change at the first bar);
+   //  - the Wilder seed is the SIMPLE mean of the first `period` gains/losses
+   //    (which INCLUDES that leading 0.0) placed at index period-1;
+   //  - RSI is defined from index period-1 onward.
+   // Matching this warm-up exactly is what makes the parity diff < 1e-6.
    ArrayResize(out, g_n);
    ArrayInitialize(out, 50.0);
-   if(g_n <= period || period <= 0)
+   if(g_n < period || period <= 0)
       return;
-   double gain = 0.0, loss = 0.0;
-   for(int i=1; i<=period; i++)
+   double gains[]; double losses[];
+   ArrayResize(gains, g_n); ArrayResize(losses, g_n);
+   gains[0] = 0.0; losses[0] = 0.0;
+   for(int i=1; i<g_n; i++)
      {
       double d = g_close[i] - g_close[i-1];
-      if(d >= 0) gain += d; else loss += -d;
+      gains[i]  = (d > 0.0) ?  d : 0.0;
+      losses[i] = (d < 0.0) ? -d : 0.0;
      }
-   double avgGain = gain / period;
-   double avgLoss = loss / period;
-   for(int i=period+1; i<g_n; i++)
+   // Wilder seed = simple mean of first `period` values (indices 0..period-1).
+   double sg = 0.0, sl = 0.0;
+   for(int i=0; i<period; i++) { sg += gains[i]; sl += losses[i]; }
+   double avgGain = sg / period;
+   double avgLoss = sl / period;
+   // seed lives at index period-1
+   double rsSeed = (avgLoss == 0.0) ? 100.0 : avgGain/avgLoss;
+   out[period-1] = 100.0 - (100.0 / (1.0 + rsSeed));
+   for(int i=period; i<g_n; i++)
      {
-      double d = g_close[i] - g_close[i-1];
-      double g = (d > 0) ? d : 0.0;
-      double l = (d < 0) ? -d : 0.0;
-      avgGain = (avgGain * (period-1) + g) / period;
-      avgLoss = (avgLoss * (period-1) + l) / period;
+      avgGain = (avgGain * (period-1) + gains[i]) / period;
+      avgLoss = (avgLoss * (period-1) + losses[i]) / period;
       double rs = (avgLoss == 0.0) ? 100.0 : avgGain / avgLoss;
       out[i] = 100.0 - (100.0 / (1.0 + rs));
      }
