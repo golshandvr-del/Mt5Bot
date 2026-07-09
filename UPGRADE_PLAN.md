@@ -147,7 +147,7 @@ Goal: kill both parity gaps. This is the phase that directly addresses the
       random/grid/evolutionary spec generators draw ONLY from the EA-supported
       indicator set, so anything promoted is exportable 1:1. RECOMMENDED
       workflow for anyone who validates in the MT5 tester.
-- [ ] U2.3 (code) Alternatively grow the EA: implement supertrend, bbands,
+- [x] U2.3 (code) Alternatively grow the EA: implement supertrend, bbands,
       stoch and candle_patterns(subset) in MQL5 to widen the exportable set.
       Each new EA indicator ships with a cross-check fixture (see U2.6).
 - [x] U2.4 (code+config) Live parity mode: new config
@@ -162,7 +162,7 @@ Goal: kill both parity gaps. This is the phase that directly addresses the
       `scripts/validate_ensemble.py` that replays the exact engine blend
       (ensemble avg + weights + 0.60 threshold) through the backtester and
       writes the same artifacts as U1. No unvalidated composite may go live.
-- [ ] U2.6 (test) Python-vs-EA signal parity harness: `scripts/export_history`
+- [x] U2.6 (test) Python-vs-EA signal parity harness: `scripts/export_history`
       fixture + a small MQL5 script dump per-bar BlendedSignal values for the
       same params; a Python test asserts max abs diff < 1e-6 on the shared
       indicator set. Catches sign/edge-case drift (RSI/MACD bugs of the past).
@@ -339,6 +339,25 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-09 U2.3 + U2.6 DONE - Parity gap closed on the EA side. U2.3 grew the
+  MQL5 EA (`experts/Mt5SmartBotEA.mq5`) from 5 to 8 DIRECTIONAL indicators: it
+  now natively votes `supertrend` (SuperTrendDir() replays the exact Python
+  recursion for bar-accurate parity), `bbands` (%B-style mean-reversion), and
+  `stoch` (the same base+cross mapping as core/indicators/momentum.py), in
+  addition to ema/sma/rsi/macd/adx. The exporter's EA_SUPPORTED_INDICATORS and
+  the `ea_compatible_only` search voter pool were widened to match 1:1, so the
+  strict exporter (U2.1) and the EA-compatible search (U2.2) both know the
+  larger set. U2.6 added the Python-vs-EA parity harness so this can never
+  silently drift again: `scripts/parity_fixture.py` emits a deterministic
+  synthetic-bar fixture + the Python reference BlendedSignal; `experts/
+  ParityDump.mq5` dumps the EA's per-bar BlendedSignal on the SAME bars; and
+  `tests/test_parity_harness.py` runs two layers - LAYER 1 (CI, no MT5) diffs an
+  in-Python line-by-line port of the EA math against the real Strategy (< 1e-6),
+  and LAYER 2 (opt-in) diffs the real MQL5 dump if the user drops
+  `tests/fixtures/parity_ea.csv` in. This is the automated regression guard for
+  exactly the RSI/MACD sign bugs that caused the original tester loss. Suite
+  117 -> 121 green. Phase U2 (Parity) is now COMPLETE except U2.7 docs. NEXT:
+  U2.7 (docs) then Phase U3 (pessimistic simulation).
 - 2026-07-09 U2.5 DONE - Validate the BLEND composite (fixes diagnosis D2 for
   the research path). New `core/strategy/composite.py::CompositeStrategy` adapts
   the exact engine blend (top-K average + global thresholds + weighted SL/TP)
