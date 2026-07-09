@@ -180,6 +180,23 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U2.4 DONE - Live PARITY mode (2026-07-09). Fixes UPGRADE_PLAN diagnosis D2
+  (the live/paper path never traded the strategy that was validated). New config
+  `decision.mode: "parity" | "blend"` (DEFAULT "parity"). In parity mode
+  `DecisionEngine._decide_parity` trades the TOP-1 registry strategy EXACTLY as
+  walk-forward validated: its own blended signal, its own long/short thresholds,
+  and its own SL/TP ATR multiples - not the old global 0.60 threshold on an
+  unvalidated ensemble+ML+news composite. The learner, news blackout, and timing
+  gate become VETO-ONLY (`decision.parity_vetoes.{learner,news,timing}` + a
+  conservative `decision.parity_learner_veto_level`, default 0.5): a gate can
+  only BLOCK the validated entry, never create/flip/resize one. No promoted
+  strategy -> flat (never guesses); decay-suspect top strategies are skipped so
+  parity trades the best SURVIVING one. `mode:"blend"` preserves the legacy
+  research composite byte-for-byte. Added `tests/test_parity_mode.py` (7 tests).
+  Suite 104 -> 111 green. Docs: README "The golden rule" section + CODE_MAP
+  DecisionEngine + UPGRADE_PLAN U2.4. NEXT: U2.5 (validate the blend composite
+  itself) / U2.3 (grow the EA in MQL5).
+
 - U2.2 DONE - EA-compatible search mode (2026-07-08). New config
   `memory.search.ea_compatible_only` (default false). When true, the strategy
   search filters its directional voter pool to the EA-exportable set
