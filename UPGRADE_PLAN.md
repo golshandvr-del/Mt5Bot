@@ -179,32 +179,32 @@ explicit override, and (b) run paper/live logic that was never backtested.
 Goal: internal numbers move much closer to MT5-tester numbers, always erring
 against the strategy.
 
-- [ ] U3.1 (code+config) Next-bar execution: `backtest.fill_policy:
+- [x] U3.1 (code+config) Next-bar execution: `backtest.fill_policy:
       "next_open"` (new DEFAULT) fills entries at the NEXT bar's open plus
       half-spread and slippage; "signal_close" keeps the old behavior for
       comparison. Exits on signal-flip also fill at next open; SL/TP still
       fill intrabar.
-- [ ] U3.2 (code+config) Intrabar ambiguity: `backtest.intrabar_policy:
+- [x] U3.2 (code+config) Intrabar ambiguity: `backtest.intrabar_policy:
       "pessimistic"` (new DEFAULT) - when one bar touches both SL and TP,
       count the STOP as hit first for both directions. "optimistic" and
       "midpoint" available for sensitivity analysis.
-- [ ] U3.3 (code+config) Session-aware spread: `backtest.spread_model:
+- [x] U3.3 (code+config) Session-aware spread: `backtest.spread_model:
       {base_points: 25, rollover_mult: 4.0, rollover_hours_utc: [21,23],
       news_mult: 1.0}` - spread widens during the configured rollover window
       (and optionally around news blackout windows already known to Phase 4).
       Default reproduces a constant spread when mults are 1.0.
-- [ ] U3.4 (code+config) Risk-based sizing in backtest: `backtest.sizing:
+- [x] U3.4 (code+config) Risk-based sizing in backtest: `backtest.sizing:
       "fixed_lot" | "risk_pct"` (default "risk_pct" to MATCH live). Uses the
       same formula as `RiskManager.position_size` incl. min/max lot clamping,
       so backtest and live equity curves share geometry. Includes the
       max_daily_loss circuit breaker in simulation.
-- [ ] U3.5 (code) Margin/stop-distance sanity: reject simulated entries whose
+- [x] U3.5 (code) Margin/stop-distance sanity: reject simulated entries whose
       SL distance is < broker min stop distance (configurable points) - the
       MT5 tester rejects those orders and the internal sim must too.
-- [ ] U3.6 (test) Fixtures proving: next_open fills are never better than
+- [x] U3.6 (test) Fixtures proving: next_open fills are never better than
       signal_close fills; pessimistic intrabar never beats optimistic;
       risk_pct sizing respects min/max lot and the daily circuit breaker.
-- [ ] U3.7 (docs) README "Simulation realism" section + config reference;
+- [x] U3.7 (docs) README "Simulation realism" section + config reference;
       sync CODE_MAP/Ideas. Re-baseline: re-run search+backtest and archive the
       before/after metric deltas in `backtests/realism_baseline.md`.
 
@@ -338,6 +338,29 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 ---
 
 ## 8. Change log (append newest at top)
+
+- 2026-07-09 Phase U3 (Pessimistic, realistic simulation) COMPLETE (U3.1-U3.7
+  all [x]). Fixes diagnosis D3: the internal backtester is no longer silently
+  optimistic. All five execution knobs live under `backtest.*` and DEFAULT to
+  the realistic (pessimistic) behavior, with the legacy optimistic path reachable
+  by config for before/after sensitivity work. U3.1 `fill_policy: next_open`
+  (entries + signal-flip exits fill at the NEXT bar open + half-spread +
+  slippage; SL/TP still intrabar), U3.2 `intrabar_policy: pessimistic` (STOP
+  counted first when a bar touches both SL and TP; optimistic/midpoint for
+  sensitivity), U3.3 `spread_model` (session-aware spread widening in the
+  rollover window; absent block => flat legacy spread), U3.4 `sizing: risk_pct`
+  (risk % of simulated equity via the RiskManager formula, clamped to min/max
+  lot, plus the `max_daily_loss` circuit breaker in-sim so backtest/live curves
+  share geometry), U3.5 `min_stop_points` (reject entries whose SL is closer than
+  the broker minimum, as the MT5 tester does). U3.6 added
+  `tests/test_realism.py` (12 tests) locking every pessimism guarantee:
+  next_open <= signal_close, pessimistic <= midpoint <= optimistic, rollover
+  window costs more, risk_pct clamp, daily breaker cuts trades, too-tight stops
+  rejected. U3.7 documented it: README "Simulation realism" section (defaults
+  table + config reference + re-baseline pointer), CODE_MAP backtester notes,
+  Ideas change log, and the `backtests/realism_baseline.md` before/after
+  re-baseline template with an MT5 cross-check table. Offline suite 121 -> 133
+  green. NEXT: Phase U4 (spend the budget - deep, smart search).
 
 - 2026-07-09 U2.7 done - README carries "The golden rule: only trade what was
   validated" (parity vs blend, strict exporter, veto knobs) and the EA-parity
