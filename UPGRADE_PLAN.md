@@ -218,7 +218,7 @@ documented tolerance of (and never wildly above) the MT5 Strategy Tester.
 Goal: a 12-24h search that finds ROBUST strategies, not fast lucky ones.
 Everything scales via config; the 6h profile remains available.
 
-- [ ] U4.1 (config) New "deep" profile documented in config.yaml comments:
+- [x] U4.1 (config) New "deep" profile documented in config.yaml comments:
       max_trials 400 -> 4000+, n_boot 1000 -> 5000, holdout_bars 0 -> 15000
       (last ~6 months of M15 locked), min_segments 10 -> 12. Add
       `memory.search.time_budget_hours: 0` (0=off) - stop cleanly and rank
