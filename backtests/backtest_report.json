@@ -15,8 +15,8 @@
   "symbols": {
     "XAUUSD": {
       "artifacts": {
-        "equity": "/home/user/webapp/backtests/equity_XAUUSD_M15_20260708_144806.csv",
-        "trades": "/home/user/webapp/backtests/trades_XAUUSD_M15_20260708_144806.csv"
+        "equity": "/home/user/webapp/backtests/equity_XAUUSD_M15_20260709_124312.csv",
+        "trades": "/home/user/webapp/backtests/trades_XAUUSD_M15_20260709_124312.csv"
       },
       "metrics": {
         "average_loss": -55.3346,

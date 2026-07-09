@@ -89,6 +89,59 @@ class Backtester(object):
         self.swap_short_pts = self._cfg_float(bt, "swap_short_pts", 0.0)
         self.swap_triple_day = self._cfg_int(bt, "swap_triple_day", 2)
         self.model_weekend_gap = self._cfg_bool(bt, "model_weekend_gap", False)
+        # ------------------------------------------------------------------ #
+        # Phase U3 - pessimistic, realistic execution (fixes diagnosis D3).
+        # Every knob below defaults to the REALISTIC (pessimistic) behavior so
+        # internal numbers move closer to (and never wildly above) the MT5
+        # Strategy Tester. The legacy optimistic behavior stays reachable via
+        # explicit config so before/after sensitivity studies are possible.
+        # ------------------------------------------------------------------ #
+        # U3.1 fill policy: "next_open" (DEFAULT) fills entries and signal-flip
+        # exits at the NEXT bar's open (+half-spread + slippage), matching what a
+        # real EA can do (it only acts on a new bar). "signal_close" restores the
+        # legacy same-bar-close fills for comparison.
+        self.fill_policy = self._cfg_str(bt, "fill_policy", "next_open").lower()
+        if self.fill_policy not in ("next_open", "signal_close"):
+            self.fill_policy = "next_open"
+        # U3.2 intrabar ambiguity: when one bar touches BOTH SL and TP, which is
+        # counted first? "pessimistic" (DEFAULT) always counts the STOP first for
+        # both directions. "optimistic" counts the TAKE first. "midpoint"
+        # averages the two outcomes (SL and TP each half).
+        self.intrabar_policy = self._cfg_str(bt, "intrabar_policy",
+                                             "pessimistic").lower()
+        if self.intrabar_policy not in ("pessimistic", "optimistic", "midpoint"):
+            self.intrabar_policy = "pessimistic"
+        # U3.3 session-aware spread: spread widens during a configured rollover
+        # window (and, if wired later, around news). Defaults reproduce a
+        # constant spread (all mults 1.0) so old numbers are preserved when the
+        # sub-block is absent.
+        sm = bt.get("spread_model", {}) if hasattr(bt, "get") else {}
+        self.spread_base_points = self._cfg_float(sm, "base_points",
+                                                  self.spread_points)
+        self.spread_rollover_mult = self._cfg_float(sm, "rollover_mult", 1.0)
+        self.spread_news_mult = self._cfg_float(sm, "news_mult", 1.0)
+        self.spread_rollover_hours = self._cfg_hours(
+            sm, "rollover_hours_utc", [])
+        # Whether a spread_model sub-block was actually provided; when absent we
+        # keep using the flat spread_points for byte-identical old behavior.
+        self.has_spread_model = bool(hasattr(sm, "get") and len(sm) > 0) if \
+            hasattr(sm, "__len__") else False
+        # U3.4 sizing: "risk_pct" (DEFAULT) sizes each trade by risk % of the
+        # simulated equity using the SAME formula as RiskManager.position_size so
+        # the backtest and live equity curves share geometry; "fixed_lot"
+        # restores the legacy constant-lot behavior.
+        self.sizing = self._cfg_str(bt, "sizing", "risk_pct").lower()
+        if self.sizing not in ("risk_pct", "fixed_lot"):
+            self.sizing = "risk_pct"
+        risk = cfg.get("risk", {}) if hasattr(cfg, "get") else {}
+        self.risk_per_trade = self._cfg_float(risk, "risk_per_trade", 0.01)
+        self.min_lot = self._cfg_float(risk, "min_lot", 0.01)
+        self.max_lot = self._cfg_float(risk, "max_lot", 1.0)
+        self.max_daily_loss = self._cfg_float(risk, "max_daily_loss", 0.0)
+        # U3.5 broker minimum stop distance (in points). Entries whose SL sits
+        # closer than this are REJECTED (the MT5 tester rejects them too). 0
+        # (DEFAULT) disables the check for byte-identical old behavior.
+        self.min_stop_points = self._cfg_float(bt, "min_stop_points", 0.0)
 
     @staticmethod
     def _cfg_float(bt: Any, key: str, default: float) -> float:
@@ -124,6 +177,51 @@ class Backtester(object):
             return bool(val)
         except Exception:
             return bool(default)
+
+    @staticmethod
+    def _cfg_str(bt: Any, key: str, default: str) -> str:
+        """Read a string from a config block, safe on bad/missing values."""
+        try:
+            if hasattr(bt, "get"):
+                val = bt.get(key, default)
+                if val is None:
+                    return str(default)
+                return str(val)
+        except Exception:
+            pass
+        return str(default)
+
+    @staticmethod
+    def _cfg_hours(bt: Any, key: str, default: List[int]) -> List[int]:
+        """
+        Read an hours list from a config block (U3.3 spread model).
+
+        Accepts a list/tuple of hour numbers, or a two-element [start, end]
+        window which is expanded into the inclusive set of UTC hours it spans
+        (wrapping across midnight when start > end). Bad values fall back to the
+        provided default. Returns a sorted, de-duplicated list of ints 0..23.
+        """
+        try:
+            if not hasattr(bt, "get"):
+                return list(default)
+            raw = bt.get(key, default)
+            if raw is None:
+                return list(default)
+            hours = [int(h) % 24 for h in raw]
+        except Exception:
+            return list(default)
+        if len(hours) == 2 and hours[0] != hours[1]:
+            start, end = hours[0], hours[1]
+            span: List[int] = []
+            h = start
+            # Walk inclusively from start to end, wrapping over midnight.
+            while True:
+                span.append(h)
+                if h == end:
+                    break
+                h = (h + 1) % 24
+            hours = span
+        return sorted(set(int(h) % 24 for h in hours))
 
     @staticmethod
     def _infer_bar_seconds(times: List[int], ohlcv: Any) -> int:

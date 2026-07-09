@@ -1,193 +1,199 @@
 {
-  "fetched_at": 1783521702.2933254,
+  "fetched_at": 1783600994.5253968,
   "items": [
     {
-      "published_ts": 1783520971.0,
+      "published_ts": 1783600647.0,
+      "score": 0.65,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "GlobalFoundries stock rises on Micron supply chain investment",
+      "url": "https://www.investing.com/news/stock-market-news/globalfoundries-stock-rises-on-micron-supply-chain-investment-93CH-4784117"
+    },
+    {
+      "published_ts": 1783600633.0,
+      "score": 0.48749999999999993,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Micron to invest up to $3 billion in US chip supply chain",
+      "url": "https://www.investing.com/news/stock-market-news/micron-to-invest-up-to-3-billion-in-us-chip-supply-chain-4784116"
+    },
+    {
+      "published_ts": 1783600610.0,
       "score": 0.0,
       "source": "https://www.investing.com/rss/news_25.rss",
       "summary": "",
       "symbols": [],
-      "title": "Why is Strategy stock sliding today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-strategy-stock-sliding-today-93CH-4781927"
+      "title": "Applied Materials surges as CEO signals multi-year chip boom",
+      "url": "https://www.investing.com/news/stock-market-news/applied-materials-surges-as-ceo-signals-multiyear-chip-boom-4784110"
     },
     {
-      "published_ts": 1783520846.0,
+      "published_ts": 1783600349.0,
+      "score": 0.7583333333333334,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Enovix, Forte Biosciences rally premarket; PepsiCo slips",
+      "url": "https://www.investing.com/news/stock-market-news/enovix-forte-biosciences-rally-premarket-pepsico-slips-4784089"
+    },
+    {
+      "published_ts": 1783599970.0,
+      "score": 0.65,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Bloom Energy stock rises after rejecting short-seller claims",
+      "url": "https://www.investing.com/news/stock-market-news/bloom-energy-stock-rises-after-rejecting-shortseller-claims-93CH-4784060"
+    },
+    {
+      "published_ts": 1783599891.0,
+      "score": -0.65,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Palantir says UK police contract wrongly blocked over perceived \u2019values\u2019",
+      "url": "https://www.investing.com/news/stock-market-news/palantir-says-uk-police-contract-wrongly-blocked-over-perceived-values-4783841"
+    },
+    {
+      "published_ts": 1783599795.0,
       "score": 0.0,
       "source": "https://www.investing.com/rss/news_25.rss",
       "summary": "",
       "symbols": [],
-      "title": "Why is Navitas Semiconductor stock sliding today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-navitas-semiconductor-stock-sliding-today-93CH-4781925"
+      "title": "B Capital-led group buys Russell Investments for $2.8 billion - Bloomberg",
+      "url": "https://www.investing.com/news/stock-market-news/b-capitalled-group-buys-russell-investments-for-28-billion--bloomberg-93CH-4784055"
     },
     {
-      "published_ts": 1783520608.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Why is Palo Alto Networks stock sliding today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-palo-alto-networks-stock-sliding-today-93CH-4781916"
-    },
-    {
-      "published_ts": 1783520222.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Why is Palantir stock sliding today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-palantir-stock-sliding-today-93CH-4781908"
-    },
-    {
-      "published_ts": 1783520217.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Why is Lemonade stock sliding today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-lemonade-stock-sliding-today-93CH-4781907"
-    },
-    {
-      "published_ts": 1783520196.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Why is Broadcom stock surging today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-broadcom-stock-surging-today-93CH-4781906"
-    },
-    {
-      "published_ts": 1783520173.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Why is Expedia stock sliding today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-expedia-stock-sliding-today-93CH-4781905"
-    },
-    {
-      "published_ts": 1783519950.0,
-      "score": 0.0,
+      "published_ts": 1783599735.0,
+      "score": 0.8357142857142859,
       "source": "https://www.investing.com/rss/news_25.rss",
       "summary": "",
       "symbols": [
-        "USDCAD"
+        "EURUSD",
+        "XAUUSD"
       ],
-      "title": "Obamacare insurers ask for second-highest premiums increase in nearly a decade",
-      "url": "https://www.investing.com/news/stock-market-news/obamacare-insurers-ask-for-secondhighest-premiums-increase-in-nearly-a-decade-4780905"
+      "title": "Citi Stays Bullish on European Software Despite Cautious Sector Outlook",
+      "url": "https://www.investing.com/news/stock-market-news/citi-stays-bullish-on-european-software-despite-cautious-sector-outlook-93CH-4784054"
     },
     {
-      "published_ts": 1783519894.0,
+      "published_ts": 1783599502.0,
+      "score": -0.48749999999999993,
+      "source": "https://www.investing.com/rss/news_25.rss",
+      "summary": "",
+      "symbols": [],
+      "title": "Volkswagen board faces crunch talks over plant closures, job cuts",
+      "url": "https://www.investing.com/news/stock-market-news/volkswagen-stakeholders-meet-to-decide-future-of-creaking-auto-giant-4782979"
+    },
+    {
+      "published_ts": 1783599495.0,
       "score": 0.0,
       "source": "https://www.investing.com/rss/news_25.rss",
       "summary": "",
       "symbols": [],
-      "title": "Why is AXT stock rallying today?",
-      "url": "https://www.investing.com/news/stock-market-news/why-is-axt-stock-rallying-today-93CH-4781898"
+      "title": "Enovix stock surges after naming former Apple exec as COO",
+      "url": "https://www.investing.com/news/stock-market-news/enovix-stock-surges-after-naming-former-apple-exec-as-coo-93CH-4784025"
     },
     {
-      "published_ts": 1783519887.0,
-      "score": 0.0,
-      "source": "https://www.investing.com/rss/news_25.rss",
-      "summary": "",
-      "symbols": [],
-      "title": "Waymo expands autonomous driving to Las Vegas and three cities",
-      "url": "https://www.investing.com/news/stock-market-news/waymo-expands-autonomous-driving-to-las-vegas-and-three-cities-93CH-4781897"
-    },
-    {
-      "published_ts": 1783519200.0,
-      "score": 0.0,
+      "published_ts": 1783600920.0,
+      "score": -0.325,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "&#x201c;In many states, Social Security benefits are exempt from state income tax.&#x201d;",
+      "summary": "More geopolitical instability, more frequent supply shocks and macro volatility are facing investors in an era that&#x2019;s just starting, says Charles Schwab.",
       "symbols": [
         "XAUUSD"
       ],
-      "title": "&#x2018;I&#x2019;ll happily wait&#x2019;: Does delaying Social Security make sense for high earners like me?",
-      "url": "https://www.marketwatch.com/story/ill-happily-wait-does-delaying-social-security-make-sense-for-high-earners-like-me-17dca69b?mod=mw_rss_topstories"
+      "title": "Schwab strategists warn of a major market shift: The era of easy index gains is officially over",
+      "url": "https://www.marketwatch.com/story/schwab-strategists-warn-of-a-major-market-shift-the-era-of-easy-index-gains-is-officially-over-2396d139?mod=mw_rss_topstories"
     },
     {
-      "published_ts": 1783519200.0,
+      "published_ts": 1783600080.0,
       "score": 0.0,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "&#x201c;Without telling me, my brother petitioned for sole guardianship of our mother.&#x201d;",
+      "summary": "Two companies announced on Thursday that the heart-disease drug they had been developing failed its Phase 3 trial.",
       "symbols": [],
-      "title": "&#x2018;Our family is broken beyond repair&#x2019;: My brother took over my parents&#x2019; finances. What can I do?",
-      "url": "https://www.marketwatch.com/story/our-family-is-broken-beyond-repair-my-brother-took-over-my-parents-finances-what-can-i-do-95239fb9?mod=mw_rss_topstories"
+      "title": "Major drugmaker loses $27 billion in market value after failed trial",
+      "url": "https://www.marketwatch.com/story/major-drugmaker-loses-27-billion-in-market-value-after-failed-trial-b891fc61?mod=mw_rss_topstories"
     },
     {
-      "published_ts": 1783519200.0,
-      "score": -0.48749999999999993,
+      "published_ts": 1783598400.0,
+      "score": 0.0,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Even if you&#x2019;re not worried about your normal spending anymore, a long-term-care need is still a problem for any budget.",
+      "summary": "A stable job and a nice home have become less accessible to young Americans. Many are taking new paths to pursue their dreams.",
       "symbols": [],
-      "title": "I started retirement with $3 million. Now I&#x2019;m 89 and down to $2 million. What if I get sick?",
-      "url": "https://www.marketwatch.com/story/i-started-retirement-with-3-million-now-im-89-and-down-to-2-million-what-if-i-get-sick-7401056a?mod=mw_rss_topstories"
+      "title": "Gen Z-ers share how they&#x2019;re achieving financial freedom &#x2014; and the old ideas they&#x2019;re leaving behind",
+      "url": "https://www.marketwatch.com/story/gen-z-ers-share-how-theyre-achieving-financial-freedom-and-the-old-ideas-theyre-leaving-behind-c36c5980?mod=mw_rss_topstories"
     },
     {
-      "published_ts": 1783518060.0,
-      "score": 0.2736842105263158,
+      "published_ts": 1783598220.0,
+      "score": 0.34411764705882353,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Tom Lee of Fundstrat says he&#x2019;s buying the dip, and not scared off by Samsung&#x2019;s losses",
+      "summary": "PepsiCo&#x2019;s stock was set to fall as the company&#x2019;s North America business lagged, but strength in international business led to an earnings beat.",
       "symbols": [],
-      "title": "As a red-hot global stock market stumbles into bear territory, this Wall Street bull spots a dip worth buying",
-      "url": "https://www.marketwatch.com/story/as-a-once-hot-stock-market-tumbles-into-bear-territory-this-wall-street-bull-says-its-time-to-buy-the-dip-c8c2c72f?mod=mw_rss_topstories"
+      "title": "PepsiCo cuts prices on snacks. It&#x2019;s not enough to drive growth in North America.",
+      "url": "https://www.marketwatch.com/story/pepsico-cuts-prices-on-snacks-its-not-enough-to-drive-growth-in-north-america-5bc0c111?mod=mw_rss_topstories"
     },
     {
-      "published_ts": 1783517460.0,
+      "published_ts": 1783597920.0,
       "score": -0.7090909090909091,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Plus: How to decline a wedding invitation without feeling like a jerk",
-      "symbols": [],
-      "title": "We&#x2019;re spending $7,000 to attend 7 weddings this year &#x2014; and that&#x2019;s after cutting corners",
-      "url": "https://www.marketwatch.com/story/were-spending-7-000-to-attend-7-weddings-this-year-and-thats-after-cutting-corners-8e467037?mod=mw_rss_topstories"
-    },
-    {
-      "published_ts": 1783517340.0,
-      "score": 0.7347826086956523,
-      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Brent crude and West Texas Intermediate contracts climbed on President Donald Trump saying dealing with Tehran is &#x201c;a waste of time&#x201d;",
+      "summary": "Major dislocations in America&#x2019;s foreign policy have given a stimulus to a dedollarization trend among central banks.",
       "symbols": [
-        "USDCAD"
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "XAUUSD",
+        "USDCAD",
+        "AUDUSD"
       ],
-      "title": "Oil prices surge after Trump suggests U.S.-Iran cease-fire is over",
-      "url": "https://www.marketwatch.com/story/oil-prices-jump-by-the-most-in-two-months-after-trump-suggests-u-s-iran-cease-fire-is-over-9fa7caee?mod=mw_rss_topstories"
+      "title": "A warning for the U.S. dollar: The historic bond-market buffer that protected the currency is fading.",
+      "url": "https://www.marketwatch.com/story/a-warning-for-the-u-s-dollar-the-historic-bond-market-buffer-that-protected-the-currency-is-fading-3da8e6da?mod=mw_rss_topstories"
     },
     {
-      "published_ts": 1783516140.0,
-      "score": 0.65,
-      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Alibaba on Wednesday saw its best single share-price gain in 10 months, as the broader Chinese tech sector revved higher after missing the rally propelling U.S., Korean and Taiwanese companies.",
-      "symbols": [],
-      "title": "Alibaba just had its best day in 10 months. Is it time for China techs to catch up?",
-      "url": "https://www.marketwatch.com/story/alibaba-just-had-its-best-day-in-10-months-is-it-time-for-china-techs-to-catch-up-8ccc3f7c?mod=mw_rss_topstories"
-    },
-    {
-      "published_ts": 1783515780.0,
-      "score": -0.6333333333333333,
-      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "The conflict with Iran hasn&#x2019;t hurt the U.S. and global economies as much as expected, but it will leave a lasting legacy: Another bout of high inflation that won&#x2019;t disappear quickly.",
-      "symbols": [
-        "XAUUSD"
-      ],
-      "title": "Iran war will leave an inflation scar on the U.S. through 2027, IMF says",
-      "url": "https://www.marketwatch.com/story/iran-war-will-leave-an-inflation-scar-on-the-u-s-through-2027-imf-says-909818b8?mod=mw_rss_topstories"
-    },
-    {
-      "published_ts": 1783515600.0,
+      "published_ts": 1783597260.0,
       "score": 0.0,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "&#x201c;He lived rent-free, helping her with health-related issues and other tasks.&#x201d;",
+      "summary": "The new rate will go into effect on July 12, and will be the eighth price increase over the last five calendar years",
       "symbols": [],
-      "title": "&#x2018;She wants him gone&#x2019;: My friend took in a homeless man as a caretaker. After 10 years, how can she evict him?",
-      "url": "https://www.marketwatch.com/story/she-wants-him-gone-my-friend-took-in-a-homeless-man-as-a-caretaker-after-10-years-how-can-she-evict-him-01672de2?mod=mw_rss_topstories"
+      "title": "This chart shows stamp prices since 1885 as USPS hikes postage again this weekend",
+      "url": "https://www.marketwatch.com/story/this-chart-shows-stamp-prices-over-the-years-as-usps-hikes-postage-again-this-weekend-affbb84b?mod=mw_rss_topstories"
     },
     {
-      "published_ts": 1783513140.0,
+      "published_ts": 1783597020.0,
+      "score": -0.8125,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "The next global financial crisis is already under way. Here is how it will unfold.",
+      "symbols": [],
+      "title": "The dot-com crash was a $5 trillion blip. Why the next financial crisis could hit 4 times harder.",
+      "url": "https://www.marketwatch.com/story/the-dot-com-crash-was-a-5-trillion-blip-why-the-next-financial-crisis-could-hit-4-times-harder-29f4aa57?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783594800.0,
       "score": 0.0,
       "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
-      "summary": "Financial literacy just hit a 10-year low &#x2014; and it is devastating bank accounts.",
+      "summary": "&#x201c;I changed my approach to cooking.&#x201d;",
       "symbols": [],
-      "title": "Only 5% of U.S. adults can ace this 8-question financial-literacy test. Can you?",
-      "url": "https://www.marketwatch.com/story/only-5-of-u-s-adults-can-ace-this-8-question-financial-literacy-test-can-you-93a57cc6?mod=mw_rss_topstories"
+      "title": "I found a simple way to save money on frozen pizza. What&#x2019;s your best money-saving trick?",
+      "url": "https://www.marketwatch.com/story/i-make-my-own-pizza-whats-the-best-way-youve-found-to-save-money-25412399?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783594800.0,
+      "score": 0.0,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "&#x201c;By claiming earlier, I could preserve more of my portfolio and allow those assets to continue compounding.&#x201d;",
+      "symbols": [
+        "GBPUSD"
+      ],
+      "title": "My retirement savings will suffer if I delay Social Security. How do I choose between the two?",
+      "url": "https://www.marketwatch.com/story/my-retirement-savings-will-suffer-if-i-delay-social-security-how-do-i-choose-between-the-two-a85273e3?mod=mw_rss_topstories"
+    },
+    {
+      "published_ts": 1783594800.0,
+      "score": 0.08124999999999999,
+      "source": "https://feeds.marketwatch.com/marketwatch/topstories/",
+      "summary": "These investments have a tendency to crash and burn",
+      "symbols": [],
+      "title": "10 stocks for momentum traders to consider buying &#x2014; and 10 to avoid or sell short",
+      "url": "https://www.marketwatch.com/story/10-stocks-for-momentum-traders-to-consider-buying-and-10-to-avoid-or-sell-short-ff0eb1e3?mod=mw_rss_topstories"
     }
   ]
 }
