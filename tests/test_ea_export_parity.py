@@ -36,9 +36,13 @@ class TestEaExportParity(unittest.TestCase):
         return os.path.join(out_dir, "TESTX_M15.params")
 
     def test_strict_refuses_unsupported(self):
+        # NOTE: ichimoku is deliberately an indicator the EA still does NOT
+        # implement (unlike supertrend/bbands/stoch, which U2.3 added). Using a
+        # genuinely unsupported indicator keeps this guard test honest as the
+        # EA's native set grows.
         spec = {
-            "indicators": {"ema": {"period": 20}, "supertrend": {"period": 10}},
-            "weights": {"ema": 1.0, "supertrend": 3.0},
+            "indicators": {"ema": {"period": 20}, "ichimoku": {"tenkan": 9}},
+            "weights": {"ema": 1.0, "ichimoku": 3.0},
         }
         with tempfile.TemporaryDirectory() as out_dir:
             ok = exp._export_one({}, _registry(spec), "TESTX", "M15", out_dir,
@@ -65,8 +69,8 @@ class TestEaExportParity(unittest.TestCase):
 
     def test_allow_partial_rescales_and_warns(self):
         spec = {
-            "indicators": {"ema": {"period": 20}, "supertrend": {"period": 10}},
-            "weights": {"ema": 1.0, "supertrend": 3.0},
+            "indicators": {"ema": {"period": 20}, "ichimoku": {"tenkan": 9}},
+            "weights": {"ema": 1.0, "ichimoku": 3.0},
         }
         with tempfile.TemporaryDirectory() as out_dir:
             ok = exp._export_one({}, _registry(spec), "TESTX", "M15", out_dir,
@@ -76,16 +80,16 @@ class TestEaExportParity(unittest.TestCase):
             text = open(path, "r", encoding="ascii").read()
             # Prominent warning present, and it names the dropped indicator.
             self.assertIn("WARNING", text)
-            self.assertIn("supertrend", text)
-            # supertrend must NOT be emitted as a runnable indicator.
-            self.assertNotIn("ind.supertrend.enabled", text)
+            self.assertIn("ichimoku", text)
+            # ichimoku must NOT be emitted as a runnable indicator.
+            self.assertNotIn("ind.ichimoku.enabled", text)
             # ema weight rescaled to conserve total weight: 1.0 -> 4.0.
             self.assertIn("ind.ema.weight=4.0", text)
 
     def test_all_unsupported_fails_even_partial(self):
         spec = {
-            "indicators": {"supertrend": {"period": 10}, "bbands": {"period": 20}},
-            "weights": {"supertrend": 1.0, "bbands": 1.0},
+            "indicators": {"ichimoku": {"tenkan": 9}, "vwap": {"period": 20}},
+            "weights": {"ichimoku": 1.0, "vwap": 1.0},
         }
         with tempfile.TemporaryDirectory() as out_dir:
             ok = exp._export_one({}, _registry(spec), "TESTX", "M15", out_dir,
@@ -96,11 +100,11 @@ class TestEaExportParity(unittest.TestCase):
     def test_flatten_conserves_total_weight(self):
         spec = {
             "indicators": {"ema": {"period": 20}, "rsi": {"period": 14},
-                           "supertrend": {"period": 10}},
-            "weights": {"ema": 1.0, "rsi": 1.0, "supertrend": 2.0},
+                           "ichimoku": {"tenkan": 9}},
+            "weights": {"ema": 1.0, "rsi": 1.0, "ichimoku": 2.0},
         }
         lines, skipped, rescaled = exp._flatten_spec(spec)
-        self.assertEqual(skipped, ["supertrend"])
+        self.assertEqual(skipped, ["ichimoku"])
         self.assertTrue(rescaled)
         total = 0.0
         for ln in lines:
