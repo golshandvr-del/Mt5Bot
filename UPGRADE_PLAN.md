@@ -166,7 +166,7 @@ Goal: kill both parity gaps. This is the phase that directly addresses the
       fixture + a small MQL5 script dump per-bar BlendedSignal values for the
       same params; a Python test asserts max abs diff < 1e-6 on the shared
       indicator set. Catches sign/edge-case drift (RSI/MACD bugs of the past).
-- [ ] U2.7 (docs) README: "The golden rule - only trade what was validated";
+- [x] U2.7 (docs) README: "The golden rule - only trade what was validated";
       document parity mode and the strict exporter; sync CODE_MAP/Ideas.
 
 Acceptance: it is IMPOSSIBLE to (a) export a partial strategy without an
@@ -338,6 +338,11 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 ---
 
 ## 8. Change log (append newest at top)
+
+- 2026-07-09 U2.7 done - README carries "The golden rule: only trade what was
+  validated" (parity vs blend, strict exporter, veto knobs) and the EA-parity
+  sections; CODE_MAP documents the parity dispatch and the U2.1 hard guard.
+  Phase U2 is now COMPLETE (U2.1-U2.7 all [x]). Next: Phase U3 realism.
 
 - 2026-07-09 U2.3 + U2.6 DONE - Parity gap closed on the EA side. U2.3 grew the
   MQL5 EA (`experts/Mt5SmartBotEA.mq5`) from 5 to 8 DIRECTIONAL indicators: it
