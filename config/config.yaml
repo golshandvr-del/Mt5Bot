@@ -247,6 +247,30 @@ memory:
     # worked on years-old gold behavior is not promoted over one that works now.
     recency_decay: 0.9
   # Strategy/parameter search configuration.
+  #
+  # ---------------------------------------------------------------------------
+  # DEEP SEARCH PROFILE (UPGRADE_PLAN.md U4.1) - spend a 12-24h budget wisely.
+  # ---------------------------------------------------------------------------
+  # The defaults below are the fast ~6h research profile. To run a deep,
+  # robustness-first search (fewer but far more trustworthy strategies), raise
+  # the following knobs. Everything scales via config; nothing here is required
+  # for the light path, and leaving the defaults keeps behavior byte-identical.
+  #
+  #   memory.search.max_trials                 400   -> 4000   (or more)
+  #   memory.search.significance.n_boot        1000  -> 5000   (tighter p-value)
+  #   memory.walk_forward.holdout_bars         0     -> 15000  (~6 months M15
+  #                                                             locked quarantine)
+  #   memory.walk_forward.min_segments         10    -> 12     (more regimes)
+  #   memory.search.time_budget_hours          0     -> 12..24 (wall-clock cap;
+  #                                                             0 = OFF)
+  #
+  # The deep profile pairs with the U4.2 evolutionary generator, the U4.3
+  # multi-seed stability gate, the U4.4 parameter-neighborhood robustness gate,
+  # and the U4.5 regime-sliced floors: a 24h run on ~150k bars should evaluate
+  # >= 4000 specs and promote only strategies that pass significance + holdout
+  # + multi-seed + neighborhood + regime floors. See README "Deep search
+  # profile - what 24 hours buys you".
+  # ---------------------------------------------------------------------------
   search:
     method: "random"         # "grid" or "random"
     # EA-COMPATIBLE SEARCH (U2.2). When true, the random/grid/evolutionary
@@ -259,6 +283,13 @@ memory:
     # OPTIMIZED: single symbol + lots of data means we can explore more
     # parameter combinations to find a genuinely good gold strategy.
     max_trials: 400
+    # Wall-clock budget for a search run, in hours (U4.1). 0 = OFF (run all
+    # max_trials, unchanged behavior). When > 0, the search stops CLEANLY as
+    # soon as the budget expires - it ranks whatever specs were evaluated so
+    # far and writes the registry normally, so a 12-24h run never has to be
+    # babysat. Combine with a large max_trials so the budget (not the trial
+    # count) is the real stopping condition on a deep run.
+    time_budget_hours: 0
     # Metric used to rank strategies in memory.
     rank_metric: "expectancy"   # win_rate, profit_factor, max_drawdown,
                                 #   expectancy, sharpe
@@ -284,6 +315,13 @@ memory:
       # (a profitable strategy can have a win-rate below 0.5, so this is OFF
       # by default; raise it only for win-rate-driven styles).
       min_winrate_ci_low: 0.0
+      # Bootstrap resamples for the pnl p-value (U4.1). Higher = a more precise,
+      # less noisy p-value at linear CPU cost. 1000 is fine for the fast profile;
+      # the deep profile raises this to 5000 so a borderline strategy cannot
+      # sneak past on bootstrap noise. 0 or negative disables the bootstrap
+      # (p-value forced to 1.0). Read by the search when scoring candidates;
+      # leaving it at 1000 reproduces today's behavior exactly.
+      n_boot: 1000
   # How many top strategies to blend in the ensemble decision.
   ensemble_top_k: 3
 
