@@ -546,7 +546,24 @@ Constructed with cfg + optional `learner`, `feature_builder`, `news_analyzer`,
 optional callable `symbol -> learner`; when supplied (BotContext passes
 `ctx.learner_for` only while `learning.per_symbol` is true) the engine uses the
 DECIDING symbol's own ML model, falling back to the shared `learner` on any
-failure. `decide(ohlcv, symbol, tf) -> Decision`:
+failure.
+
+**Decision mode (UPGRADE_PLAN U2.4)** - `decision.mode` selects the whole
+decision path:
+- `"parity"` (**DEFAULT**): `decide()` dispatches to `_decide_parity`, which
+  trades the **top-1** registry strategy for the symbol/timeframe EXACTLY as it
+  was walk-forward validated - its own `blended_signal`, its own
+  `long_threshold` / `short_threshold`, and its own `sl_atr_mult` / `tp_atr_mult`
+  (never the global `decision.long_threshold`). The learner, news blackout, and
+  timing gate are applied as **veto-only** gates (config `decision.parity_vetoes.
+  {learner,news,timing}`, all default true; `decision.parity_learner_veto_level`
+  default 0.5): each may only BLOCK the entry, never create/flip/resize it. Decay
+  monitor still applies (parity picks the best non-suspect top strategy). With no
+  promoted strategy the decision is flat + reason `parity=no_registry_strategy`.
+  Fixes diagnosis D2 (validated == traded).
+- `"blend"` (legacy research): the weighted-composite path below.
+
+`decide(ohlcv, symbol, tf) -> Decision` (blend mode):
 1. **Indicator signal**: prefer the memory-selected top-strategy ENSEMBLE for
    this symbol/timeframe (loaded via `memory.load_registry_top`), else an
    equal-weight blend of enabled stand-alone indicators. Also yields SL/TP mults.
