@@ -62,6 +62,20 @@ input double InpMacdWeight      = 1.0;
 input bool   InpUseAdx          = false;
 input int    InpAdxPeriod       = 14;
 input double InpAdxWeight       = 1.0;
+// --- U2.3: additional EA-native indicators (default OFF; enabled via params) ---
+input bool   InpUseSupertrend   = false;   // trend-following (Python "supertrend")
+input int    InpStPeriod        = 10;      // ATR period for SuperTrend
+input double InpStMultiplier    = 3.0;     // ATR multiplier for SuperTrend
+input double InpStWeight        = 1.0;
+input bool   InpUseBbands       = false;   // mean-reversion (Python "bbands")
+input int    InpBbPeriod        = 20;
+input double InpBbStd           = 2.0;     // std multiplier for the bands
+input double InpBbWeight        = 1.0;
+input bool   InpUseStoch        = false;   // stochastic oscillator (Python "stoch")
+input int    InpStochK          = 14;
+input int    InpStochD          = 3;
+input int    InpStochSmooth     = 3;
+input double InpStochWeight      = 1.0;
 
 //--- Runtime strategy configuration (filled from inputs then params file) -----
 struct StrategyConfig
@@ -81,6 +95,12 @@ struct StrategyConfig
    bool   useMacd;  int macdFast; int macdSlow; int macdSignal; double macdWeight;
    // adx
    bool   useAdx;   int adxPeriod;  double adxWeight;
+   // supertrend (U2.3)
+   bool   useSt;    int stPeriod;   double stMult;   double stWeight;
+   // bollinger bands (U2.3)
+   bool   useBb;    int bbPeriod;   double bbStd;    double bbWeight;
+   // stochastic (U2.3)
+   bool   useStoch; int stochK; int stochD; int stochSmooth; double stochWeight;
   };
 
 StrategyConfig g_cfg;
@@ -93,6 +113,9 @@ int g_hRsi  = INVALID_HANDLE;
 int g_hMacd = INVALID_HANDLE;
 int g_hAdx  = INVALID_HANDLE;
 int g_hAtr  = INVALID_HANDLE;
+int g_hStAtr = INVALID_HANDLE;  // dedicated ATR handle for SuperTrend period
+int g_hBb   = INVALID_HANDLE;
+int g_hStoch = INVALID_HANDLE;
 
 datetime g_lastBarTime = 0;
 
@@ -113,6 +136,14 @@ void LoadDefaults()
    g_cfg.useMacd = InpUseMacd; g_cfg.macdFast  = InpMacdFast;
    g_cfg.macdSlow = InpMacdSlow; g_cfg.macdSignal = InpMacdSignal; g_cfg.macdWeight = InpMacdWeight;
    g_cfg.useAdx  = InpUseAdx;  g_cfg.adxPeriod = InpAdxPeriod;  g_cfg.adxWeight = InpAdxWeight;
+   // U2.3 additions
+   g_cfg.useSt = InpUseSupertrend; g_cfg.stPeriod = InpStPeriod;
+   g_cfg.stMult = InpStMultiplier; g_cfg.stWeight = InpStWeight;
+   g_cfg.useBb = InpUseBbands; g_cfg.bbPeriod = InpBbPeriod;
+   g_cfg.bbStd = InpBbStd; g_cfg.bbWeight = InpBbWeight;
+   g_cfg.useStoch = InpUseStoch; g_cfg.stochK = InpStochK;
+   g_cfg.stochD = InpStochD; g_cfg.stochSmooth = InpStochSmooth;
+   g_cfg.stochWeight = InpStochWeight;
   }
 
 //+------------------------------------------------------------------+
