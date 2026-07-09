@@ -157,7 +157,7 @@ Goal: kill both parity gaps. This is the phase that directly addresses the
       The learner/news/timing become optional VETO-ONLY gates (they can block
       an entry, never create or resize one). "blend" keeps the current
       behavior for research.
-- [ ] U2.5 (code) If ensemble blending stays in use ("blend" mode), the
+- [x] U2.5 (code) If ensemble blending stays in use ("blend" mode), the
       ensemble composite itself MUST be walk-forward evaluated: add
       `scripts/validate_ensemble.py` that replays the exact engine blend
       (ensemble avg + weights + 0.60 threshold) through the backtester and
@@ -339,6 +339,19 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-09 U2.5 DONE - Validate the BLEND composite (fixes diagnosis D2 for
+  the research path). New `core/strategy/composite.py::CompositeStrategy` adapts
+  the exact engine blend (top-K average + global thresholds + weighted SL/TP)
+  into a Backtester-scoreable Strategy, and `scripts/validate_ensemble.py`
+  replays it through the SAME pessimistic backtester as the internal backtest,
+  writing the U1 receipts (per-trade CSV + equity CSV + JSON summary). This means
+  no unvalidated composite can silently go live in "blend" mode - it now has
+  audit-able walk-forward numbers just like every individual spec. Caveat: it
+  validates the PRICE-ONLY portion (memory ensemble + global thresholds + SL/TP);
+  the ML learner and news score are not pure OHLCV functions and are excluded to
+  avoid lookahead. In the default "parity" mode this composite is bypassed
+  entirely. Added tests/test_validate_ensemble.py (6 tests). Suite 111 -> 117
+  green. NEXT: U2.3 (grow the EA in MQL5) + U2.6 (Python-vs-EA parity harness).
 - 2026-07-09 U2.4 DONE - Live PARITY mode (fixes diagnosis D2). New config
   `decision.mode: "parity" | "blend"` (default "parity"). In parity mode
   `DecisionEngine._decide_parity` trades the TOP-1 registry strategy EXACTLY as
