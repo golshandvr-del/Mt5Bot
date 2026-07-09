@@ -384,12 +384,48 @@ under) the entry threshold, so a "no trade" is as explainable as a trade.
   `recency_decay`), search settings (incl. the `significance` promotion
   filter), `ensemble_top_k`.
 - `news.*`: sources, sentiment backend, `signal_weight`, `blackout_minutes`.
-- `decision.weights` (indicators / learning / news) and entry thresholds.
+- `decision.mode` (**`parity`** default, or `blend`), `decision.weights`
+  (blend mode only) and entry thresholds. See the golden rule below.
 - `backtest.*`: initial balance, cost model, fixed lot, report dir.
 
 To run heavier on a capable training machine, set
 `general.enable_heavy_compute: true` and enable `dl_classifier` / `rl_agent`.
 Keep them **off** on the Windows 7 live machine.
+
+---
+
+## The golden rule: only trade what was validated
+
+The single most important setting for anyone who validates in the MT5 Strategy
+Tester is `decision.mode`:
+
+- **`parity` (default, recommended).** The live/paper engine trades the **top-1
+  strategy from the registry EXACTLY as it was walk-forward validated**: that
+  strategy's own indicators, its own long/short thresholds, and its own SL/TP
+  ATR multiples. The ML learner, news, and timing layers become **veto-only
+  gates** - each may *block* an entry the validated strategy wanted (e.g. a news
+  blackout, a learned-weak time window, or a learner that *strongly* disagrees),
+  but none can ever create a new entry, flip its direction, or resize it. If no
+  strategy has been promoted for a symbol, parity mode simply stays **flat**
+  rather than guess. This guarantees *validated == traded*.
+- **`blend` (legacy / research).** The engine averages the top-K strategies'
+  continuous signals, re-blends that with the learner (`decision.weights.learning`)
+  and news (`decision.weights.news`), and applies the global
+  `decision.long_threshold` / `short_threshold` (default 0.60). This composite
+  is powerful for research but is **not itself walk-forward validated**, so it
+  can fire at moments none of the underlying strategies would have. Use it only
+  when you understand that gap.
+
+Veto behaviour in parity mode is tunable under `decision.parity_vetoes`
+(`learner` / `news` / `timing`, all on by default) and
+`decision.parity_learner_veto_level` (how strongly the learner must disagree
+before it blocks a trade; default `0.5`, `0` disables the learner veto).
+
+> Why this exists: a real tester run turned 10,000 into ~3-4k in a year because
+> the live path (old blend) traded a composite that was never backtested, while
+> the EA silently traded a crippled single-indicator version of the winner.
+> Parity mode + the strict EA exporter (below) close both gaps. See
+> `UPGRADE_PLAN.md` (diagnoses D1/D2) for the full story.
 
 ---
 
