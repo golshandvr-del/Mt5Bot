@@ -6,3 +6,4 @@ from core.strategy.walk_forward import WalkForward  # noqa: F401
 from core.strategy.search import StrategySearch  # noqa: F401
 from core.strategy.council import StrategyCouncil, ArmStats  # noqa: F401
 from core.strategy.decay_monitor import DecayMonitor, DecayVerdict  # noqa: F401
+from core.strategy.composite import CompositeStrategy  # noqa: F401
