@@ -42,13 +42,17 @@ _DIRECTIONAL = [
     "candle_patterns",
 ]
 
-# EA-compatible DIRECTIONAL subset (U2.2). Mirrors the exporter's
-# EA_SUPPORTED_INDICATORS = (ema, sma, rsi, macd, atr, adx); atr is dropped
-# here because it is a non-directional exits-only indicator and never appears
-# in _DIRECTIONAL. When memory.search.ea_compatible_only is true the search
-# draws voters ONLY from this list, so any promoted strategy exports to the
-# MQL5 EA 1:1 with zero dropped indicators.
-_EA_SUPPORTED_DIRECTIONAL = ["ema", "sma", "rsi", "macd", "adx"]
+# EA-compatible DIRECTIONAL subset (U2.2, widened by U2.3). Mirrors the
+# exporter's EA_SUPPORTED_INDICATORS = (ema, sma, rsi, macd, atr, adx,
+# supertrend, bbands, stoch); atr is dropped here because it is a
+# non-directional exits-only indicator and never appears in _DIRECTIONAL.
+# U2.3 grew the EA to also run supertrend, bbands and stoch (all directional
+# voters), so they are now safe to draw when ea_compatible_only is true. When
+# that flag is on the search draws voters ONLY from this list, so any promoted
+# strategy exports to the MQL5 EA 1:1 with zero dropped indicators.
+_EA_SUPPORTED_DIRECTIONAL = [
+    "ema", "sma", "rsi", "macd", "adx", "supertrend", "bbands", "stoch",
+]
 
 
 class StrategySearch(object):
