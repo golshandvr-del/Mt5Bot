@@ -190,6 +190,22 @@ void ApplyParam(const string key, const string value)
    else if(key=="ind.adx.enabled")  g_cfg.useAdx = (i!=0);
    else if(key=="ind.adx.period")   g_cfg.adxPeriod = i;
    else if(key=="ind.adx.weight")   g_cfg.adxWeight = d;
+   // SUPERTREND (U2.3)
+   else if(key=="ind.supertrend.enabled")    g_cfg.useSt = (i!=0);
+   else if(key=="ind.supertrend.period")     g_cfg.stPeriod = i;
+   else if(key=="ind.supertrend.multiplier") g_cfg.stMult = d;
+   else if(key=="ind.supertrend.weight")     g_cfg.stWeight = d;
+   // BOLLINGER BANDS (U2.3)
+   else if(key=="ind.bbands.enabled") g_cfg.useBb = (i!=0);
+   else if(key=="ind.bbands.period")  g_cfg.bbPeriod = i;
+   else if(key=="ind.bbands.std")     g_cfg.bbStd = d;
+   else if(key=="ind.bbands.weight")  g_cfg.bbWeight = d;
+   // STOCHASTIC (U2.3)
+   else if(key=="ind.stoch.enabled") g_cfg.useStoch = (i!=0);
+   else if(key=="ind.stoch.k")       g_cfg.stochK = i;
+   else if(key=="ind.stoch.d")       g_cfg.stochD = i;
+   else if(key=="ind.stoch.smooth")  g_cfg.stochSmooth = i;
+   else if(key=="ind.stoch.weight")  g_cfg.stochWeight = d;
    // symbol/timeframe lines are informational; ignore silently.
   }
 
@@ -236,6 +252,19 @@ bool CreateHandles()
    if(g_cfg.useRsi)  g_hRsi  = iRSI(_Symbol, _Period, g_cfg.rsiPeriod, PRICE_CLOSE);
    if(g_cfg.useMacd) g_hMacd = iMACD(_Symbol, _Period, g_cfg.macdFast, g_cfg.macdSlow, g_cfg.macdSignal, PRICE_CLOSE);
    if(g_cfg.useAdx)  g_hAdx  = iADX(_Symbol, _Period, g_cfg.adxPeriod);
+   // U2.3: SuperTrend needs its own Wilder-ATR (its own period), matching the
+   // Python SuperTrend which smooths true-range with its own `period`, not the
+   // fixed 14-bar ATR used for SL/TP sizing.
+   if(g_cfg.useSt)   g_hStAtr = iATR(_Symbol, _Period, g_cfg.stPeriod);
+   // U2.3: Bollinger Bands. MT5 iBands uses population std (divide by N), which
+   // matches the Python _rolling_std (var = sum/period). Applied price = close.
+   if(g_cfg.useBb)   g_hBb   = iBands(_Symbol, _Period, g_cfg.bbPeriod, 0,
+                                      g_cfg.bbStd, PRICE_CLOSE);
+   // U2.3: Stochastic. MT5 iStochastic(k, d, smooth) with SMA smoothing and
+   // low/high price fields matches the Python Stochastic (SMA-smoothed %K, %D).
+   if(g_cfg.useStoch) g_hStoch = iStochastic(_Symbol, _Period, g_cfg.stochK,
+                                             g_cfg.stochD, g_cfg.stochSmooth,
+                                             MODE_SMA, STO_LOWHIGH);
    if(g_hAtr==INVALID_HANDLE)
      {
       Print("Failed to create ATR handle.");
