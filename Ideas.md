@@ -180,6 +180,25 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- Phase U3 (Pessimistic, realistic simulation) DONE (2026-07-09). Fixes
+  UPGRADE_PLAN diagnosis D3 (the internal backtest was silently optimistic).
+  All five execution knobs now DEFAULT to the realistic (pessimistic) behavior;
+  the legacy optimistic behavior stays reachable by config for sensitivity
+  studies. U3.1 `backtest.fill_policy: next_open` fills entries and signal-flip
+  exits at the NEXT bar's open + half-spread + slippage (a real EA only acts on a
+  new bar); U3.2 `intrabar_policy: pessimistic` counts the STOP first when one bar
+  touches both SL and TP; U3.3 `spread_model` widens the spread during the
+  rollover window; U3.4 `sizing: risk_pct` sizes by risk % of simulated equity
+  (same formula as RiskManager, clamped to min/max lot) and enforces the
+  `max_daily_loss` circuit breaker in simulation so backtest/live curves share
+  geometry; U3.5 `min_stop_points` rejects entries whose SL is closer than the
+  broker minimum, exactly as the MT5 tester does. U3.6 added
+  `tests/test_realism.py` (12 tests) locking every pessimism guarantee. U3.7
+  documented it: README "Simulation realism" section (defaults table + config
+  reference), CODE_MAP backtester notes, and the `backtests/realism_baseline.md`
+  before/after re-baseline template with an MT5 cross-check table. Suite
+  121 -> 133 green. NEXT: Phase U4 (deep, smart search).
+
 - U2.4 DONE - Live PARITY mode (2026-07-09). Fixes UPGRADE_PLAN diagnosis D2
   (the live/paper path never traded the strategy that was validated). New config
   `decision.mode: "parity" | "blend"` (DEFAULT "parity"). In parity mode
