@@ -128,6 +128,25 @@ class DecisionEngine(object):
         )
 
         dec = cfg.get_path("decision", {})
+        # UPGRADE_PLAN U2.4: decision mode. "parity" (default) trades the
+        # validated top-1 strategy exactly; "blend" is the legacy composite.
+        mode_raw = dec.get("mode", "parity") if hasattr(dec, "get") else "parity"
+        self.mode = str(mode_raw or "parity").strip().lower()
+        if self.mode not in ("parity", "blend"):
+            self.log.warning(
+                "Unknown decision.mode '%s'; falling back to 'parity'.", mode_raw
+            )
+            self.mode = "parity"
+        # Parity-mode veto switches (each can only BLOCK an entry, never make one).
+        pv = dec.get("parity_vetoes", {}) if hasattr(dec, "get") else {}
+        pv = pv if hasattr(pv, "get") else {}
+        self.parity_veto_learner = bool(pv.get("learner", True))
+        self.parity_veto_news = bool(pv.get("news", True))
+        self.parity_veto_timing = bool(pv.get("timing", True))
+        self.parity_learner_veto_level = float(
+            dec.get("parity_learner_veto_level", 0.5)
+        ) if hasattr(dec, "get") else 0.5
+
         weights = dec.get("weights", {}) if hasattr(dec, "get") else {}
         self.w_ind = float(weights.get("indicators", 0.5)) if hasattr(weights, "get") else 0.5
         self.w_learn = float(weights.get("learning", 0.3)) if hasattr(weights, "get") else 0.3
