@@ -41,7 +41,15 @@ import sys
 
 # Indicators the EA (Mt5SmartBotEA.mq5) understands natively. Keep this list in
 # sync with the EA's ParseParams() switch.
-EA_SUPPORTED_INDICATORS = ("ema", "sma", "rsi", "macd", "atr", "adx")
+# U2.3 grew the EA's native indicator set: it now also implements supertrend,
+# bbands and stoch in Mt5SmartBotEA.mq5::BlendedSignal(), with param keys that
+# match Python's default_params (supertrend: period/multiplier, bbands:
+# period/std, stoch: k/d/smooth). Keep this tuple in sync with the EA's
+# ApplyParam() switch.
+EA_SUPPORTED_INDICATORS = (
+    "ema", "sma", "rsi", "macd", "atr", "adx",
+    "supertrend", "bbands", "stoch",
+)
 
 
 def _project_root() -> str:
