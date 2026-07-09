@@ -15,23 +15,23 @@
   "symbols": {
     "XAUUSD": {
       "artifacts": {
-        "equity": "/home/user/webapp/backtests/equity_XAUUSD_M15_20260709_124312.csv",
-        "trades": "/home/user/webapp/backtests/trades_XAUUSD_M15_20260709_124312.csv"
+        "equity": "/home/user/webapp/backtests/equity_XAUUSD_M15_20260709_124901.csv",
+        "trades": "/home/user/webapp/backtests/trades_XAUUSD_M15_20260709_124901.csv"
       },
       "metrics": {
-        "average_loss": -55.3346,
-        "average_win": 101.408,
-        "expectancy": 6.190503,
-        "max_drawdown": 0.1646,
-        "net_profit": 1324.7676,
-        "num_trades": 214,
-        "pnl_pvalue": 0.164,
-        "profit_factor": 1.1842,
-        "sharpe": 0.0693,
-        "win_rate": 0.3925,
-        "win_rate_ci_low": 0.3295
+        "average_loss": -75.8273,
+        "average_win": 128.3447,
+        "expectancy": 10.200239,
+        "max_drawdown": 0.1584,
+        "net_profit": 1815.6426,
+        "num_trades": 178,
+        "pnl_pvalue": 0.116,
+        "profit_factor": 1.2325,
+        "sharpe": 0.0888,
+        "win_rate": 0.4213,
+        "win_rate_ci_low": 0.3512
       },
-      "num_trades": 214,
+      "num_trades": 178,
       "source": "memory_top",
       "spec": {
         "indicators": {

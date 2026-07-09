@@ -66,6 +66,12 @@ def _cfg(**backtest_overrides):
         "commission_per_lot": 0.0,
         "slippage_points": 0,
         "fixed_lot": 1.0,
+        # These swap/gap tests were written against the LEGACY execution model
+        # (same-bar-close entry, constant fixed lot). Phase U3 made next-bar-open
+        # fills and risk_pct sizing the new defaults, so pin the legacy behavior
+        # here to keep asserting exactly the swap/gap arithmetic they target.
+        "fill_policy": "signal_close",
+        "sizing": "fixed_lot",
     }
     bt.update(backtest_overrides)
 
