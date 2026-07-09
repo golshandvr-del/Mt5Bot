@@ -392,8 +392,36 @@ timing:
 # Decision engine - how signals are combined
 # -----------------------------------------------------------------------------
 decision:
+  # ---------------------------------------------------------------------- #
+  # Decision mode (UPGRADE_PLAN U2.4, Track "Parity"). Fixes diagnosis D2:
+  # in the old "blend" path the live engine averaged the top-K strategies,
+  # re-blended that with the ML learner + news, and applied a GLOBAL 0.60
+  # threshold - a composite that was NEVER walk-forward validated. Parity mode
+  # instead trades the TOP-1 registry strategy EXACTLY as it was validated:
+  # its own indicators, its own per-spec long/short thresholds, and its own
+  # SL/TP ATR multiples. The learner / news / timing layers become VETO-ONLY
+  # gates - they can BLOCK an entry the validated strategy wanted, but they can
+  # never create a new entry or change its size/direction. This guarantees
+  # "validated == traded".
+  #   "parity" (DEFAULT, recommended) - trade the validated top-1 strategy.
+  #   "blend"  - legacy research behavior (unvalidated ensemble + ML + news
+  #              composite against the global threshold below).
+  mode: "parity"
+  # Which veto gates are allowed to BLOCK a parity-mode entry (all default ON;
+  # each only ever prevents a trade, never forces one). Ignored in blend mode.
+  parity_vetoes:
+    learner: true   # block if the learner strongly disagrees with the strategy
+    news: true      # respect the news blackout window
+    timing: true    # respect the learned timing gate / blackout window
+  # Learner-disagreement veto strength for parity mode: block a long only if the
+  # learner signal is <= -this (and a short only if it is >= +this). 0 disables
+  # the learner veto even when parity_vetoes.learner is true. Kept conservative
+  # so a weak/uncertain learner never vetoes the validated edge.
+  parity_learner_veto_level: 0.5
   # Weights for blending the different signal sources. They are normalized.
   # (The optional "timing" weight is used only when timing.as_directional=true.)
+  # NOTE: these weights and the long/short thresholds below apply to "blend"
+  # mode only. Parity mode uses each strategy's OWN thresholds instead.
   weights:
     indicators: 0.5
     learning: 0.3
