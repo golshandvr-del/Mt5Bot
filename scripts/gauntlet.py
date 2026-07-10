@@ -442,6 +442,11 @@ def write_verdict_md(cfg, verdict):
                  (verdict["symbol"], verdict["timeframe"]))
     lines.append("- Strategy fingerprint: `%s`" % fp)
     lines.append("- Created (UTC): %s" % verdict.get("created_at_iso"))
+    # Machine-parseable stamps so the live gate (U5.3) can verify PASS and
+    # recency without re-parsing prose. Kept on their own lines, ASCII only.
+    lines.append("- created_at_epoch: %s" % int(verdict.get("created_at", 0)))
+    lines.append("- overall_pass: %s" % ("true" if verdict.get("overall_pass")
+                                         else "false"))
     lines.append("- Bars tested: %s   warmup: %s   MC shuffles: %s" %
                  (verdict.get("bars"), verdict.get("warmup"),
                   verdict.get("mc_shuffles")))
