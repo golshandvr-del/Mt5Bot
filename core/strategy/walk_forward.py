@@ -92,6 +92,13 @@ class WalkForward(object):
             self.regime_min_segments = 2
         if self.regime_min_segments < 1:
             self.regime_min_segments = 1
+        # ADX threshold separating a 'trend' segment from a 'range' one. ADX>=25
+        # is the classic Wilder trending threshold; configurable for other
+        # instruments/timeframes.
+        try:
+            self.regime_adx_trend = float(rg.get("adx_trend_threshold", 25.0))
+        except (TypeError, ValueError):
+            self.regime_adx_trend = 25.0
 
     # ------------------------------------------------------------------ #
     # Regime labelling (U4.5). Pure-Python, no external deps.
@@ -339,9 +346,13 @@ class WalkForward(object):
         strategy = Strategy(spec)
         seg_metrics: List[Dict[str, Any]] = []
         scores: List[float] = []
+        # U4.5: cache each segment's test slice so we can label it by regime
+        # AFTER the run (the volatility terciles need all segments' vols first).
+        test_slices: List[Any] = []
         want_trades = bool(persist and self.learn_time and self.time_stats is not None)
         for idx, seg in enumerate(segs):
             test_slice = ohlcv.slice(seg["test_start"], seg["test_end"])
+            test_slices.append(test_slice)
             result = self.backtester.run(
                 strategy, test_slice, warmup=warmup, point=point,
                 record_trades=want_trades,
@@ -371,13 +382,42 @@ class WalkForward(object):
             sum(m.get("num_trades", 0) for m in seg_metrics) / len(seg_metrics)
             if seg_metrics else 0.0
         )
-        return {
+        out = {
             "fingerprint": spec.fingerprint(),
             "n_segments": len(segs),
             "avg_score": avg_score,
             "avg_trades": avg_trades,
             "segments": seg_metrics,
         }
+        # U4.5: regime-sliced scores + the promotion-gate verdict. Only computed
+        # when the regime gate is enabled, so the default fast path is untouched.
+        if self.regime_enabled and test_slices:
+            seg_labels = self._label_segments(test_slices)
+            regime_scores = self._regime_scores(seg_labels, scores)
+            out["regime_labels"] = seg_labels
+            out["regime_scores"] = regime_scores
+            out["passes_regime_floor"] = self.passes_regime_floor(
+                avg_score, regime_scores
+            )
+        return out
+
+    def _label_segments(self, test_slices: List[Any]) -> List[str]:
+        """U4.5: label each segment as '<voltercile>_<trend|range>'.
+
+        Volatility is bucketed into low/mid/high by the run's own 33rd/66th
+        percentile cutoffs (so the labels are relative to THIS instrument's
+        regimes), and trend strength is 'trend' when the segment's median ADX is
+        >= the configured threshold, else 'range'. Pure helper; no side effects.
+        """
+        vols = [self._segment_volatility(s) for s in test_slices]
+        cutoffs = self._terciles(vols)
+        labels: List[str] = []
+        for i, sl in enumerate(test_slices):
+            vol_label = self._vol_tercile(vols[i], cutoffs)
+            adx = self._segment_trend_strength(sl)
+            trend_label = "trend" if adx >= self.regime_adx_trend else "range"
+            labels.append("%s_%s" % (vol_label, trend_label))
+        return labels
 
     # ------------------------------------------------------------------ #
     def evaluate_holdout(self, spec: StrategySpec, ohlcv: Any,
