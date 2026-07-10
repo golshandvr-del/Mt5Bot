@@ -232,7 +232,7 @@ Everything scales via config; the 6h profile remains available.
       the registry is re-run with 3 different bootstrap seeds and
       jittered warmup; promotion requires the rank score to stay positive in
       ALL runs. Kills knife-edge flukes cheaply (only finalists pay the cost).
-- [ ] U4.4 (code) Parameter-neighborhood robustness: for each finalist,
+- [x] U4.4 (code) Parameter-neighborhood robustness: for each finalist,
       evaluate 8 neighbors (each key param nudged one step). New metric
       `neighborhood_score` = median neighbor score; registry ranks by
       min(own_score, neighborhood_score). A strategy that dies when RSI period
@@ -339,6 +339,21 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-09 U4.4 DONE - Parameter-neighborhood robustness gate. New config
+  block `memory.search.neighborhood` (enabled/n_neighbors, default OFF). When
+  on, every base-positive finalist is re-scored at up to `n_neighbors` (default
+  8) NEIGHBOR specs, each differing from it by ONE indicator parameter nudged a
+  single step in that indicator's `param_space` (both +/-1 directions, sorted +
+  deduped so enumeration is deterministic). `_neighbor_specs` builds them;
+  `_neighborhood_score` returns the MEDIAN neighbor walk-forward avg_score (all
+  neighbor evals use persist=False so memory is never polluted). The search then
+  records `score_overrides[fp] = min(own_score, neighborhood_score)` and the
+  registry ranks by that override, so a knife-edge strategy that only wins at one
+  exact parameter value (its neighbors score poorly) is demoted / dropped - it
+  is overfit by definition. Gate OFF => score_overrides empty => ranking
+  byte-identical to before. Added tests/test_neighborhood_gate.py (5 tests incl.
+  a planted-overfit fixture that the min() demotes). NEXT: U4.5 (regime-sliced
+  validation).
 - 2026-07-09 U4.3 DONE - Multi-seed stability gate. New config block
   `memory.search.stability` (enabled/n_seeds/warmup_jitter/require_all_positive,
   default OFF). When on, any spec that would enter the registry is re-run n_seeds
