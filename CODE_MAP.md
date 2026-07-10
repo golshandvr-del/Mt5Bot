@@ -519,6 +519,22 @@ The "learn from trial-and-error" loop / memory builder.
   minimum. A knife-edge strategy whose neighbors score poorly is demoted/dropped
   (overfit by definition). Gate off => `score_overrides` empty => ranking is
   byte-identical to before.
+- Regime-sliced validation gate (UPGRADE_PLAN U4.5): when
+  `memory.search.regime.enabled` is true (default false), `evaluate()` labels
+  every walk-forward test segment by regime and attaches three fields to its
+  result dict: `regime_labels`, `regime_scores`, `passes_regime_floor`.
+  `_label_segments(test_slices)` builds a `<voltercile>_<trend|range>` label per
+  segment: `_segment_volatility` (mean (high-low)/close, an ATR%-like proxy)
+  bucketed via `_terciles`/`_vol_tercile` into low/mid/high at the run's own
+  p33/p66, combined with `_segment_trend_strength` (median ADX) thresholded at
+  `regime.adx_trend_threshold` (default 25). `_regime_scores(labels, scores)`
+  averages the per-segment rank scores within each regime holding
+  `>= regime.min_segments_per_regime` segments. `passes_regime_floor(overall,
+  regime_scores)` fails any strategy whose worst gated-regime score falls below
+  `regime.floor_mult * overall` (default -0.5). `StrategySearch.run` treats this
+  as a promotion filter alongside holdout+stability (adds `regime` to the gate
+  list and the allowlist), so a regime-fragile spec is recorded but never
+  promoted. Gate off => no regime fields attached => search path unchanged.
 
 ### council.py - `StrategyCouncil` (Phase 5 / P5.1, Track B / B1)
 A pure-stdlib tabular UCB1 bandit that learns a LIVE per-strategy credibility
