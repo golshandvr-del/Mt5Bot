@@ -325,6 +325,21 @@ memory:
     neighborhood:
       enabled: false
       n_neighbors: 8         # neighbors to evaluate per finalist (each 1 step)
+    # REGIME-SLICED VALIDATION (U4.5). A strategy can look great on average yet
+    # be a disaster in one market regime (e.g. it only makes money in strong
+    # trends and bleeds in chop). When enabled, each walk-forward SEGMENT is
+    # labelled by its realized-volatility tercile (ATR% of price) and its trend
+    # strength (median ADX): low / mid / high vol and trend / range by ADX. The
+    # per-regime average rank score is stored on the result, and a candidate is
+    # promoted only if NO regime's score falls below `floor_mult` times the
+    # overall score (i.e. it must not lose catastrophically in any regime). With
+    # floor_mult = -0.5 a regime may underperform but not lose more than half the
+    # overall edge; set 0.0 to require every regime non-negative. Only finalists
+    # pay the cost. Default OFF keeps the old behavior (no regime gate).
+    regime:
+      enabled: false
+      floor_mult: -0.5       # per-regime score must be >= floor_mult * overall
+      min_segments_per_regime: 2  # a regime with fewer segments is not gated
     # Metric used to rank strategies in memory.
     rank_metric: "expectancy"   # win_rate, profit_factor, max_drawdown,
                                 #   expectancy, sharpe
