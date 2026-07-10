@@ -228,7 +228,7 @@ Everything scales via config; the 6h profile remains available.
       elites (jitter one param step, swap one indicator, +/-0.05 thresholds)
       and 40% fresh random for exploration. Dedup via fingerprints. Pure
       Python, CPU-light.
-- [ ] U4.3 (code) Multi-seed stability gate: every candidate that would enter
+- [x] U4.3 (code) Multi-seed stability gate: every candidate that would enter
       the registry is re-run with 3 different bootstrap seeds and
       jittered warmup; promotion requires the rank score to stay positive in
       ALL runs. Kills knife-edge flukes cheaply (only finalists pay the cost).
@@ -339,6 +339,19 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-09 U4.3 DONE - Multi-seed stability gate. New config block
+  `memory.search.stability` (enabled/n_seeds/warmup_jitter/require_all_positive,
+  default OFF). When on, any spec that would enter the registry is re-run n_seeds
+  (default 3) extra times, each with a different bootstrap seed + a warmup
+  jittered by +/-warmup_jitter bars; promotion now requires the rank score to
+  stay strictly positive in EVERY run, so a knife-edge fluke that only wins under
+  one warmup/seed is rejected. Implemented as `_passes_stability_gate` in
+  core/strategy/search.py, wired into `_eval_one`'s promotion allowlist AFTER the
+  holdout gate and only for base-positive finalists (so it stays cheap).
+  `WalkForward.evaluate` gained a `warmup` arg; re-runs use persist=False.
+  Added tests/test_stability_gate.py (disabled passes, all-positive passes,
+  one-negative rejects+short-circuits, zero rejects, jitter band/floor). Suite
+  -> 138 green. NEXT: U4.4 (parameter-neighborhood robustness).
 - 2026-07-09 U4.2 DONE - Evolutionary search (Phase U4, fixes diagnosis D4:
   "spend the budget on ROBUST strategies, not fast lucky ones"). New
   `memory.search.method: evolution` in core/strategy/search.py: generation 0 is
