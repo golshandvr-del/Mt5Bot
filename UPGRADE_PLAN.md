@@ -249,7 +249,7 @@ Everything scales via config; the 6h profile remains available.
 - [x] U4.7 (test) Evolution respects param spaces; time budget stops cleanly;
       resume continues without re-evaluating fingerprints; neighborhood and
       regime gates provably filter a planted overfit fixture.
-- [ ] U4.8 (docs) README "Deep search profile - what 24 hours buys you";
+- [x] U4.8 (docs) README "Deep search profile - what 24 hours buys you";
       sync CODE_MAP/Ideas/structure.md (mark P6.5/P6.7 superseded here).
 
 Acceptance: a 24h deep search on 150k bars evaluates >= 4000 specs, and every
