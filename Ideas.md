@@ -180,6 +180,24 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U4.1 + U4.2 DONE - Deep, smart search begins (2026-07-09). Fixes UPGRADE_PLAN
+  diagnosis D4: a long search should find ROBUST strategies, not fast lucky ones.
+  U4.1 (config only) documents a "deep" profile in config.yaml (max_trials 400 ->
+  4000+, n_boot 1000 -> 5000, holdout_bars 0 -> 15000, min_segments 10 -> 12) and
+  adds `memory.search.time_budget_hours: 0` (0 = off) so a multi-hour run stops
+  cleanly on a wall-clock budget and ranks whatever it evaluated; the 6h profile
+  stays the default. U4.2 (code) adds `memory.search.method: evolution` to
+  core/strategy/search.py: gen 0 is fresh random, then each generation keeps an
+  elite pool (top `evolution.elite_fraction`, default 0.10) and breeds
+  `evolution.mutate_fraction` (default 0.60) of the next batch from elites
+  (`_mutate` = one-step param jitter / indicator swap / +/-0.05 threshold nudge;
+  `_crossover` = union indicator sets + average shared weights) with ~40% fresh
+  random for exploration. All pure-Python, CPU-light, deduped by `fingerprint()`,
+  and honors `ea_compatible_only` (U2.2). Supersedes structure.md P6.5. Tests are
+  U4.7, docs are U4.8. NEXT: U4.3 (multi-seed stability gate - re-run each
+  finalist with 3 bootstrap seeds; promote only if the score stays positive in
+  ALL runs).
+
 - Phase U3 (Pessimistic, realistic simulation) DONE (2026-07-09). Fixes
   UPGRADE_PLAN diagnosis D3 (the internal backtest was silently optimistic).
   All five execution knobs now DEFAULT to the realistic (pessimistic) behavior;
