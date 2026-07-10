@@ -94,10 +94,18 @@ class DecisionEngine(object):
                  timing: Optional[object] = None,
                  learner_provider: Optional[object] = None,
                  council: Optional[object] = None,
-                 decay_suspects: Optional[object] = None):
+                 decay_suspects: Optional[object] = None,
+                 meta_labeler: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("decision.engine", cfg)
         self.learner = learner
+        # UPGRADE_PLAN U6.1: optional meta-labeling quality gate. When enabled
+        # AND trained for the firing strategy it acts as a VETO-ONLY gate: it can
+        # BLOCK a low-P(win) entry the validated strategy wanted, but never
+        # creates, flips, or resizes a trade. Config-gated (decision.meta_label
+        # .enabled, default OFF); when absent/disabled/untrained it never vetoes,
+        # so the default path is unchanged.
+        self.meta_labeler = meta_labeler
         # Optional callable symbol -> learner for per-symbol ML models (P3.4).
         self.learner_provider = learner_provider
         self.feature_builder = feature_builder
