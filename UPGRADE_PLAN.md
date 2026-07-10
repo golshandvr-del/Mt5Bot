@@ -237,7 +237,7 @@ Everything scales via config; the 6h profile remains available.
       `neighborhood_score` = median neighbor score; registry ranks by
       min(own_score, neighborhood_score). A strategy that dies when RSI period
       moves 14->15 is overfit BY DEFINITION and must not be promoted.
-- [ ] U4.5 (code) Regime-sliced validation: label each walk-forward segment
+- [x] U4.5 (code) Regime-sliced validation: label each walk-forward segment
       by realized volatility tercile (low/mid/high ATR%) and trend strength
       (ADX median). Registry entries store per-regime scores; promotion
       requires not losing catastrophically in any regime (configurable floor,
@@ -339,6 +339,25 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-09 U4.5 DONE - Regime-sliced validation. New config block
+  `memory.search.regime` (enabled / floor_mult / min_segments_per_regime /
+  adx_trend_threshold, default OFF). When on, `WalkForward.evaluate` labels each
+  walk-forward test segment by its realized-volatility tercile (low/mid/high,
+  cut at the RUN'S OWN 33rd/66th percentiles so labels are relative to this
+  instrument) combined with trend strength (median ADX >= adx_trend_threshold ->
+  "trend", else "range"), giving labels like "high_range" / "low_trend".
+  `_regime_scores` averages the per-segment rank scores within each regime that
+  has >= min_segments_per_regime contributing segments, and
+  `passes_regime_floor` fails any strategy whose worst gated-regime score drops
+  below `floor_mult * overall_score` (default -0.5 * overall = "may not lose more
+  than half the overall edge in any single regime"). `StrategySearch.run` folds
+  this into the promotion allowlist alongside the holdout (A2) and stability
+  (U4.3) gates: a regime-fragile spec is RECORDED in memory but never promoted.
+  Everything is computed for free from the base evaluate() run, and with the gate
+  OFF evaluate() attaches no regime fields and the search path is byte-identical
+  to before. Added tests/test_regime_validation.py (6 tests incl. a collapsing-
+  regime rejection and the search-gating integration). Suite -> 148 green. NEXT:
+  U4.6 (search checkpointing / --resume).
 - 2026-07-09 U4.4 DONE - Parameter-neighborhood robustness gate. New config
   block `memory.search.neighborhood` (enabled/n_neighbors, default OFF). When
   on, every base-positive finalist is re-scored at up to `n_neighbors` (default
