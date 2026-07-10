@@ -279,7 +279,7 @@ one verdict file the user can read.
       Paper mode always allowed.
 - [x] U5.4 (test) Gauntlet gates fire on planted fixtures (a cost-fragile
       strategy fails gate 4; a lucky-order strategy fails gate 3).
-- [ ] U5.5 (docs) README "The gauntlet - your pre-flight checklist";
+- [x] U5.5 (docs) README "The gauntlet - your pre-flight checklist";
       sync CODE_MAP/Ideas.
 
 Acceptance: going live is mechanically impossible without a written,
@@ -338,6 +338,20 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 ---
 
 ## 8. Change log (append newest at top)
+
+- 2026-07-10 Phase U5 (Final validation gauntlet) COMPLETE - U5.5 done, so
+  U5.1-U5.5 are all [x]. U5.5 (docs) added the README section "The gauntlet: your
+  pre-flight checklist" (the five pessimistic gates, the
+  backtests/gauntlet_<fingerprint>.md verdict file with its machine-parseable
+  stamps, and the mechanically-enforced `general.live_requires_gauntlet` live
+  gate that refuses to start live without a current PASS for every traded
+  symbol/tf), and synced CODE_MAP (scripts/gauntlet.py gates + app/
+  gauntlet_gate.py) and the Ideas change log. U5.1-U5.4 (the gauntlet script,
+  verdict artifact, live gate module + wiring, and gate tests) landed in earlier
+  sessions. Net effect (Phase U5 acceptance): going live is mechanically
+  impossible without a written, reproducible PASS verdict, and the user always
+  knows WHY a strategy was allowed. NEXT: Phase U6 (non-linear upgrades - all
+  optional and config-gated; U1-U5 are now green).
 
 - 2026-07-10 U4.7 DONE - Deep-search guarantee tests. New
   tests/test_search_evolution_resume.py (17 tests) proves the four required
