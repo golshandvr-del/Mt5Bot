@@ -437,6 +437,22 @@ class DecisionEngine(object):
                     vetoed = True
                     reasons.append("veto_learner=%.3f>=%.2f" % (learn_sig, lvl))
 
+        # U6.1 meta-labeling veto: if a trained gate exists for THIS strategy and
+        # predicts P(win) < min_win_prob, block the entry. Veto-only: it never
+        # creates or resizes a trade, and stays silent when disabled/untrained.
+        if action != 0 and self.meta_labeler is not None:
+            try:
+                veto_ml, p_win = self.meta_labeler.should_veto(
+                    strat.spec, ohlcv, sig=sig)
+                if p_win is not None:
+                    components["meta_win_prob"] = float(p_win)
+                    reasons.append("meta_win_prob=%.3f" % float(p_win))
+                if veto_ml:
+                    vetoed = True
+                    reasons.append("veto_meta_label=1")
+            except Exception as exc:
+                self.log.error("Meta-label veto error for %s: %s", symbol, exc)
+
         if blackout or vetoed:
             components["_blackout"] = 1.0
             final_action = 0
