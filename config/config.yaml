@@ -313,6 +313,18 @@ memory:
       n_seeds: 3             # extra re-runs (each a new seed + warmup jitter)
       warmup_jitter: 20      # +/- bars added to the 60-bar warmup per re-run
       require_all_positive: true  # every run's rank score must be > 0
+    # PARAMETER-NEIGHBORHOOD ROBUSTNESS GATE (U4.4). A strategy that only wins
+    # at an EXACT parameter value (e.g. RSI period 14 but not 13 or 15) is
+    # overfit by definition. When enabled, each finalist that would enter the
+    # registry is re-scored at `n_neighbors` neighboring parameter sets (each
+    # neighbor nudges ONE key param one step in its own param_space). A new
+    # metric `neighborhood_score` = median neighbor score, and the registry
+    # ranks by min(own_score, neighborhood_score) so a knife-edge peak is
+    # demoted below a broad, robust plateau. Only finalists pay the cost, so it
+    # stays CPU-cheap. Default OFF keeps the old ranking (rank by own_score).
+    neighborhood:
+      enabled: false
+      n_neighbors: 8         # neighbors to evaluate per finalist (each 1 step)
     # Metric used to rank strategies in memory.
     rank_metric: "expectancy"   # win_rate, profit_factor, max_drawdown,
                                 #   expectancy, sharpe
