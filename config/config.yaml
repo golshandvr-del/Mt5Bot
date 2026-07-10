@@ -583,6 +583,27 @@ decision:
     require_both: false   # true = BOTH z-test AND relative-drop must trip; false = EITHER trips
     recent_window: 200    # how many most-recent live trades per strategy to assess
 
+  # ---------------------------------------------------------------------- #
+  # Meta-labeling filter (UPGRADE_PLAN Phase U6.1). The single highest-leverage
+  # ML use in the project: instead of predicting DIRECTION (which every
+  # indicator already votes on), a tiny pure-Python logistic regression predicts
+  # "given the validated top-1 strategy is ABOUT TO FIRE here, will THIS trade
+  # win?" from regime/context features (|signal|, ATR%, ADX, hour-of-day,
+  # day-of-week). At live time it is a VETO-ONLY quality gate that composes
+  # cleanly with parity mode: it can BLOCK a low-probability entry the validated
+  # strategy wanted, but it can NEVER create, flip, or resize a trade. It is
+  # trained per strategy fingerprint from the strategy's own historical firings.
+  # DEFAULT OFF and degrades gracefully - an untrained/unavailable model never
+  # vetoes, so the light path is byte-for-byte unchanged when disabled.
+  meta_label:
+    enabled: false        # master switch; when false the gate never vetoes
+    min_win_prob: 0.5     # veto a firing whose predicted P(win) is below this
+    min_train_samples: 50 # below this many historical firings the gate stays inactive
+    learning_rate: 0.1    # gradient-descent step for the logistic regression
+    epochs: 300           # training iterations (deterministic given the seed)
+    horizon: 5            # forward bars used to label a historical firing win/loss
+    model_file: "models/meta_label.json"  # persisted model (dict keyed by fingerprint)
+
 # -----------------------------------------------------------------------------
 # Backtest engine (internal, for "backtest" mode)
 # -----------------------------------------------------------------------------
