@@ -180,6 +180,22 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U4.4 DONE - Parameter-neighborhood robustness gate (2026-07-09). Continues
+  Phase U4 (fixes diagnosis D4): a strategy that only wins at ONE exact parameter
+  value is overfit by definition. New `memory.search.neighborhood` config
+  (enabled/n_neighbors, default OFF). When on, every base-positive finalist is
+  re-scored across up to n_neighbors (default 8) neighbor specs, each one
+  indicator parameter nudged a single step (+/-1) within that indicator's
+  param_space (deterministic, deduped). `_neighbor_specs` builds them and
+  `_neighborhood_score` returns the MEDIAN neighbor walk-forward score (neighbor
+  evals use persist=False so memory stays clean). The search records
+  score_overrides[fp] = min(own_score, neighborhood_score) and the registry ranks
+  by that robust minimum, so a knife-edge spec whose neighbors score poorly is
+  demoted / dropped. Gate off => ranking byte-identical to before. Implemented in
+  core/strategy/search.py; added tests/test_neighborhood_gate.py (5 tests incl. a
+  planted-overfit fixture the min() demotes). NEXT: U4.5 (regime-sliced
+  validation - per-vol/ADX-regime scores with a per-regime loss floor).
+
 - U4.3 DONE - Multi-seed stability gate (2026-07-09). Continues Phase U4 (fixes
   diagnosis D4): a strategy that only wins under one lucky bootstrap seed / warmup
   offset is a knife-edge fluke, not an edge. New `memory.search.stability` config
