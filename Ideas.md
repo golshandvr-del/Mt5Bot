@@ -180,6 +180,22 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U4.3 DONE - Multi-seed stability gate (2026-07-09). Continues Phase U4 (fixes
+  diagnosis D4): a strategy that only wins under one lucky bootstrap seed / warmup
+  offset is a knife-edge fluke, not an edge. New `memory.search.stability` config
+  (enabled/n_seeds/warmup_jitter/require_all_positive, default OFF). When on, any
+  candidate that would enter the registry is re-run n_seeds (default 3) extra
+  times, each with a fresh seed + a warmup jittered +/-warmup_jitter bars, and it
+  is promoted ONLY if its walk-forward rank score stays strictly positive in every
+  run. Implemented as `_passes_stability_gate` in core/strategy/search.py, hooked
+  into `_eval_one` AFTER the holdout gate and only for base-positive finalists, so
+  it stays CPU-cheap. `WalkForward.evaluate` gained a `warmup` arg (re-runs use
+  persist=False so memory is never polluted; jitter is seeded from the fingerprint
+  for reproducibility). Added tests/test_stability_gate.py (5 tests). Suite -> 138
+  green. NEXT: U4.4 (parameter-neighborhood robustness - for each finalist,
+  evaluate 8 one-step-nudged neighbors; rank by min(own, median-neighbor) score
+  so a strategy that dies when RSI period moves 14->15 is rejected as overfit).
+
 - U4.1 + U4.2 DONE - Deep, smart search begins (2026-07-09). Fixes UPGRADE_PLAN
   diagnosis D4: a long search should find ROBUST strategies, not fast lucky ones.
   U4.1 (config only) documents a "deep" profile in config.yaml (max_trials 400 ->
