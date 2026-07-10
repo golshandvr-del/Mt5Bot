@@ -248,26 +248,36 @@ def gate_monte_carlo(cfg, gate1, n_shuffles, risk_pct, seed=12345):
         idx = int(q * (len(sorted_list) - 1))
         return sorted_list[idx]
 
-    p05 = _pctile(final_equities, 0.05)
-    p95 = _pctile(final_equities, 0.95)
+    final_equity = final_equities[0] if final_equities else init_balance
+    dd50 = _pctile(max_dds, 0.50)
     dd95 = _pctile(max_dds, 0.95)
     risk_of_ruin = ruin_count / float(n_shuffles)
 
-    # Pass when the 5th-percentile final equity is still above the starting
-    # balance (edge survives an unlucky order) AND risk-of-ruin is low.
-    passed = (p05 > init_balance) and (risk_of_ruin <= 0.05)
-    reason = ("shuffles=%d  final_equity 5%%/95%%=%s/%s  maxDD_p95=%s  "
-              "risk_of_ruin=%s (ruin=lose 50%% of %s)" %
-              (n_shuffles, _num(p05, "%.2f"), _num(p95, "%.2f"),
-               _num(dd95, "%.2f"), _pct(risk_of_ruin), _num(init_balance, "%.0f")))
+    # NOTE: the FINAL equity is order-INVARIANT (it is just start + sum(pnls)),
+    # so shuffling cannot change it - the order-dependent risks are the DRAWDOWN
+    # path and the chance of hitting the ruin level along the way. Gate 3 is
+    # therefore judged on those: the worst-case (95th-percentile) max drawdown
+    # must not wipe out the account, AND the risk-of-ruin must be low. A strategy
+    # that is only profitable because its winners happened to land before its
+    # losers (a lucky path) shows a high ruin rate here and fails.
+    dd95_frac = dd95 / init_balance if init_balance > 0 else 1.0
+    passed = (final_equity > init_balance) and (risk_of_ruin <= 0.05) \
+        and (dd95_frac < 0.5)
+    reason = ("shuffles=%d  final_equity=%s (order-invariant)  maxDD p50/p95="
+              "%s/%s (%s of start)  risk_of_ruin=%s (ruin=lose 50%% of %s)" %
+              (n_shuffles, _num(final_equity, "%.2f"),
+               _num(dd50, "%.2f"), _num(dd95, "%.2f"), _pct(dd95_frac),
+               _pct(risk_of_ruin), _num(init_balance, "%.0f")))
     if not passed:
-        reason += "  -> needs 5%% final equity > start AND risk_of_ruin <= 5%%"
+        reason += ("  -> needs final_equity>start AND risk_of_ruin<=5%% AND "
+                   "worst-case maxDD < 50%% of start")
     return {
         "name": "Gate 3 - Monte-Carlo trade-order bootstrap",
         "passed": passed, "reason": reason,
         "metrics": {
-            "final_equity_p05": p05, "final_equity_p95": p95,
-            "max_dd_p95": dd95, "risk_of_ruin": risk_of_ruin,
+            "final_equity": final_equity,
+            "max_dd_p50": dd50, "max_dd_p95": dd95,
+            "max_dd_p95_frac": dd95_frac, "risk_of_ruin": risk_of_ruin,
             "initial_balance": init_balance, "n_trades": len(pnls),
         },
     }
