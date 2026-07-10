@@ -30,6 +30,7 @@ from core.learning.features import FeatureBuilder
 from core.memory.store import MemoryStore
 from core.strategy.council import StrategyCouncil
 from core.strategy.decay_monitor import DecayMonitor
+from core.strategy.meta_label import MetaLabeler
 from core.news.aggregator import NewsAnalyzer
 from core.timing.time_stats import TimeStats
 from core.timing.time_context import TimeContextProvider
@@ -69,6 +70,9 @@ class BotContext(object):
         self._risk: Optional[RiskManager] = None
         self._orders: Optional[OrderManager] = None
         self._engine: Optional[DecisionEngine] = None
+        # UPGRADE_PLAN U6.1: optional meta-labeling gate (built only when
+        # decision.meta_label.enabled is true; loads its persisted model once).
+        self._meta_labeler = None
 
     # ------------------------------------------------------------------ #
     @property
@@ -298,6 +302,26 @@ class BotContext(object):
         return self._orders
 
     @property
+    def meta_labeler(self):
+        """UPGRADE_PLAN U6.1: lazily build the meta-labeling gate.
+
+        Only constructed when decision.meta_label.enabled is true; it loads its
+        persisted model (dict keyed by strategy fingerprint) once. Returns None
+        when disabled so the engine never receives a gate and the default path
+        is unchanged. The config carries project_root (set by the loader) so the
+        model path resolves relative to the repo like other artifacts.
+        """
+        if not bool(self.cfg.get_path("decision.meta_label.enabled", False)):
+            return None
+        if self._meta_labeler is None:
+            self._meta_labeler = MetaLabeler(self.cfg)
+            try:
+                self._meta_labeler.load()
+            except Exception as exc:
+                self.log.error("meta_labeler load failed: %s", exc)
+        return self._meta_labeler
+
+    @property
     def engine(self) -> DecisionEngine:
         if self._engine is None:
             # A5 / P3.4: when per-symbol ML is enabled, give the engine a
@@ -315,6 +339,7 @@ class BotContext(object):
                 learner_provider=provider,
                 council=self.council,
                 decay_suspects=self.decay_suspects(),
+                meta_labeler=self.meta_labeler,
             )
         return self._engine
 
