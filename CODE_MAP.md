@@ -95,7 +95,7 @@ news, decision, execution, config.
       metrics.py                  <- performance metrics + ranking value
       backtester.py               <- fast bar-by-bar single-position simulator
       walk_forward.py             <- rolling out-of-sample eval (+ recency weight)
-      search.py                   <- random/grid strategy search (memory builder)
+      search.py                   <- random/grid/evolution strategy search (memory builder)
       council.py                  <- P5.1 StrategyCouncil: live credibility (UCB1)
       decay_monitor.py            <- P5.5 DecayMonitor: statistical strategy expiry
     memory/
@@ -471,6 +471,22 @@ The "learn from trial-and-error" loop / memory builder.
   indicators, so it is the RECOMMENDED mode for MT5-tester-validated workflows.
   The `_available_directional()` helper applies the filter; the grid path
   already uses only ema+rsi so it is naturally compatible.
+- Evolutionary search (UPGRADE_PLAN U4.2, supersedes structure.md P6.5): when
+  `memory.search.method: evolution`, `run()` delegates to `_run_evolution()`.
+  Generation 0 is fresh random; each later generation keeps an elite pool (top
+  `memory.search.evolution.elite_fraction`, default 0.10 of specs seen so far)
+  and breeds `evolution.mutate_fraction` (default 0.60) of the next batch from
+  those elites, leaving ~40% fresh random for exploration. Pure-Python,
+  CPU-light operators: `_mutate(parent)` jitters ONE indicator param by a single
+  `param_space` step / swaps one indicator / nudges long|short thresholds by
+  +/-0.05; `_crossover(a, b)` unions two elites' indicator sets and averages the
+  weights of shared indicators; `_breed_from_elites()` randomly picks mutate vs
+  crossover. `_jitter_params()` does the single-step param nudge. Every produced
+  spec is re-validated against the live indicator pool and deduped by
+  `spec.fingerprint()` (so nothing is evaluated twice and the elite pool
+  converges), and evolution respects `ea_compatible_only` (U2.2) so a deep run
+  stays 1:1 exportable. Knobs live under `memory.search.evolution.*`; the
+  random/grid methods are unchanged.
 
 ### council.py - `StrategyCouncil` (Phase 5 / P5.1, Track B / B1)
 A pure-stdlib tabular UCB1 bandit that learns a LIVE per-strategy credibility
