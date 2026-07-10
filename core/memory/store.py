@@ -267,7 +267,8 @@ class MemoryStore(object):
                        rank_metric: str = "expectancy",
                        min_trades: int = 30,
                        allowed_fingerprints: Optional[Any] = None,
-                       apply_significance: bool = True
+                       apply_significance: bool = True,
+                       score_overrides: Optional[Dict[str, float]] = None
                        ) -> List[Dict[str, Any]]:
         """
         Return the top-k strategy specs for a symbol/timeframe ranked by the
@@ -291,6 +292,16 @@ class MemoryStore(object):
         significance fields (older results), the missing p-value is treated as
         conservative 1.0 so such legacy specs are filtered out only when the
         filter is enabled.
+
+        score_overrides (U4.4): optional {fingerprint: score} map. When a
+        fingerprint has an override, that value REPLACES its walk-forward
+        average as the ranking key (the search passes
+        min(own_score, median_neighbor_score) here so a knife-edge peak is
+        demoted below a broad robust plateau). The stored avg_score is left
+        intact in the returned entry for transparency; only the ORDER changes.
+        None (default) means no override and the ranking is unchanged.
+        Overrides and recency weighting are mutually independent; if both are
+        active the override wins (it is the intended promotion score).
         """
         k = k or self.top_k
         allowed = None
@@ -336,12 +347,22 @@ class MemoryStore(object):
                 rec_scores = self._recency_weighted_scores(
                     conn, symbol, timeframe, rank_metric, fps
                 )
-                rows = sorted(
-                    rows,
-                    key=lambda r: rec_scores.get(r["fingerprint"],
-                                                 r["avg_score"] or 0.0),
-                    reverse=True,
-                )
+            # U4.4: per-fingerprint ranking override (min(own, neighbor)) takes
+            # precedence over recency/plain-average when present.
+            overrides = dict(score_overrides) if score_overrides else {}
+
+            def _rank_key(r):
+                fp = r["fingerprint"]
+                if fp in overrides:
+                    return overrides[fp]
+                if recency_on:
+                    return rec_scores.get(fp, r["avg_score"] or 0.0)
+                return r["avg_score"] or 0.0
+
+            # Re-rank only when an override or recency weighting is active; with
+            # neither, the SQL AVG(score) DESC order is preserved byte-for-byte.
+            if (recency_on or overrides) and rows:
+                rows = sorted(rows, key=_rank_key, reverse=True)
             results: List[Dict[str, Any]] = []
             for row in rows:
                 fp = row["fingerprint"]
@@ -375,6 +396,10 @@ class MemoryStore(object):
                     entry["recency_score"] = rec_scores.get(
                         fp, row["avg_score"]
                     )
+                if fp in overrides:
+                    # U4.4: expose the robustness-adjusted ranking score
+                    # (min(own, median neighbor)) that decided this spec's rank.
+                    entry["neighborhood_score"] = overrides[fp]
                 results.append(entry)
             conn.close()
             return results
@@ -457,7 +482,8 @@ class MemoryStore(object):
                         rank_metric: str = "expectancy",
                         min_trades: int = 30,
                         allowed_fingerprints: Optional[Any] = None,
-                        apply_significance: bool = True
+                        apply_significance: bool = True,
+                        score_overrides: Optional[Dict[str, float]] = None
                         ) -> Dict[str, Any]:
         """
         Recompute the best strategies for symbol/timeframe and write them into
@@ -474,11 +500,17 @@ class MemoryStore(object):
         (memory.search.significance.enabled: false) or, per-call, by passing
         apply_significance=False (used by the rebuild-registry recovery path so
         an over-strict gate cannot leave the registry empty).
+
+        score_overrides (U4.4): forwarded to top_strategies so the parameter-
+        neighborhood robustness gate can rank finalists by
+        min(own_score, median_neighbor_score) instead of the raw own score.
+        None (default) leaves ranking unchanged.
         """
         best = self.top_strategies(symbol, timeframe, self.top_k,
                                    rank_metric, min_trades,
                                    allowed_fingerprints=allowed_fingerprints,
-                                   apply_significance=apply_significance)
+                                   apply_significance=apply_significance,
+                                   score_overrides=score_overrides)
         registry = read_json(self.registry_path, default={}) or {}
         key = "%s|%s" % (symbol, timeframe)
         registry[key] = {
