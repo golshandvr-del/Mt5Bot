@@ -119,6 +119,24 @@ class StrategySearch(object):
                 self.stability_require_all_positive,
             )
 
+        # U4.4 parameter-neighborhood robustness gate. Only finalists pay the
+        # cost. When on, each finalist is re-scored at up to n_neighbors
+        # neighboring parameter sets (each nudges ONE key param one step); the
+        # registry then ranks by min(own_score, median_neighbor_score) so an
+        # overfit knife-edge peak is demoted below a broad robust plateau.
+        # Default OFF preserves the rank-by-own-score behavior.
+        nb = s.get("neighborhood", {}) if hasattr(s, "get") else {}
+        self.neighborhood_enabled = bool(
+            nb.get("enabled", False)) if hasattr(nb, "get") else False
+        self.neighborhood_n = int(
+            nb.get("n_neighbors", 8)) if hasattr(nb, "get") else 8
+        if self.neighborhood_enabled:
+            self.log.info(
+                "Neighborhood gate ON: finalists re-scored at up to %d "
+                "neighbor(s); registry ranks by min(own, median neighbor).",
+                self.neighborhood_n,
+            )
+
     # ------------------------------------------------------------------ #
     def _passes_stability_gate(self, spec: StrategySpec, ohlcv: Any,
                                point: Optional[float] = None) -> bool:
@@ -159,6 +177,99 @@ class StrategySearch(object):
                     spec.fingerprint(), i + 1, warmup, score)
                 return False
         return True
+
+    # ------------------------------------------------------------------ #
+    def _neighbor_specs(self, spec: StrategySpec) -> List[StrategySpec]:
+        """U4.4: build up to ``neighborhood_n`` neighbors of a finalist, each
+        differing from it by ONE key parameter nudged a single step in its own
+        param_space (both the -1 and +1 directions are offered).
+
+        Enumeration is DETERMINISTIC (sorted indicators, sorted param keys) so
+        the neighborhood is reproducible for a given spec. A neighbor that would
+        be identical to the parent (e.g. the param already sits at an edge and
+        the step is clamped back) is skipped. Only the indicator parameters are
+        perturbed here - thresholds/exits are the strategy's declared operating
+        point, while the param values are what an overfit search latches onto.
+        """
+        neighbors: List[StrategySpec] = []
+        seen_fps = {spec.fingerprint()}
+        limit = max(0, int(self.neighborhood_n))
+        if limit == 0:
+            return neighbors
+        for name in sorted(spec.indicators.keys()):
+            try:
+                cls = get_indicator_class(name)
+            except Exception:
+                continue
+            space = cls.param_space()
+            if not space:
+                continue
+            cur_params = spec.indicators[name]
+            for key in sorted(space.keys()):
+                choices = list(space[key])
+                cur = cur_params.get(key)
+                if cur not in choices or len(choices) < 2:
+                    continue
+                idx = choices.index(cur)
+                for step in (-1, 1):
+                    j = idx + step
+                    if j < 0 or j >= len(choices):
+                        continue
+                    new_params = dict(cur_params)
+                    new_params[key] = choices[j]
+                    new_indicators = {
+                        k: dict(v) for k, v in spec.indicators.items()
+                    }
+                    new_indicators[name] = new_params
+                    child = StrategySpec(
+                        indicators=new_indicators,
+                        weights=dict(spec.weights),
+                        long_threshold=spec.long_threshold,
+                        short_threshold=spec.short_threshold,
+                        sl_atr_mult=spec.sl_atr_mult,
+                        tp_atr_mult=spec.tp_atr_mult,
+                        symbol=spec.symbol, timeframe=spec.timeframe,
+                    )
+                    fp = child.fingerprint()
+                    if fp in seen_fps:
+                        continue
+                    seen_fps.add(fp)
+                    neighbors.append(child)
+                    if len(neighbors) >= limit:
+                        return neighbors
+        return neighbors
+
+    def _neighborhood_score(self, spec: StrategySpec, ohlcv: Any,
+                            point: Optional[float] = None) -> Optional[float]:
+        """U4.4: median walk-forward score across a finalist's parameter
+        neighbors. Returns None when the gate is off or the spec has no
+        perturbable neighbor (so callers fall back to the own score). All
+        neighbor evaluations use persist=False so memory is never polluted.
+        """
+        if not self.neighborhood_enabled or self.neighborhood_n <= 0:
+            return None
+        neighbors = self._neighbor_specs(spec)
+        if not neighbors:
+            return None
+        scores: List[float] = []
+        for child in neighbors:
+            try:
+                res = self.wf.evaluate(child, ohlcv, point=point, persist=False)
+            except Exception as exc:
+                self.log.error("Neighbor eval failed for %s: %s",
+                               child.fingerprint(), exc)
+                continue
+            scores.append(float(res.get("avg_score", 0.0)) if res else 0.0)
+        if not scores:
+            return None
+        scores.sort()
+        n = len(scores)
+        mid = n // 2
+        if n % 2 == 1:
+            median = scores[mid]
+        else:
+            median = (scores[mid - 1] + scores[mid]) / 2.0
+        return median
 
     # ------------------------------------------------------------------ #
     def _available_directional(self) -> List[str]:
@@ -355,16 +466,24 @@ class StrategySearch(object):
         # a no-op and allowed stays None (no filtering), keeping old behavior.
         holdout_on = int(getattr(self.wf, "holdout_bars", 0)) > 0
         # An active promotion allowlist is needed when EITHER the holdout gate
-        # (A2/P1.4) OR the U4.3 stability gate is on. When both are off,
-        # allowed_fps stays None so promotion is unfiltered (legacy behavior).
+        # (A2/P1.4) OR the U4.3 stability gate is on. The U4.4 neighborhood gate
+        # does not filter (it re-ranks), so it does not force an allowlist. When
+        # all filters are off, allowed_fps stays None so promotion is unfiltered
+        # (legacy behavior).
         gating_on = holdout_on or self.stability_enabled
         allowed_fps = set() if gating_on else None
+        # U4.4: per-fingerprint ranking-score override = min(own_score, median
+        # neighbor score). Populated only for finalists when the gate is on;
+        # forwarded to update_registry so the registry ranks by robustness.
+        score_overrides: Dict[str, float] = {}
 
         def _eval_one(spec: StrategySpec):
             """Evaluate + persist one spec once; return its avg_score (or None
             on dedup/error). Updates evaluated / seen / allowed_fps in-place via
             closure. A spec is added to allowed_fps only if it clears BOTH the
-            holdout gate (when on) AND the stability gate (when on)."""
+            holdout gate (when on) AND the stability gate (when on). When the
+            U4.4 neighborhood gate is on, a passing finalist also gets a
+            robustness-adjusted ranking override recorded in score_overrides."""
             fp = spec.fingerprint()
             if fp in seen:
                 return None
@@ -384,6 +503,16 @@ class StrategySearch(object):
                         ok = self._passes_stability_gate(spec, ohlcv, point=point)
                     if ok:
                         allowed_fps.add(fp)
+                # U4.4 neighborhood robustness re-ranking. Compute only for a
+                # still-eligible, base-positive finalist so the cost stays low.
+                # A spec eligible for promotion is: gated -> in allowed_fps;
+                # ungated -> any base-positive spec (they all compete on rank).
+                if self.neighborhood_enabled and score > 0.0:
+                    eligible = (fp in allowed_fps) if gating_on else True
+                    if eligible:
+                        nb = self._neighborhood_score(spec, ohlcv, point=point)
+                        if nb is not None:
+                            score_overrides[fp] = min(score, nb)
                 return score
             except Exception as exc:
                 self.log.error("Evaluation failed for %s: %s", fp, exc)
@@ -418,9 +547,18 @@ class StrategySearch(object):
                 "Promotion gate (%s): %d of %d evaluated specs are eligible.",
                 "+".join(gates), len(allowed_fps), evaluated,
             )
+        if self.neighborhood_enabled:
+            self.log.info(
+                "Neighborhood re-ranking: robustness-adjusted score computed "
+                "for %d finalist(s).", len(score_overrides),
+            )
+        # U4.4: pass the min(own, neighbor) overrides so the registry ranks by
+        # robustness. When the gate is off, score_overrides is empty and the
+        # override is a no-op (ranking is byte-identical to before).
         section = self.memory.update_registry(
             symbol, timeframe, rank_metric=self.rank_metric,
             min_trades=self.min_trades, allowed_fingerprints=allowed_fps,
+            score_overrides=(score_overrides or None),
         )
         self.log.info(
             "Search complete: %d strategies evaluated; %d in registry top.",
