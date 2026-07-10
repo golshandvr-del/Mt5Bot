@@ -340,6 +340,8 @@ memory:
       enabled: false
       floor_mult: -0.5       # per-regime score must be >= floor_mult * overall
       min_segments_per_regime: 2  # a regime with fewer segments is not gated
+      adx_trend_threshold: 25.0   # median ADX >= this labels a segment "trend",
+                                  #   else "range" (Wilder's classic threshold)
     # Metric used to rank strategies in memory.
     rank_metric: "expectancy"   # win_rate, profit_factor, max_drawdown,
                                 #   expectancy, sharpe
