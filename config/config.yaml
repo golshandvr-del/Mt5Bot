@@ -300,6 +300,19 @@ memory:
     # babysat. Combine with a large max_trials so the budget (not the trial
     # count) is the real stopping condition on a deep run.
     time_budget_hours: 0
+    # MULTI-SEED STABILITY GATE (U4.3). A strategy that only wins under one
+    # lucky bootstrap seed / warmup offset is a knife-edge fluke, not an edge.
+    # When enabled, any candidate that would ENTER the registry is re-run
+    # `n_seeds` extra times with a different bootstrap seed AND a jittered warmup
+    # each time; promotion requires the rank score to stay STRICTLY POSITIVE in
+    # every run (the original evaluation plus all re-runs). Only finalists pay
+    # this cost, so it stays CPU-cheap even on a big search. Default OFF keeps
+    # the old behavior; turn it on for deep/live-bound runs.
+    stability:
+      enabled: false
+      n_seeds: 3             # extra re-runs (each a new seed + warmup jitter)
+      warmup_jitter: 20      # +/- bars added to the 60-bar warmup per re-run
+      require_all_positive: true  # every run's rank score must be > 0
     # Metric used to rank strategies in memory.
     rank_metric: "expectancy"   # win_rate, profit_factor, max_drawdown,
                                 #   expectancy, sharpe
