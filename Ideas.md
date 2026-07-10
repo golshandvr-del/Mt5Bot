@@ -180,6 +180,21 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U4.5 DONE - Regime-sliced validation (2026-07-09). Continues Phase U4 (fixes
+  diagnosis D4): a strategy that only prints money in one market regime and
+  bleeds in another is not robust, it is lucky about which regime dominated the
+  test window. New `memory.search.regime` config (enabled / floor_mult /
+  min_segments_per_regime / adx_trend_threshold, default OFF). When on,
+  `WalkForward.evaluate` labels each walk-forward segment by volatility tercile
+  (low/mid/high, cut at the run's own p33/p66) x trend strength (median ADX vs
+  adx_trend_threshold -> trend/range), aggregates a per-regime rank score, and
+  `passes_regime_floor` rejects any strategy whose worst gated regime falls below
+  floor_mult * overall_score. `StrategySearch.run` adds this to the promotion
+  allowlist next to the holdout (A2) and stability (U4.3) gates, so a
+  regime-fragile spec is kept in memory but never promoted. Free-riding on the
+  base evaluate() run; OFF => byte-identical to before. Added
+  tests/test_regime_validation.py (6 tests). Suite -> 148 green. NEXT: U4.6
+  (search checkpointing / --resume).
 - U4.4 DONE - Parameter-neighborhood robustness gate (2026-07-09). Continues
   Phase U4 (fixes diagnosis D4): a strategy that only wins at ONE exact parameter
   value is overfit by definition. New `memory.search.neighborhood` config
