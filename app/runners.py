@@ -155,6 +155,8 @@ def run_train(ctx: BotContext) -> Dict[str, Any]:
     else:
         results["saved"] = False
         log.warning("Learner not ready after training; nothing saved.")
+    # U6.1: also (re)train the meta-labeling gates when enabled (no-op else).
+    results["meta_label"] = train_meta_labelers(ctx, log)
     ctx.shutdown()
     return results
 
@@ -213,7 +215,59 @@ def _run_train_per_symbol(ctx: BotContext, log: Any, tf: str, name: str,
     if not any_saved:
         log.warning("Per-symbol training saved no models "
                     "(insufficient data for every symbol?).")
+    # U6.1: also (re)train the meta-labeling gates when enabled (no-op else).
+    results["meta_label"] = train_meta_labelers(ctx, log)
     ctx.shutdown()
+    return results
+
+
+def train_meta_labelers(ctx: BotContext, log: Any = None) -> Dict[str, Any]:
+    """
+    UPGRADE_PLAN U6.1: train one meta-labeling gate per top registry strategy.
+
+    For each symbol the current top-1 registry strategy is taken and a
+    meta-labeler is trained on the history of that strategy's firings (win/loss
+    labelled by the forward `horizon`-bar move). The gates persist to one JSON
+    file keyed by strategy fingerprint. This runs ONLY when
+    decision.meta_label.enabled is true; otherwise it is a no-op.
+
+    Returns a small summary dict. Never fatal: a symbol with no registry
+    strategy or too few firings is simply skipped (its gate stays inactive, so
+    it can never veto).
+    """
+    if log is None:
+        log = get_logger("app.runners.meta_label", ctx.cfg)
+    if not bool(ctx.cfg.get_path("decision.meta_label.enabled", False)):
+        return {"enabled": False, "trained": []}
+
+    meta = ctx.meta_labeler
+    if meta is None:
+        return {"enabled": False, "trained": []}
+
+    tf = _timeframe(ctx)
+    horizon = int(ctx.cfg.get_path("decision.meta_label.horizon", 5))
+    results: Dict[str, Any] = {"enabled": True, "trained": []}
+    for symbol in _symbols(ctx):
+        top = ctx.memory.load_registry_top(symbol, tf)
+        if not top:
+            log.info("Meta-label: no registry strategy for %s; skipping.",
+                     symbol)
+            continue
+        ohlcv = _load_history(ctx, symbol, tf)
+        if len(ohlcv) < 200:
+            log.warning("Meta-label: not enough data for %s; skipping.", symbol)
+            continue
+        spec = StrategySpec.from_dict(top[0]["spec"])
+        try:
+            ok = meta.train(spec, ohlcv, horizon=horizon)
+        except Exception as exc:
+            log.error("Meta-label training failed for %s: %s", symbol, exc)
+            ok = False
+        results["trained"].append({
+            "symbol": symbol,
+            "fingerprint": spec.fingerprint(),
+            "trained": bool(ok),
+        })
     return results
 
 
