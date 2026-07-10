@@ -31,10 +31,13 @@ All text is standard ASCII English only.
 from __future__ import annotations
 
 import itertools
+import os
 import random
+import time
 from typing import Any, Dict, List, Optional
 
 from core.indicators.registry import get_indicator_class, list_indicators
+from core.strategy.search_checkpoint import SearchCheckpoint, checkpoint_path
 from core.strategy.strategy import StrategySpec
 from core.strategy.walk_forward import WalkForward
 from core.utils.logger import get_logger
@@ -136,6 +139,32 @@ class StrategySearch(object):
                 "neighbor(s); registry ranks by min(own, median neighbor).",
                 self.neighborhood_n,
             )
+
+        # U4.1 wall-clock budget. 0 = OFF (run all max_trials). When > 0 the
+        # search stops CLEANLY as soon as the elapsed time exceeds the budget:
+        # it ranks whatever was evaluated so far and writes the registry
+        # normally, so a 12-24h run never has to be babysat.
+        self.time_budget_hours = float(
+            s.get("time_budget_hours", 0.0)) if hasattr(s, "get") else 0.0
+
+        # U4.6 search checkpointing. Every `checkpoint_every` evaluated trials
+        # the run writes its state (seen fingerprints + trial count + elite
+        # pool) so a --resume can continue without re-evaluating anything.
+        ck = s.get("checkpoint", {}) if hasattr(s, "get") else {}
+        self.checkpoint_every = int(
+            ck.get("checkpoint_every", 25)) if hasattr(ck, "get") else 25
+        self.checkpoint_max_scored = int(
+            ck.get("max_scored", 200)) if hasattr(ck, "get") else 200
+        # Resolve where checkpoints live: next to the memory DB (data_store/).
+        db_file = self.cfg.get_path("memory.db_file", "data_store/memory.sqlite")
+        self._data_dir = os.path.dirname(db_file) or "data_store"
+
+    # ------------------------------------------------------------------ #
+    def _budget_expired(self, start_time: float) -> bool:
+        """U4.1: True once the wall-clock budget (if any) has elapsed."""
+        if self.time_budget_hours <= 0.0:
+            return False
+        return (time.time() - start_time) >= (self.time_budget_hours * 3600.0)
 
     # ------------------------------------------------------------------ #
     def _passes_stability_gate(self, spec: StrategySpec, ohlcv: Any,
