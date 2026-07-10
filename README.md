@@ -535,6 +535,63 @@ by the neighborhood and regime gates.
 
 ---
 
+## The gauntlet: your pre-flight checklist
+
+A strategy that looks good in search still has not *earned* live money. Phase U5
+adds a single scripted **gauntlet** - a fixed sequence of pessimistic stress
+tests - that the current registry **top-1** strategy must pass before the bot
+will let you go live. It produces one human-readable verdict file you can read
+in under a minute.
+
+### Running it
+
+```bash
+python scripts/gauntlet.py --symbol XAUUSD --tf M15
+# more Monte-Carlo shuffles / a custom warmup:
+python scripts/gauntlet.py --symbol XAUUSD --tf M15 --mc 1000 --warmup 60
+```
+
+It reads only the memory registry + your price history (no search, no live
+orders) and uses the *same pessimistic backtester* as everything else (Phase
+U3), so its numbers are honest. It exits `0` on PASS and `1` on FAIL, so you can
+chain it in a script.
+
+### The five gates (all deliberately pessimistic)
+
+| # | Gate | What it proves | Fails when |
+|---|------|----------------|-----------|
+| 1 | **Full-history backtest** | Net-profitable with positive expectancy over ALL bars under the pessimistic sim. | The raw edge is not there. |
+| 2 | **Locked holdout** | Re-scored on the last `memory.walk_forward.holdout_bars` bars the search never saw - the edge survives out-of-sample. | It only worked on data it was tuned on. |
+| 3 | **Monte-Carlo trade order** | Reshuffles the trade sequence (default 1000x) into 5%/95% equity envelopes, a max-drawdown distribution and a **risk-of-ruin** estimate. Requires final equity > start AND risk-of-ruin <= 5%. | The result depended on a *lucky ordering* of trades. |
+| 4 | **Cost stress** | Re-runs with spread x1.5 and x2. The edge **must** survive x1.5 (x2 is informational). | The edge is really just an under-costed illusion. |
+| 5 | **Worst-case start** | Equity over the worst rolling 3-month window is not catastrophic. | A bad entry point would have wiped you out. |
+
+### The verdict file
+
+The run writes `backtests/gauntlet_<fingerprint>.md` with a PASS/FAIL line per
+gate, the reasoning, and the headline numbers (plus two machine-parseable
+stamps: `created_at_epoch` and `overall_pass`). A FAIL prints exactly which gate
+and why. Keep these verdicts - they are your written record of *why* a strategy
+was ever allowed to trade.
+
+### The live gate (mechanically enforced)
+
+`general.live_requires_gauntlet` (**default `true`**) makes **live mode refuse to
+start** unless a PASS verdict exists for the top-1 strategy of every traded
+symbol/timeframe *and* that verdict is **newer than the last search** that built
+the registry (`app/gauntlet_gate.py`). This closes the last loophole: a strategy
+re-promoted after its last gauntlet run is treated as un-vetted until you re-run
+the gauntlet. **Paper / backtest / search / train are never blocked**, and a
+symbol with no promoted strategy does not block (there is nothing to trade). The
+gate *fails loudly*: any error while checking is treated as a BLOCK, so a parsing
+bug can never quietly let un-vetted money trade. Set the flag to `false` only if
+you accept full responsibility for going live without a verdict.
+
+> Going live is therefore **mechanically impossible** without a written,
+> reproducible PASS - and you always know *why* a strategy was allowed.
+
+---
+
 ## Exporting history and backtesting in MT5
 
 The bot's internal backtester is a **fast relative-ranking** simulator used
