@@ -40,6 +40,22 @@ from core.utils import trade_log
 # --------------------------------------------------------------------------- #
 # Helpers shared by runners.
 # --------------------------------------------------------------------------- #
+def _live_gauntlet_gate(ctx: BotContext, log: Any):
+    """U5.3: evaluate the live pre-flight gauntlet gate for all traded symbols.
+
+    Returns a GauntletGateResult. Imported lazily so a checking-side import
+    problem can never break paper/backtest/search/train modes.
+    """
+    from app.gauntlet_gate import check_live_allowed, GauntletGateResult
+    try:
+        return check_live_allowed(ctx.cfg, ctx.memory,
+                                  _symbols(ctx), _timeframe(ctx))
+    except Exception as exc:  # fail closed - block live on any gate error
+        log.error("Gauntlet gate evaluation errored: %s", exc)
+        return GauntletGateResult(
+            False, ["gauntlet gate errored (blocking for safety): %s" % exc])
+
+
 def _symbols(ctx: BotContext) -> List[str]:
     # This bot is dedicated to XAUUSD, so the safety fallback (used only if
     # mt5.symbols is missing/empty in config) is XAUUSD - never a random FX pair.
@@ -467,12 +483,38 @@ def _backtest_config_snapshot(cfg: Any) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # PAPER / LIVE (all phases combined via the decision engine)
 # --------------------------------------------------------------------------- #
-def run_once(ctx: BotContext) -> Dict[str, Any]:
+def run_once(ctx: BotContext, mode: Optional[str] = None) -> Dict[str, Any]:
     """
     Single decision pass over all symbols: load latest bars, refresh news,
     ask the decision engine, and execute (paper=log only, live=send order).
+
+    `mode` is the effective runtime mode (CLI --mode overrides config). When it
+    resolves to "live", the U5.3 pre-flight gauntlet gate runs FIRST: if
+    `general.live_requires_gauntlet` is true (default) and any traded symbol's
+    registry top-1 lacks a current PASS gauntlet verdict, the live pass is
+    REFUSED before a single order can be sent. Paper mode is never blocked.
     """
     log = get_logger("app.runners.trade", ctx.cfg)
+    effective_mode = (mode or ctx.cfg.get_path("general.mode", "paper")).lower()
+
+    # U5.3: live pre-flight gauntlet gate. Fail closed - going live without a
+    # written PASS verdict for the top-1 strategy is mechanically impossible.
+    if effective_mode == "live":
+        gate = _live_gauntlet_gate(ctx, log)
+        if not gate.allowed:
+            for reason in gate.reasons:
+                log.error("Gauntlet gate: %s", reason)
+            log.error("LIVE start REFUSED by the gauntlet gate. Run the "
+                      "gauntlet or set general.live_requires_gauntlet: false "
+                      "(not recommended).")
+            return {
+                "mode": "live",
+                "blocked": "gauntlet_gate",
+                "reasons": gate.reasons,
+            }
+        for reason in gate.reasons:
+            log.info("Gauntlet gate: %s", reason)
+
     tf = _timeframe(ctx)
     connected = ctx.connect_mt5()
 
@@ -537,10 +579,15 @@ def run_once(ctx: BotContext) -> Dict[str, Any]:
     return outcomes
 
 
-def run_loop(ctx: BotContext, iterations: int = 0, sleep_seconds: int = 60) -> None:
+def run_loop(ctx: BotContext, iterations: int = 0, sleep_seconds: int = 60,
+             mode: Optional[str] = None) -> None:
     """
     Repeatedly run_once with a sleep between passes. iterations=0 means run
     forever (until interrupted). Intended for the run_bot script / VPS use.
+
+    `mode` (the effective trading mode, e.g. "live") is forwarded to every
+    run_once pass so the U5.3 live gauntlet gate is enforced on the loop path
+    too. A live loop that fails the gate is refused on the very first pass.
     """
     log = get_logger("app.runners.loop", ctx.cfg)
     count = 0
@@ -551,7 +598,12 @@ def run_loop(ctx: BotContext, iterations: int = 0, sleep_seconds: int = 60) -> N
             # Rebuild a fresh context each pass so config edits and new data are
             # picked up, and to avoid holding an MT5 connection during sleep.
             fresh = BotContext()
-            run_once(fresh)
+            outcome = run_once(fresh, mode=mode)
+            # U5.3: if the live gate refused this pass, stop the loop instead of
+            # spinning forever while blocked.
+            if isinstance(outcome, dict) and outcome.get("blocked"):
+                log.error("Trade loop stopping: %s", outcome.get("blocked"))
+                break
             count += 1
             if iterations and count >= iterations:
                 log.info("Reached %d iterations; stopping loop.", iterations)
@@ -578,6 +630,6 @@ def dispatch(mode: str, config_path: Optional[str] = None) -> Any:
     if mode == "backtest":
         return run_backtest(ctx)
     if mode in ("paper", "live"):
-        return run_once(ctx)
+        return run_once(ctx, mode=mode)
     log.error("Unknown mode '%s'. Use train/search/backtest/paper/live.", mode)
     return {"error": "unknown_mode", "mode": mode}

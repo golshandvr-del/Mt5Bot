@@ -108,8 +108,13 @@ def main(argv=None) -> int:
 
     if mode == "loop":
         # Continuous trading loop uses its own fresh contexts each pass.
+        loop_mode = (args.mode or ctx.cfg.get_path("general.mode", "paper")).lower()
+        if loop_mode == "loop":
+            # --mode loop with no trading mode in config falls back to config's
+            # general.mode via run_once; pass None so run_once resolves it.
+            loop_mode = ctx.cfg.get_path("general.mode", "paper").lower()
         runners.run_loop(ctx, iterations=args.iterations,
-                         sleep_seconds=args.sleep)
+                         sleep_seconds=args.sleep, mode=loop_mode)
         return 0
 
     if mode == "train":
@@ -126,7 +131,7 @@ def main(argv=None) -> int:
     elif mode == "backtest":
         result = runners.run_backtest(ctx)
     elif mode in ("paper", "live"):
-        result = runners.run_once(ctx)
+        result = runners.run_once(ctx, mode=mode)
     else:
         print("Unknown mode '%s'. Use train/search/rebuild-registry/backtest/"
               "paper/live/loop." % mode)
