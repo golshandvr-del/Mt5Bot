@@ -83,6 +83,14 @@ def _parse_args(argv):
         help="For --mode rebuild-registry: override "
              "memory.search.significance.max_pvalue (raise it to be lenient).",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="For --mode search (U4.6): resume from the last checkpoint "
+             "instead of starting fresh. Already-evaluated fingerprints are "
+             "skipped, the trial count / elite pool continue. Safe to pass "
+             "even when no checkpoint exists (then it just starts fresh).",
+    )
     return parser.parse_args(argv)
 
 
@@ -107,7 +115,7 @@ def main(argv=None) -> int:
     if mode == "train":
         result = runners.run_train(ctx)
     elif mode == "search":
-        result = runners.run_search(ctx)
+        result = runners.run_search(ctx, resume=args.resume)
     elif mode in ("rebuild-registry", "rebuild_registry"):
         result = runners.run_rebuild_registry(
             ctx,

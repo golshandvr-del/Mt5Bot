@@ -204,8 +204,13 @@ def _run_train_per_symbol(ctx: BotContext, log: Any, tf: str, name: str,
 # --------------------------------------------------------------------------- #
 # SEARCH (Phase 3) - the memory builder
 # --------------------------------------------------------------------------- #
-def run_search(ctx: BotContext) -> Dict[str, Any]:
-    """Run the strategy/parameter search and persist results to memory."""
+def run_search(ctx: BotContext, resume: bool = False) -> Dict[str, Any]:
+    """Run the strategy/parameter search and persist results to memory.
+
+    U4.6: when ``resume`` is True, each per-symbol search continues from its
+    last checkpoint (skipping already-evaluated fingerprints) instead of
+    starting fresh - so a rebooted 24h run does not throw away its progress.
+    """
     log = get_logger("app.runners.search", ctx.cfg)
     ctx.connect_mt5()
     tf = _timeframe(ctx)
@@ -224,7 +229,7 @@ def run_search(ctx: BotContext) -> Dict[str, Any]:
                         symbol, len(ohlcv))
             continue
         log.info("Searching strategies for %s %s ...", symbol, tf)
-        res = search.run(ohlcv, symbol, tf)
+        res = search.run(ohlcv, symbol, tf, resume=resume)
         entry = {
             "evaluated": res.get("evaluated", 0),
             "top": len(res.get("registry", {}).get("top", [])),
