@@ -300,6 +300,20 @@ memory:
     # babysat. Combine with a large max_trials so the budget (not the trial
     # count) is the real stopping condition on a deep run.
     time_budget_hours: 0
+    # SEARCH CHECKPOINTING (U4.6). A deep 12-24h run must survive a reboot /
+    # crash without throwing away hours of compute. Every `checkpoint_every`
+    # evaluated trials the search atomically writes its STATE (the set of
+    # fingerprints already tried, the running trial count, and the current
+    # evolutionary elite pool) to data_store/search_ckpt_<SYMBOL>_<TF>.json.
+    # Re-launch with `python main.py --mode search --resume` and the run picks
+    # up exactly where it stopped: already-seen fingerprints are skipped (never
+    # re-evaluated), the trial count / time budget continue, and evolution
+    # resumes from the restored elite pool. The SQLite results table already
+    # persists every RESULT; this only adds the search state on top. Set
+    # checkpoint_every: 0 to disable checkpoint writes entirely.
+    checkpoint:
+      checkpoint_every: 25   # write the checkpoint every N evaluated trials
+      max_scored: 200        # cap on top specs stored (rebuilds the elite pool)
     # MULTI-SEED STABILITY GATE (U4.3). A strategy that only wins under one
     # lucky bootstrap seed / warmup offset is a knife-edge fluke, not an edge.
     # When enabled, any candidate that would ENTER the registry is re-run
