@@ -74,6 +74,126 @@ class WalkForward(object):
         self.recency_decay = self._read_recency_decay(wf)
         self.rank_metric = cfg.get_path("memory.search.rank_metric", "expectancy")
         self.min_trades = int(cfg.get_path("memory.search.min_trades", 30))
+        # Regime-sliced validation (U4.5). When enabled, each walk-forward
+        # segment is labelled by its realized-volatility tercile and its trend
+        # strength (ADX), per-regime scores are aggregated, and the promotion
+        # gate requires no regime to fall below floor_mult * overall score.
+        # Default OFF keeps the previous behavior.
+        rg = cfg.get_path("memory.search.regime", {})
+        rg = rg if hasattr(rg, "get") else {}
+        self.regime_enabled = bool(rg.get("enabled", False))
+        try:
+            self.regime_floor_mult = float(rg.get("floor_mult", -0.5))
+        except (TypeError, ValueError):
+            self.regime_floor_mult = -0.5
+        try:
+            self.regime_min_segments = int(rg.get("min_segments_per_regime", 2))
+        except (TypeError, ValueError):
+            self.regime_min_segments = 2
+        if self.regime_min_segments < 1:
+            self.regime_min_segments = 1
+
+    # ------------------------------------------------------------------ #
+    # Regime labelling (U4.5). Pure-Python, no external deps.
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _segment_volatility(ohlcv_slice: Any) -> float:
+        """Realized volatility proxy for a segment: mean of (high-low)/close.
+
+        This is an ATR%-like measure that needs no indicator warmup and is
+        robust on any instrument (it is a fraction of price). Returns 0.0 on an
+        empty/degenerate slice.
+        """
+        highs = getattr(ohlcv_slice, "high", None) or []
+        lows = getattr(ohlcv_slice, "low", None) or []
+        closes = getattr(ohlcv_slice, "close", None) or []
+        n = min(len(highs), len(lows), len(closes))
+        if n <= 0:
+            return 0.0
+        acc = 0.0
+        cnt = 0
+        for i in range(n):
+            c = closes[i]
+            if c:
+                acc += abs(highs[i] - lows[i]) / abs(c)
+                cnt += 1
+        return (acc / cnt) if cnt > 0 else 0.0
+
+    def _segment_trend_strength(self, ohlcv_slice: Any) -> float:
+        """Median ADX over a segment (trend strength). Falls back to 0.0 when
+        ADX cannot be computed (too-short slice / degenerate data), which the
+        caller treats as 'range' - the conservative label."""
+        try:
+            from core.indicators.registry import get_indicator_class
+            adx = get_indicator_class("adx")(params={"period": 14})
+            res = adx.compute(ohlcv_slice)
+            series = res.get("adx") if res else None
+        except Exception:
+            series = None
+        if not series:
+            return 0.0
+        vals = [v for v in series if v is not None]
+        if not vals:
+            return 0.0
+        vals.sort()
+        m = len(vals)
+        mid = m // 2
+        if m % 2 == 1:
+            return float(vals[mid])
+        return float((vals[mid - 1] + vals[mid]) / 2.0)
+
+    @staticmethod
+    def _vol_tercile(vol: float, cutoffs: List[float]) -> str:
+        """Map a segment volatility to low/mid/high using two cutoffs (the
+        33rd/66th percentiles computed across the run's segments)."""
+        if not cutoffs or len(cutoffs) < 2:
+            return "mid"
+        if vol <= cutoffs[0]:
+            return "low"
+        if vol <= cutoffs[1]:
+            return "mid"
+        return "high"
+
+    @staticmethod
+    def _terciles(values: List[float]) -> List[float]:
+        """Return [p33, p66] cutoffs of a list of floats (sorted, nearest-rank).
+        Empty/short lists yield equal cutoffs so everything lands in 'mid'."""
+        vals = sorted(float(v) for v in values)
+        if not vals:
+            return [0.0, 0.0]
+        n = len(vals)
+
+        def _pct(p):
+            idx = int(round(p * (n - 1)))
+            idx = max(0, min(n - 1, idx))
+            return vals[idx]
+        return [_pct(1.0 / 3.0), _pct(2.0 / 3.0)]
+
+    def _regime_scores(self, seg_labels: List[str],
+                       scores: List[float]) -> Dict[str, float]:
+        """Average the per-segment rank scores within each regime label. Only
+        regimes with >= regime_min_segments contributing segments are returned
+        (a regime seen too rarely is not trustworthy enough to gate on)."""
+        buckets: Dict[str, List[float]] = {}
+        for label, score in zip(seg_labels, scores):
+            buckets.setdefault(label, []).append(float(score))
+        out: Dict[str, float] = {}
+        for label, vals in buckets.items():
+            if len(vals) >= self.regime_min_segments:
+                out[label] = sum(vals) / len(vals)
+        return out
+
+    def passes_regime_floor(self, overall_score: float,
+                            regime_scores: Dict[str, float]) -> bool:
+        """U4.5 promotion gate: no gated regime may score below
+        floor_mult * overall_score. Disabled / empty -> pass (no-op)."""
+        if not self.regime_enabled or not regime_scores:
+            return True
+        floor = self.regime_floor_mult * float(overall_score)
+        for label, score in regime_scores.items():
+            if score < floor:
+                return False
+        return True
 
     def _min_train_floor(self) -> int:
         """Smallest train window we are willing to shrink to when chasing
