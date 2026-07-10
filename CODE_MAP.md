@@ -487,6 +487,22 @@ The "learn from trial-and-error" loop / memory builder.
   converges), and evolution respects `ea_compatible_only` (U2.2) so a deep run
   stays 1:1 exportable. Knobs live under `memory.search.evolution.*`; the
   random/grid methods are unchanged.
+- Multi-seed stability gate (UPGRADE_PLAN U4.3): when
+  `memory.search.stability.enabled` is true (default false), any candidate that
+  would ENTER the registry is re-run `stability.n_seeds` (default 3) extra times,
+  each with a different bootstrap seed AND a warmup jittered by +/-
+  `stability.warmup_jitter` bars (default 20, floored at 20); promotion requires
+  the walk-forward rank score to stay STRICTLY positive in EVERY run
+  (`require_all_positive`, default true). Implemented by
+  `_passes_stability_gate(spec, ohlcv, point)` (re-runs use `persist=False` so
+  memory is never polluted; the per-spec jitter offsets are seeded from the
+  fingerprint so the gate is reproducible). It hooks into `_eval_one`: a spec is
+  added to the `allowed_fps` promotion allowlist only after clearing BOTH the
+  holdout gate (when on) AND the stability gate (when on). Because only specs
+  that already scored > 0 and passed the holdout reach the re-runs, "only
+  finalists pay the cost." When both holdout and stability are off, `allowed_fps`
+  stays None and promotion is unfiltered (legacy behavior). `WalkForward.evaluate`
+  gained a `warmup` arg so the gate can slide the warmup offset.
 
 ### council.py - `StrategyCouncil` (Phase 5 / P5.1, Track B / B1)
 A pure-stdlib tabular UCB1 bandit that learns a LIVE per-strategy credibility
