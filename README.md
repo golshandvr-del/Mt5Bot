@@ -263,6 +263,7 @@ python main.py --mode paper    # single decision pass, logs intended orders only
 python main.py --mode live     # single pass, sends real MT5 orders (careful!)
 python main.py --mode backtest # internal walk-forward backtest report
 python main.py --mode search   # Phase 3 strategy/parameter search (build memory)
+python main.py --mode search --resume  # continue an interrupted deep search (U4.6)
 python main.py --mode rebuild-registry  # rebuild the registry from stored memory
 python main.py --mode train    # Phase 1 offline learner training
 python main.py --mode loop     # continuous paper/live loop (for a VPS)
@@ -461,6 +462,75 @@ lot clamp; the daily breaker cuts the trade count; too-tight stops are rejected.
 and archive the before/after metric deltas in
 `backtests/realism_baseline.md` (a template is committed there) so you have a
 written record of how much the pessimism moved the numbers on *your* data.
+
+---
+
+## Deep search profile - what 24 hours buys you
+
+The defaults in `config.yaml` are the fast **~6h research profile** (a few
+hundred random trials) - enough to sanity-check the pipeline. But the whole
+point of the Phase U4 overhaul is that you can point the bot at years of real
+gold history and let it grind for **12-24 hours** to surface strategies that are
+robust, not lucky. Diagnosis **D4** in `UPGRADE_PLAN.md` was "the search is too
+shallow": a short random sweep finds knife-edge overfits that die in the MT5
+Strategy Tester. The deep profile fixes that with five cooperating mechanisms.
+
+### Turning it on
+
+All of these live under `memory.search` / `memory.walk_forward` in
+`config/config.yaml`. The comments there are authoritative; the summary:
+
+| Knob | Fast (default) | Deep (24h) | Why |
+|------|----------------|-----------|-----|
+| `memory.search.method` | `random` | `evolution` | **U4.2** Keep an elite pool and *breed* the next generation (mutate one param step, swap one indicator, nudge thresholds/exits, or cross two elites); ~60% bred, ~40% fresh random. Dedups by fingerprint so no spec is scored twice. Converges on what works instead of blind sampling. |
+| `memory.search.max_trials` | `400` | `4000+` | Give evolution room to explore. On the deep profile the **wall-clock budget**, not the trial count, is the real stop. |
+| `memory.search.time_budget_hours` | `0` (off) | `12`..`24` | **U4.1** Wall-clock cap. The run stops **cleanly** the moment the budget elapses - it ranks whatever it evaluated and writes the registry normally, so a long run never needs babysitting. |
+| `memory.search.checkpoint.checkpoint_every` | `25` | `25` | **U4.6** Every N trials the search persists its state (seen fingerprints + trial count + elite pool) to `data_store/search_ckpt_<SYMBOL>_<TF>.json`. A reboot mid-run loses nothing. |
+| `memory.search.stability.enabled` | `false` | `true` | **U4.3** Every would-be-promoted finalist is re-run `n_seeds` extra times (new bootstrap seed + jittered warmup); promotion requires a strictly positive rank score in **every** run. A spec that flips negative when the warmup slides a few bars is a fluke and is dropped. |
+| `memory.search.neighborhood.enabled` | `false` | `true` | **U4.4** Each finalist is re-scored at up to `n_neighbors` parameter sets that each differ by ONE step; the registry ranks by `min(own_score, median_neighbor_score)`, so a knife-edge peak is demoted below a broad, robust plateau. |
+| `memory.search.regime.enabled` | `false` | `true` | **U4.5** Each walk-forward segment is labelled by volatility tercile (low/mid/high) x trend/range, and a candidate is refused promotion if it **collapses in any single regime** (score below `floor_mult` x overall). No more "only makes money in a trending market" surprises. |
+| `memory.walk_forward.min_segments` | `10` | `12+` | More out-of-sample windows = more regimes each strategy must survive. |
+
+### Surviving a reboot: `--resume`
+
+Because a 24h run *will* eventually hit a Windows update or a power blip, the
+search checkpoints itself (**U4.6**). To continue an interrupted run exactly
+where it stopped:
+
+```bash
+python main.py --mode search --resume
+```
+
+The resumed run restores the already-seen fingerprints (so **nothing is
+re-evaluated**), continues the cumulative trial count and time budget, and
+re-seeds the evolutionary elite pool so it keeps converging instead of starting
+cold. A run that reaches `max_trials` finished cleanly and **clears** its
+checkpoint automatically; only an interrupted run leaves one behind for
+`--resume`. A corrupt or foreign checkpoint is ignored (the run just starts
+fresh) - a bad checkpoint can never crash a long run.
+
+### What the 24 hours actually buys
+
+- **Depth**: evolution turns thousands of trials into a *guided* walk toward
+  higher-scoring regions, not an unfocused random sweep.
+- **Robustness, three ways**: the stability (U4.3), neighborhood (U4.4) and
+  regime (U4.5) gates all sit on the **promotion** path. A strategy only enters
+  the registry if it is stable across seeds, robust to small parameter nudges,
+  **and** does not blow up in any single market regime. Fragile overfits are
+  recorded in memory (for learning) but never promoted, never traded.
+- **No wasted compute**: fingerprint dedup + checkpoint/resume mean a
+  multi-day run is fully restartable and never re-scores work it already did.
+
+These guarantees are locked by `tests/test_search_evolution_resume.py` (U4.7):
+the evolutionary operators only ever emit in-param-space, pool-legal specs; the
+time budget stops both the random and evolution paths cleanly before
+`max_trials`; a resumed run provably never re-evaluates a seen fingerprint; and
+a planted knife-edge / regime-collapsing fixture is provably demoted / rejected
+by the neighborhood and regime gates.
+
+> **The deep profile is not "trade this now".** It is "find candidates worth
+> sending to the gauntlet (Phase U5) and then the MT5 Strategy Tester". Nothing
+> here bypasses the golden rule: only trade what was validated end-to-end.
 
 ---
 
