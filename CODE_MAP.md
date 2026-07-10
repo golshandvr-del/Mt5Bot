@@ -503,6 +503,22 @@ The "learn from trial-and-error" loop / memory builder.
   finalists pay the cost." When both holdout and stability are off, `allowed_fps`
   stays None and promotion is unfiltered (legacy behavior). `WalkForward.evaluate`
   gained a `warmup` arg so the gate can slide the warmup offset.
+- Parameter-neighborhood robustness gate (UPGRADE_PLAN U4.4): when
+  `memory.search.neighborhood.enabled` is true (default false), every
+  base-positive finalist is additionally re-scored across up to
+  `neighborhood.n_neighbors` (default 8) NEIGHBOR specs. `_neighbor_specs(spec)`
+  builds them deterministically: for each indicator (sorted) and each of its
+  params (sorted), it nudges the value one step (+/-1) within that indicator's
+  `param_space`, skipping out-of-range and parent-identical/duplicate
+  fingerprints. `_neighborhood_score(spec, ohlcv, point)` returns the MEDIAN of
+  the neighbors' walk-forward `avg_score` (all neighbor evals use `persist=False`
+  so memory stays clean); it returns None when the gate is off or the spec has no
+  perturbable neighbor, so callers fall back to the own score. `_eval_one` then
+  records `score_overrides[fp] = min(own_score, neighborhood_score)` and passes
+  `score_overrides` into `update_registry`, so the registry RANKS by the robust
+  minimum. A knife-edge strategy whose neighbors score poorly is demoted/dropped
+  (overfit by definition). Gate off => `score_overrides` empty => ranking is
+  byte-identical to before.
 
 ### council.py - `StrategyCouncil` (Phase 5 / P5.1, Track B / B1)
 A pure-stdlib tabular UCB1 bandit that learns a LIVE per-strategy credibility
