@@ -132,3 +132,210 @@ def _num(x, fmt="%.4f"):
         return fmt % float(x)
     except (TypeError, ValueError):
         return "n/a"
+
+
+# --------------------------------------------------------------------------- #
+# Gate 1 - full-history pessimistic backtest.
+# --------------------------------------------------------------------------- #
+def gate_full_history(cfg, spec, ohlcv, warmup):
+    result = _run_bt(cfg, Strategy(spec), ohlcv, warmup, record_trades=True)
+    m = result.metrics or {}
+    net = float(m.get("net_profit", 0.0) or 0.0)
+    exp = float(m.get("expectancy", 0.0) or 0.0)
+    n = int(m.get("num_trades", 0) or 0)
+    passed = (net > 0.0) and (exp > 0.0) and (n >= 1)
+    reason = ("net_profit=%s expectancy=%s num_trades=%d" %
+              (_num(net), _num(exp, "%.6f"), n))
+    if not passed:
+        reason += "  -> needs net_profit>0 AND expectancy>0 AND at least 1 trade"
+    return {
+        "name": "Gate 1 - full-history pessimistic backtest",
+        "passed": passed, "reason": reason, "metrics": m,
+        "result": result,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Gate 2 - locked holdout (last holdout_bars are out-of-sample).
+# --------------------------------------------------------------------------- #
+def gate_holdout(cfg, spec, ohlcv, warmup):
+    hb = _holdout_bars(cfg)
+    if hb <= 0:
+        return {
+            "name": "Gate 2 - locked holdout",
+            "passed": True,
+            "reason": ("holdout disabled (memory.walk_forward.holdout_bars=0); "
+                       "gate SKIPPED (treated as pass). Set holdout_bars>0 for "
+                       "a true out-of-sample check."),
+            "skipped": True, "metrics": {},
+        }
+    n = len(ohlcv)
+    if n <= hb + warmup + 30:
+        return {
+            "name": "Gate 2 - locked holdout",
+            "passed": False,
+            "reason": ("not enough bars (%d) for a %d-bar holdout plus warmup" %
+                       (n, hb)),
+            "metrics": {},
+        }
+    holdout = ohlcv.slice(n - hb, n)
+    result = _run_bt(cfg, Strategy(spec), holdout, warmup, record_trades=False)
+    m = result.metrics or {}
+    net = float(m.get("net_profit", 0.0) or 0.0)
+    exp = float(m.get("expectancy", 0.0) or 0.0)
+    # Out-of-sample: require non-negative net AND non-negative expectancy.
+    passed = (net >= 0.0) and (exp >= 0.0)
+    reason = ("holdout_bars=%d net_profit=%s expectancy=%s num_trades=%s" %
+              (hb, _num(net), _num(exp, "%.6f"), m.get("num_trades")))
+    return {
+        "name": "Gate 2 - locked holdout",
+        "passed": passed, "reason": reason, "metrics": m,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Gate 3 - Monte-Carlo bootstrap of trade ORDER.
+# --------------------------------------------------------------------------- #
+def gate_monte_carlo(cfg, gate1, n_shuffles, risk_pct, seed=12345):
+    """Reshuffle the realized per-trade PnLs to build equity envelopes, a max-DD
+    distribution and a risk-of-ruin estimate. A strategy whose profitability
+    depends on the lucky ORDER of trades fails here."""
+    result = gate1.get("result")
+    pnls = list(getattr(result, "trade_pnls", []) or []) if result else []
+    if len(pnls) < 10:
+        return {
+            "name": "Gate 3 - Monte-Carlo trade-order bootstrap",
+            "passed": False,
+            "reason": ("only %d trades - too few for a meaningful Monte-Carlo "
+                       "(need >= 10)" % len(pnls)),
+            "metrics": {},
+        }
+    init_balance = float(cfg.get_path("backtest.initial_balance", 10000.0)
+                         or 10000.0)
+    ruin_level = init_balance * (1.0 - 0.5)  # ruin = lose 50% of start balance
+
+    rng = random.Random(seed)
+    final_equities = []
+    max_dds = []
+    ruin_count = 0
+    for _ in range(n_shuffles):
+        order = pnls[:]
+        rng.shuffle(order)
+        equity = init_balance
+        peak = equity
+        max_dd = 0.0
+        ruined = False
+        for p in order:
+            equity += p
+            if equity > peak:
+                peak = equity
+            dd = peak - equity
+            if dd > max_dd:
+                max_dd = dd
+            if equity <= ruin_level:
+                ruined = True
+        final_equities.append(equity)
+        max_dds.append(max_dd)
+        if ruined:
+            ruin_count += 1
+
+    final_equities.sort()
+    max_dds.sort()
+
+    def _pctile(sorted_list, q):
+        if not sorted_list:
+            return 0.0
+        idx = int(q * (len(sorted_list) - 1))
+        return sorted_list[idx]
+
+    p05 = _pctile(final_equities, 0.05)
+    p95 = _pctile(final_equities, 0.95)
+    dd95 = _pctile(max_dds, 0.95)
+    risk_of_ruin = ruin_count / float(n_shuffles)
+
+    # Pass when the 5th-percentile final equity is still above the starting
+    # balance (edge survives an unlucky order) AND risk-of-ruin is low.
+    passed = (p05 > init_balance) and (risk_of_ruin <= 0.05)
+    reason = ("shuffles=%d  final_equity 5%%/95%%=%s/%s  maxDD_p95=%s  "
+              "risk_of_ruin=%s (ruin=lose 50%% of %s)" %
+              (n_shuffles, _num(p05, "%.2f"), _num(p95, "%.2f"),
+               _num(dd95, "%.2f"), _pct(risk_of_ruin), _num(init_balance, "%.0f")))
+    if not passed:
+        reason += "  -> needs 5%% final equity > start AND risk_of_ruin <= 5%%"
+    return {
+        "name": "Gate 3 - Monte-Carlo trade-order bootstrap",
+        "passed": passed, "reason": reason,
+        "metrics": {
+            "final_equity_p05": p05, "final_equity_p95": p95,
+            "max_dd_p95": dd95, "risk_of_ruin": risk_of_ruin,
+            "initial_balance": init_balance, "n_trades": len(pnls),
+        },
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Gate 4 - cost stress (spread x1.5 must survive; x2 informational).
+# --------------------------------------------------------------------------- #
+def gate_cost_stress(cfg, spec, ohlcv, warmup):
+    out = {}
+    for mult in (1.5, 2.0):
+        clone = _cfg_with_spread_mult(cfg, mult)
+        res = _run_bt(clone, Strategy(spec), ohlcv, warmup)
+        out[mult] = float((res.metrics or {}).get("net_profit", 0.0) or 0.0)
+    survive_15 = out.get(1.5, 0.0) > 0.0
+    reason = ("net_profit @ spread x1.5=%s  x2.0=%s" %
+              (_num(out.get(1.5)), _num(out.get(2.0))))
+    if not survive_15:
+        reason += "  -> edge must stay net-profitable at spread x1.5"
+    return {
+        "name": "Gate 4 - cost stress (spread x1.5 / x2.0)",
+        "passed": survive_15, "reason": reason,
+        "metrics": {"net_profit_x1_5": out.get(1.5),
+                    "net_profit_x2_0": out.get(2.0)},
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Gate 5 - worst-case rolling 3-month start window.
+# --------------------------------------------------------------------------- #
+def gate_worst_window(cfg, spec, ohlcv, warmup):
+    n = len(ohlcv)
+    win = _bars_per_3_months(ohlcv.timeframe)
+    if n < win + warmup + 30:
+        return {
+            "name": "Gate 5 - worst-case 3-month window",
+            "passed": True,
+            "reason": ("history (%d bars) shorter than a 3-month window (%d); "
+                       "gate SKIPPED (treated as pass)" % (n, win)),
+            "skipped": True, "metrics": {},
+        }
+    # Step through non-overlapping-ish windows (step = win//2) and find the worst
+    # net_profit. The strategy must not lose catastrophically in any window.
+    step = max(1, win // 2)
+    worst_net = None
+    worst_start = 0
+    start = 0
+    while start + win <= n:
+        seg = ohlcv.slice(start, start + win)
+        res = _run_bt(cfg, Strategy(spec), seg, warmup)
+        net = float((res.metrics or {}).get("net_profit", 0.0) or 0.0)
+        if worst_net is None or net < worst_net:
+            worst_net = net
+            worst_start = start
+        start += step
+    init_balance = float(cfg.get_path("backtest.initial_balance", 10000.0)
+                         or 10000.0)
+    # Catastrophic floor: a single 3-month window must not lose more than 25%
+    # of the starting balance.
+    floor = -0.25 * init_balance
+    passed = worst_net is not None and worst_net >= floor
+    reason = ("worst 3-month net_profit=%s (window start bar %d); floor=%s "
+              "(-25%% of %s)" %
+              (_num(worst_net, "%.2f"), worst_start, _num(floor, "%.2f"),
+               _num(init_balance, "%.0f")))
+    return {
+        "name": "Gate 5 - worst-case 3-month window",
+        "passed": passed, "reason": reason,
+        "metrics": {"worst_net_profit": worst_net, "floor": floor,
+                    "window_bars": win},
+    }
