@@ -246,7 +246,7 @@ Everything scales via config; the 6h profile remains available.
       N trials so a 24h run survives a reboot and can resume with
       `--resume`. (SQLite already persists results; this adds the search
       state itself.)
-- [ ] U4.7 (test) Evolution respects param spaces; time budget stops cleanly;
+- [x] U4.7 (test) Evolution respects param spaces; time budget stops cleanly;
       resume continues without re-evaluating fingerprints; neighborhood and
       regime gates provably filter a planted overfit fixture.
 - [ ] U4.8 (docs) README "Deep search profile - what 24 hours buys you";
@@ -338,6 +338,29 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 ---
 
 ## 8. Change log (append newest at top)
+
+- 2026-07-10 U4.7 DONE - Deep-search guarantee tests. New
+  tests/test_search_evolution_resume.py (17 tests) proves the four required
+  properties: (1) EVOLUTION RESPECTS PARAM SPACES - _random_spec / _mutate /
+  _crossover / _breed_from_elites / _neighbor_specs are each hammered 200x and
+  asserted to emit only pool-legal indicators and only in-param_space values
+  (with ea_compatible_only the pool is a strict subset of the full research
+  set); (2) TIME BUDGET STOPS CLEANLY - _budget_expired unit-checked (budget<=0
+  never expires), and both the random and evolution run() paths, given a
+  100000-trial budget but a 0.5s wall-clock budget over a delayed WF stub, halt
+  after >=1 and <100000 trials and still return a ranked registry section;
+  (3) RESUME NO RE-EVAL - checkpoint save/load round-trips seen+evaluated+elite
+  pool, a wrong-run or corrupt checkpoint is ignored (start fresh), a resumed
+  run provably never re-scores a pre-seeded fingerprint and continues the
+  cumulative trial count from the restored offset, and a run that reaches
+  max_trials clears its checkpoint; (4) GATES FILTER OVERFIT - a planted
+  knife-edge spec (high own score, ~0 neighbors) gets a neighborhood median far
+  below own so min(own,nb) demotes it, and a spec collapsing in one regime is
+  refused by passes_regime_floor while the regime gate forces a real promotion
+  allowlist in a live search run. WalkForward is stubbed (_ScriptedWF) where a
+  real run would be slow/non-deterministic; all stdlib, Win7+Py3.8 friendly.
+  NEXT: U4.8 (README "Deep search profile - what 24 hours buys you" + sync
+  CODE_MAP/Ideas/structure.md).
 
 - 2026-07-10 U4.6 DONE - Search checkpointing. `core/strategy/search_checkpoint.py`
   (`SearchCheckpoint`) persists search state to an atomic JSON file (temp-file +
