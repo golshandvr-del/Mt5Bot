@@ -470,7 +470,8 @@ class StrategySearch(object):
         # does not filter (it re-ranks), so it does not force an allowlist. When
         # all filters are off, allowed_fps stays None so promotion is unfiltered
         # (legacy behavior).
-        gating_on = holdout_on or self.stability_enabled
+        regime_on = bool(getattr(self.wf, "regime_enabled", False))
+        gating_on = holdout_on or self.stability_enabled or regime_on
         allowed_fps = set() if gating_on else None
         # U4.4: per-fingerprint ranking-score override = min(own_score, median
         # neighbor score). Populated only for finalists when the gate is on;
@@ -496,9 +497,17 @@ class StrategySearch(object):
                     if holdout_on:
                         gate = self.wf.evaluate_holdout(spec, ohlcv, point=point)
                         ok = bool(gate.get("passed"))
+                    # U4.5 regime floor: reject a spec that collapses in any
+                    # single regime (e.g. loses badly in high-vol range) even if
+                    # its overall score is fine. The verdict was computed for
+                    # free by the base evaluate() run above (res). A spec with no
+                    # gated regimes (too few segments) passes by construction.
+                    if ok and regime_on:
+                        ok = bool(res.get("passes_regime_floor", True))
                     # Only pay for the stability re-runs if the spec is still a
-                    # live finalist (passed holdout, if any) AND scored > 0 in
-                    # the base run; a base-negative spec can never be promoted.
+                    # live finalist (passed holdout+regime, if any) AND scored
+                    # > 0 in the base run; a base-negative spec can never be
+                    # promoted.
                     if ok and score > 0.0 and self.stability_enabled:
                         ok = self._passes_stability_gate(spec, ohlcv, point=point)
                     if ok:
@@ -541,6 +550,8 @@ class StrategySearch(object):
             gates = []
             if holdout_on:
                 gates.append("holdout")
+            if regime_on:
+                gates.append("regime")
             if self.stability_enabled:
                 gates.append("stability")
             self.log.info(
