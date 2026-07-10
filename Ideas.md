@@ -180,6 +180,26 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- Phase U5 (Final validation gauntlet) COMPLETE (2026-07-10, U5.1-U5.5 all [x]).
+  Fixes the last gap before live money: a strategy that looked good in search had
+  never been *stress-tested*. U5.1/U5.2 added `scripts/gauntlet.py` - a fixed
+  sequence of five pessimistic gates on the registry TOP-1 (full-history net
+  profit, locked-holdout out-of-sample, Monte-Carlo trade-order shuffle with a
+  risk-of-ruin estimate, spread x1.5/x2 cost stress, worst rolling 3-month
+  window) that writes ONE verdict `backtests/gauntlet_<fingerprint>.md` with
+  PASS/FAIL + reasoning per gate and two machine-parseable stamps. U5.3 added
+  `app/gauntlet_gate.py`: `general.live_requires_gauntlet` (default true) makes
+  LIVE mode refuse to start unless a current PASS verdict exists for every traded
+  symbol/tf (newer than the last search); paper/backtest/search/train are never
+  gated, a symbol with nothing promoted never blocks, and any checking error is a
+  BLOCK (fail loudly). U5.4 added the gate tests (a cost-fragile strategy fails
+  gate 4, a lucky-order strategy fails gate 3, plus the live-gate recency/PASS
+  logic). U5.5 (this entry) documented it: README "The gauntlet: your pre-flight
+  checklist" (the five gates, the verdict file, and the mechanically-enforced
+  live gate) and synced CODE_MAP (gauntlet.py gates + gauntlet_gate.py). Result:
+  going live is mechanically impossible without a written, reproducible PASS.
+  NEXT: Phase U6 (non-linear upgrades, optional).
+
 - U4.5 DONE - Regime-sliced validation (2026-07-09). Continues Phase U4 (fixes
   diagnosis D4): a strategy that only prints money in one market regime and
   bleeds in another is not robust, it is lucky about which regime dominated the
