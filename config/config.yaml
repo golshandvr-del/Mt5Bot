@@ -27,6 +27,14 @@ general:
   random_seed: 42
   # Timezone used for logging and news alignment (IANA name).
   timezone: "UTC"
+  # U5.3 pre-flight gate: when true (default), LIVE mode refuses to start
+  # unless a PASS gauntlet verdict (backtests/gauntlet_<fingerprint>.md,
+  # produced by scripts/gauntlet.py) exists for the registry top-1 strategy
+  # AND that verdict is newer than the last search that produced the registry.
+  # Paper/backtest/search/train modes are never blocked by this gate. Set to
+  # false only for controlled experiments - going live without a verdict means
+  # trading a strategy that never survived the gauntlet.
+  live_requires_gauntlet: true
 
 # -----------------------------------------------------------------------------
 # Logging
