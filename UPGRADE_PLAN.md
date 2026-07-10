@@ -223,7 +223,7 @@ Everything scales via config; the 6h profile remains available.
       (last ~6 months of M15 locked), min_segments 10 -> 12. Add
       `memory.search.time_budget_hours: 0` (0=off) - stop cleanly and rank
       whatever was evaluated when the budget expires.
-- [ ] U4.2 (code) Evolutionary search (supersedes structure.md P6.5): keep an
+- [x] U4.2 (code) Evolutionary search (supersedes structure.md P6.5): keep an
       elite pool (top ~10%); generate 60% of new specs by mutating/crossing
       elites (jitter one param step, swap one indicator, +/-0.05 thresholds)
       and 40% fresh random for exploration. Dedup via fingerprints. Pure
@@ -339,6 +339,26 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-09 U4.2 DONE - Evolutionary search (Phase U4, fixes diagnosis D4:
+  "spend the budget on ROBUST strategies, not fast lucky ones"). New
+  `memory.search.method: evolution` in core/strategy/search.py: generation 0 is
+  fresh random, then each subsequent generation keeps an elite pool (top
+  `evolution.elite_fraction`, default 0.10) and breeds `evolution.mutate_fraction`
+  (default 0.60) of the next batch from those elites while the remaining ~40% stay
+  fresh random for exploration. Operators are pure-Python and CPU-light: `_mutate`
+  jitters ONE param by a single step / swaps one indicator / nudges thresholds by
+  +/-0.05; `_crossover` unions two elites' indicator sets and averages shared
+  weights; `_breed_from_elites` picks mutate-vs-cross. Every produced spec is
+  validated against the live indicator pool and deduped by `fingerprint()` (so no
+  spec is evaluated twice and the elite pool converges), and evolution honors
+  `ea_compatible_only` (U2.2) so a deep run stays exportable. Config knobs added
+  under `memory.search.evolution` (U4.2 config commit). Supersedes structure.md
+  P6.5. Tests come in U4.7, docs in U4.8. NEXT: U4.3 (multi-seed stability gate).
+- 2026-07-09 U4.1 DONE - Deep-search profile. config.yaml documents a "deep"
+  profile (max_trials 400 -> 4000+, n_boot 1000 -> 5000, holdout_bars 0 ->
+  15000, min_segments 10 -> 12) and adds `memory.search.time_budget_hours: 0`
+  (0 = off) so a long run stops cleanly and ranks whatever was evaluated when the
+  wall-clock budget expires. Config-only; the 6h profile remains the default.
 - 2026-07-09 Phase U3 (Pessimistic, realistic simulation) COMPLETE (U3.1-U3.7
   all [x]). Fixes diagnosis D3: the internal backtester is no longer silently
   optimistic. All five execution knobs live under `backtest.*` and DEFAULT to
