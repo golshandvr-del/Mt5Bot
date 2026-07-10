@@ -242,7 +242,7 @@ Everything scales via config; the 6h profile remains available.
       (ADX median). Registry entries store per-regime scores; promotion
       requires not losing catastrophically in any regime (configurable floor,
       e.g. per-regime expectancy > -0.5 * overall expectancy).
-- [ ] U4.6 (code) Search checkpointing: persist elite pool + trial count every
+- [x] U4.6 (code) Search checkpointing: persist elite pool + trial count every
       N trials so a 24h run survives a reboot and can resume with
       `--resume`. (SQLite already persists results; this adds the search
       state itself.)
@@ -338,6 +338,22 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 ---
 
 ## 8. Change log (append newest at top)
+
+- 2026-07-10 U4.6 DONE - Search checkpointing. `core/strategy/search_checkpoint.py`
+  (`SearchCheckpoint`) persists search state to an atomic JSON file (temp-file +
+  os.replace) alongside the SQLite results DB: the set of already-seen candidate
+  fingerprints, the running trial counter, and the current elite pool. Config
+  block `memory.search` gained `time_budget_hours`, `checkpoint_every` (default
+  25 trials), and `checkpoint_max_scored` (cap on persisted scored-log size).
+  `StrategySearch.run(..., resume=False)` and `_run_evolution` share one
+  scored_log/counter; on `--resume` they load the checkpoint, seed the elite pool,
+  and skip any fingerprint already evaluated. `_budget_expired(start_time)` stops
+  the run cleanly once `time_budget_hours*3600` elapses (budget<=0 disables it),
+  saving a final checkpoint; the checkpoint is cleared on natural completion. The
+  `--resume` flag is threaded main.py -> run_search -> search.run. So a 24h deep
+  run now survives a reboot and continues where it stopped without re-evaluating
+  work. NEXT: U4.7 (tests for param-space respect, clean budget stop, resume
+  no-re-eval, neighborhood + regime gate filtering of planted overfit).
 
 - 2026-07-09 U4.5 DONE - Regime-sliced validation. New config block
   `memory.search.regime` (enabled / floor_mult / min_segments_per_regime /
