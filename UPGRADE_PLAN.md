@@ -263,21 +263,21 @@ regime floors. Fewer, but trustworthy, strategies.
 Goal: a standard, scripted "gauntlet" that any candidate must pass, producing
 one verdict file the user can read.
 
-- [ ] U5.1 (code) `scripts/gauntlet.py --symbol XAUUSD --tf M15`: runs the
+- [x] U5.1 (code) `scripts/gauntlet.py --symbol XAUUSD --tf M15`: runs the
       full sequence on the CURRENT registry top-1: (1) full-history pessimistic
       backtest, (2) locked holdout, (3) Monte-Carlo bootstrap of trade order
       (1000 shuffles -> 5%/95% equity envelopes, max-DD distribution,
       risk-of-ruin estimate at the configured risk%), (4) cost stress
       (spread x1.5 and x2 - edge must survive x1.5), (5) worst-case start
       (equity from the worst rolling 3-month window).
-- [ ] U5.2 (code) Verdict artifact `backtests/gauntlet_<fingerprint>.md`
+- [x] U5.2 (code) Verdict artifact `backtests/gauntlet_<fingerprint>.md`
       with PASS/FAIL per gate and the reasoning, plus the U1 HTML links.
       A FAIL anywhere prints exactly which gate and why.
-- [ ] U5.3 (code+config) `general.live_requires_gauntlet: true` (default) -
+- [x] U5.3 (code+config) `general.live_requires_gauntlet: true` (default) -
       live mode refuses to start unless a PASS verdict exists for the
       registry top strategy fingerprint, and it is newer than the last search.
       Paper mode always allowed.
-- [ ] U5.4 (test) Gauntlet gates fire on planted fixtures (a cost-fragile
+- [x] U5.4 (test) Gauntlet gates fire on planted fixtures (a cost-fragile
       strategy fails gate 4; a lucky-order strategy fails gate 3).
 - [ ] U5.5 (docs) README "The gauntlet - your pre-flight checklist";
       sync CODE_MAP/Ideas.
