@@ -188,13 +188,20 @@ class WalkForward(object):
 
     def evaluate(self, spec: StrategySpec, ohlcv: Any,
                  point: Optional[float] = None,
-                 persist: bool = True) -> Dict[str, Any]:
+                 persist: bool = True,
+                 warmup: int = 60) -> Dict[str, Any]:
         """
         Run walk-forward for one strategy spec over the full OHLCV history.
 
         Returns an aggregate dict with per-segment metrics and the average score.
         If persist=True and a MemoryStore was supplied, each segment result is
         stored so the memory can rank strategies later.
+
+        ``warmup`` (default 60) is the number of leading bars each segment skips
+        so indicators are stable. The U4.3 stability gate re-runs a finalist with
+        a JITTERED warmup (via this arg) to prove its edge is not a knife-edge
+        artifact of one particular warmup offset. Stability re-runs pass
+        persist=False so they never pollute memory.
         """
         n = len(ohlcv.close)
         segs = self.segments(n)
@@ -216,7 +223,7 @@ class WalkForward(object):
         for idx, seg in enumerate(segs):
             test_slice = ohlcv.slice(seg["test_start"], seg["test_end"])
             result = self.backtester.run(
-                strategy, test_slice, warmup=60, point=point,
+                strategy, test_slice, warmup=warmup, point=point,
                 record_trades=want_trades,
             )
             seg_metrics.append(result.metrics)
