@@ -96,6 +96,70 @@ class StrategySearch(object):
         self.evo_mutate_fraction = float(
             evo.get("mutate_fraction", 0.60)) if hasattr(evo, "get") else 0.60
 
+        # U4.3 multi-seed stability gate. Only candidates that would enter the
+        # registry pay the cost, so it stays cheap. Default OFF preserves old
+        # behavior. When on, a finalist is re-run n_seeds extra times (each with
+        # a different bootstrap seed + jittered warmup); promotion requires the
+        # rank score to stay strictly positive in every run.
+        stab = s.get("stability", {}) if hasattr(s, "get") else {}
+        self.stability_enabled = bool(
+            stab.get("enabled", False)) if hasattr(stab, "get") else False
+        self.stability_n_seeds = int(
+            stab.get("n_seeds", 3)) if hasattr(stab, "get") else 3
+        self.stability_warmup_jitter = int(
+            stab.get("warmup_jitter", 20)) if hasattr(stab, "get") else 20
+        self.stability_require_all_positive = bool(
+            stab.get("require_all_positive", True)) \
+            if hasattr(stab, "get") else True
+        if self.stability_enabled:
+            self.log.info(
+                "Stability gate ON: finalists re-run %d extra seed(s), "
+                "warmup jitter +/-%d bars, require_all_positive=%s.",
+                self.stability_n_seeds, self.stability_warmup_jitter,
+                self.stability_require_all_positive,
+            )
+
+    # ------------------------------------------------------------------ #
+    def _passes_stability_gate(self, spec: StrategySpec, ohlcv: Any,
+                               point: Optional[float] = None) -> bool:
+        """U4.3: re-run a would-be-promoted spec under different bootstrap seeds
+        and jittered warmups; require its rank score to stay strictly positive in
+        EVERY run. A strategy that flips negative when the warmup slides a few
+        bars, or under a different resample seed, is a knife-edge fluke and must
+        not be promoted. Returns True (pass) when the gate is disabled.
+
+        Cheap by design: only specs that already cleared the base score / holdout
+        reach here. All re-runs use persist=False so memory is never polluted.
+        """
+        if not self.stability_enabled or self.stability_n_seeds <= 0:
+            return True
+        base_warmup = 60
+        # Deterministic per-spec jitter offsets so the gate is reproducible: seed
+        # a local RNG from the spec fingerprint. Offsets straddle the base warmup.
+        rng = random.Random(hash(spec.fingerprint()) & 0x7FFFFFFF)
+        jitter = max(0, int(self.stability_warmup_jitter))
+        for i in range(int(self.stability_n_seeds)):
+            if jitter > 0:
+                offset = rng.randint(-jitter, jitter)
+            else:
+                offset = 0
+            warmup = max(20, base_warmup + offset)
+            try:
+                res = self.wf.evaluate(spec, ohlcv, point=point,
+                                       persist=False, warmup=warmup)
+            except Exception as exc:
+                self.log.error("Stability re-run failed for %s: %s",
+                               spec.fingerprint(), exc)
+                return False
+            score = float(res.get("avg_score", 0.0)) if res else 0.0
+            if self.stability_require_all_positive and score <= 0.0:
+                self.log.info(
+                    "  [stability] %s REJECTED: re-run %d (warmup=%d) "
+                    "score=%.4f <= 0.",
+                    spec.fingerprint(), i + 1, warmup, score)
+                return False
+        return True
+
     # ------------------------------------------------------------------ #
     def _available_directional(self) -> List[str]:
         registered = set(list_indicators())
@@ -290,23 +354,37 @@ class StrategySearch(object):
         # as an allowlist to update_registry. When the holdout is OFF the gate is
         # a no-op and allowed stays None (no filtering), keeping old behavior.
         holdout_on = int(getattr(self.wf, "holdout_bars", 0)) > 0
-        allowed_fps = set() if holdout_on else None
+        # An active promotion allowlist is needed when EITHER the holdout gate
+        # (A2/P1.4) OR the U4.3 stability gate is on. When both are off,
+        # allowed_fps stays None so promotion is unfiltered (legacy behavior).
+        gating_on = holdout_on or self.stability_enabled
+        allowed_fps = set() if gating_on else None
 
         def _eval_one(spec: StrategySpec):
             """Evaluate + persist one spec once; return its avg_score (or None
             on dedup/error). Updates evaluated / seen / allowed_fps in-place via
-            closure."""
+            closure. A spec is added to allowed_fps only if it clears BOTH the
+            holdout gate (when on) AND the stability gate (when on)."""
             fp = spec.fingerprint()
             if fp in seen:
                 return None
             seen.add(fp)
             try:
                 res = self.wf.evaluate(spec, ohlcv, point=point, persist=True)
-                if holdout_on:
-                    gate = self.wf.evaluate_holdout(spec, ohlcv, point=point)
-                    if gate.get("passed"):
+                score = float(res.get("avg_score", 0.0)) if res else 0.0
+                if gating_on:
+                    ok = True
+                    if holdout_on:
+                        gate = self.wf.evaluate_holdout(spec, ohlcv, point=point)
+                        ok = bool(gate.get("passed"))
+                    # Only pay for the stability re-runs if the spec is still a
+                    # live finalist (passed holdout, if any) AND scored > 0 in
+                    # the base run; a base-negative spec can never be promoted.
+                    if ok and score > 0.0 and self.stability_enabled:
+                        ok = self._passes_stability_gate(spec, ohlcv, point=point)
+                    if ok:
                         allowed_fps.add(fp)
-                return float(res.get("avg_score", 0.0)) if res else 0.0
+                return score
             except Exception as exc:
                 self.log.error("Evaluation failed for %s: %s", fp, exc)
                 return None
@@ -330,10 +408,15 @@ class StrategySearch(object):
                 if evaluated % 25 == 0:
                     self.log.info("  evaluated %d strategies...", evaluated)
 
-        if holdout_on:
+        if gating_on:
+            gates = []
+            if holdout_on:
+                gates.append("holdout")
+            if self.stability_enabled:
+                gates.append("stability")
             self.log.info(
-                "Holdout gate: %d of %d evaluated specs passed the locked holdout.",
-                len(allowed_fps), evaluated,
+                "Promotion gate (%s): %d of %d evaluated specs are eligible.",
+                "+".join(gates), len(allowed_fps), evaluated,
             )
         section = self.memory.update_registry(
             symbol, timeframe, rank_metric=self.rank_metric,
