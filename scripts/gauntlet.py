@@ -339,3 +339,205 @@ def gate_worst_window(cfg, spec, ohlcv, warmup):
         "metrics": {"worst_net_profit": worst_net, "floor": floor,
                     "window_bars": win},
     }
+
+
+# --------------------------------------------------------------------------- #
+# Orchestration + verdict artifact (U5.2)
+# --------------------------------------------------------------------------- #
+def run_gauntlet(cfg, symbol, timeframe, warmup=60, n_shuffles=1000,
+                 seed=12345):
+    """Run all five gates on the registry top-1 and return a verdict dict."""
+    memory = MemoryStore(cfg)
+    spec, entry = _load_top1(memory, symbol, timeframe)
+    if spec is None:
+        return {"symbol": symbol, "timeframe": timeframe,
+                "error": "empty_registry",
+                "message": ("No registry strategy for %s %s. Run a search + "
+                            "rebuild-registry first." % (symbol, timeframe))}
+
+    feed = DataFeed(cfg)
+    ohlcv = feed.get_ohlcv(symbol, timeframe)
+    if ohlcv is None or len(ohlcv) < 200:
+        n = 0 if ohlcv is None else len(ohlcv)
+        return {"symbol": symbol, "timeframe": timeframe,
+                "error": "insufficient_data", "bars": n,
+                "message": ("Not enough price data for %s %s (%d bars). Export "
+                            "history first." % (symbol, timeframe, n))}
+
+    risk_pct = float(cfg.get_path("risk.risk_per_trade", 0.01) or 0.01)
+
+    gates = []
+    g1 = gate_full_history(cfg, spec, ohlcv, warmup)
+    gates.append(g1)
+    gates.append(gate_holdout(cfg, spec, ohlcv, warmup))
+    gates.append(gate_monte_carlo(cfg, g1, n_shuffles, risk_pct, seed=seed))
+    gates.append(gate_cost_stress(cfg, spec, ohlcv, warmup))
+    gates.append(gate_worst_window(cfg, spec, ohlcv, warmup))
+
+    # Write U1 receipts from the full-history run so the verdict can link them.
+    report_dir = resolve_path(
+        cfg, cfg.get_path("backtest.report_dir", "backtests"))
+    artifacts = {}
+    if g1.get("result") is not None:
+        try:
+            artifacts = trade_log.write_artifacts(
+                g1["result"], "%s_GAUNTLET" % symbol, timeframe,
+                report_dir=report_dir)
+        except Exception as exc:  # pragma: no cover - defensive
+            print("WARNING: could not write trade artifacts: %s" % exc)
+
+    overall = all(bool(g.get("passed")) for g in gates)
+    # Strip the heavy BacktestResult object before returning/serializing.
+    for g in gates:
+        g.pop("result", None)
+
+    verdict = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "fingerprint": spec.fingerprint(),
+        "created_at": int(time.time()),
+        "created_at_iso": time.strftime("%Y-%m-%d %H:%M:%S",
+                                        time.gmtime()),
+        "overall_pass": overall,
+        "warmup": warmup,
+        "mc_shuffles": n_shuffles,
+        "bars": len(ohlcv),
+        "spec": spec.to_dict(),
+        "gates": gates,
+        "artifacts": artifacts,
+    }
+    return verdict
+
+
+def _verdict_path(report_dir, fingerprint):
+    return os.path.join(report_dir, "gauntlet_%s.md" % fingerprint)
+
+
+def write_verdict_md(cfg, verdict):
+    """Render the PASS/FAIL verdict as a single Markdown file (U5.2)."""
+    report_dir = resolve_path(
+        cfg, cfg.get_path("backtest.report_dir", "backtests"))
+    try:
+        os.makedirs(report_dir, exist_ok=True)
+    except Exception:
+        pass
+    fp = verdict.get("fingerprint", "unknown")
+    path = _verdict_path(report_dir, fp)
+
+    lines = []
+    status = "PASS" if verdict.get("overall_pass") else "FAIL"
+    lines.append("# Gauntlet verdict: %s" % status)
+    lines.append("")
+    lines.append("- Symbol/timeframe: **%s %s**" %
+                 (verdict["symbol"], verdict["timeframe"]))
+    lines.append("- Strategy fingerprint: `%s`" % fp)
+    lines.append("- Created (UTC): %s" % verdict.get("created_at_iso"))
+    lines.append("- Bars tested: %s   warmup: %s   MC shuffles: %s" %
+                 (verdict.get("bars"), verdict.get("warmup"),
+                  verdict.get("mc_shuffles")))
+    lines.append("")
+    lines.append("## Overall: %s" % status)
+    lines.append("")
+    lines.append("A single FAIL below means this strategy MUST NOT trade live.")
+    lines.append("")
+    lines.append("## Gates")
+    lines.append("")
+    lines.append("| Gate | Result | Detail |")
+    lines.append("| ---- | ------ | ------ |")
+    for g in verdict.get("gates", []):
+        res = "PASS" if g.get("passed") else "FAIL"
+        if g.get("skipped"):
+            res = "SKIP"
+        detail = str(g.get("reason", "")).replace("|", "\\|")
+        lines.append("| %s | %s | %s |" % (g.get("name"), res, detail))
+    lines.append("")
+
+    art = verdict.get("artifacts", {}) or {}
+    if art:
+        lines.append("## Receipts (from the full-history run)")
+        lines.append("")
+        if art.get("trades"):
+            lines.append("- Per-trade CSV: `%s`" % art.get("trades"))
+        if art.get("equity"):
+            lines.append("- Equity curve CSV: `%s`" % art.get("equity"))
+        lines.append("")
+        lines.append("Render an HTML report with:")
+        lines.append("")
+        lines.append("```bash")
+        lines.append("python scripts/make_report.py --trades %s" %
+                     (art.get("trades", "<trades CSV>")))
+        lines.append("```")
+        lines.append("")
+
+    lines.append("## Strategy spec")
+    lines.append("")
+    lines.append("```json")
+    lines.append(json.dumps(verdict.get("spec", {}), indent=2, default=str))
+    lines.append("```")
+    lines.append("")
+
+    try:
+        with open(path, "w", encoding="ascii", errors="replace") as fh:
+            fh.write("\n".join(lines))
+    except Exception as exc:  # pragma: no cover - defensive
+        print("WARNING: could not write verdict file: %s" % exc)
+        return None
+    return path
+
+
+def _print_console(verdict):
+    print("=" * 70)
+    if verdict.get("error"):
+        print("GAUNTLET:", verdict.get("message", verdict["error"]))
+        print("=" * 70)
+        return
+    status = "PASS" if verdict.get("overall_pass") else "FAIL"
+    print("GAUNTLET VERDICT: %s   (%s %s  fp=%s)" %
+          (status, verdict["symbol"], verdict["timeframe"],
+           verdict["fingerprint"]))
+    print("-" * 70)
+    for g in verdict.get("gates", []):
+        res = "PASS" if g.get("passed") else "FAIL"
+        if g.get("skipped"):
+            res = "SKIP"
+        print("  [%s] %s" % (res, g.get("name")))
+        print("        %s" % g.get("reason"))
+    print("=" * 70)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Run the pre-flight validation gauntlet (U5).")
+    parser.add_argument("--config", default=None,
+                        help="Path to a config YAML (default config/config.yaml).")
+    parser.add_argument("--symbol", default=None,
+                        help="Symbol (default: first of mt5.symbols).")
+    parser.add_argument("--timeframe", "--tf", dest="timeframe", default=None,
+                        help="Timeframe (default: mt5.timeframe).")
+    parser.add_argument("--warmup", type=int, default=60,
+                        help="Warmup bars before scoring (default 60).")
+    parser.add_argument("--mc", type=int, default=1000,
+                        help="Monte-Carlo shuffles for gate 3 (default 1000).")
+    parser.add_argument("--seed", type=int, default=12345,
+                        help="RNG seed for the Monte-Carlo (default 12345).")
+    args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+
+    cfg = load_config(args.config)
+    symbol = args.symbol
+    if not symbol:
+        syms = cfg.get_path("mt5.symbols", ["XAUUSD"])
+        symbol = str(syms[0]) if syms else "XAUUSD"
+    timeframe = args.timeframe or str(cfg.get_path("mt5.timeframe", "M15"))
+
+    verdict = run_gauntlet(cfg, symbol, timeframe, warmup=args.warmup,
+                           n_shuffles=args.mc, seed=args.seed)
+    _print_console(verdict)
+    if not verdict.get("error"):
+        path = write_verdict_md(cfg, verdict)
+        if path:
+            print("Verdict written to:", path)
+    return 0 if verdict.get("overall_pass") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
