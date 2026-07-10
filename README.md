@@ -33,12 +33,13 @@ lightweight and pure-Python friendly so it runs comfortably on weak machines.
 6. [Manual install](#manual-install)
 7. [How to run](#how-to-run)
 8. [Configuration](#configuration)
-9. [Exporting history and backtesting in MT5](#exporting-history-and-backtesting-in-mt5)
-10. [Deploying on a VPS](#deploying-on-a-vps)
-11. [Testing](#testing)
-12. [Hardware notes and limitations](#hardware-notes-and-limitations)
-13. [Honest notes: what is realistic](#honest-notes-what-is-realistic)
-14. [Risk disclaimer](#risk-disclaimer)
+9. [The gauntlet: your pre-flight checklist](#the-gauntlet-your-pre-flight-checklist)
+10. [Exporting history and backtesting in MT5](#exporting-history-and-backtesting-in-mt5)
+11. [Deploying on a VPS](#deploying-on-a-vps)
+12. [Testing](#testing)
+13. [Hardware notes and limitations](#hardware-notes-and-limitations)
+14. [Honest notes: what is realistic](#honest-notes-what-is-realistic)
+15. [Risk disclaimer](#risk-disclaimer)
 
 ---
 
