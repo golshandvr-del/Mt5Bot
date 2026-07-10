@@ -477,17 +477,42 @@ class StrategySearch(object):
 
     # ------------------------------------------------------------------ #
     def run(self, ohlcv: Any, symbol: str, timeframe: str,
-            point: Optional[float] = None) -> Dict[str, Any]:
+            point: Optional[float] = None,
+            resume: bool = False) -> Dict[str, Any]:
         """
         Run the configured search over the OHLCV history, persisting every
         result. Returns a summary dict including the updated registry section.
+
+        U4.6: when ``resume`` is True and a checkpoint exists for this
+        (symbol, timeframe), the run restores the already-seen fingerprints, the
+        trial count and the evolutionary elite pool, so it continues without
+        re-evaluating anything. The wall-clock budget (U4.1) continues from the
+        RESTORED trial count too (fresh clock, remaining trials).
         """
         self.log.info(
-            "Starting %s search: up to %d trials on %s %s (%d bars).",
+            "Starting %s search: up to %d trials on %s %s (%d bars)%s.",
             self.method, self.max_trials, symbol, timeframe, len(ohlcv.close),
+            " [--resume]" if resume else "",
         )
+        start_time = time.time()
+        # U4.6 checkpoint handle for this run (None when writes are disabled).
+        ckpt = None
+        if self.checkpoint_every > 0:
+            ckpt = SearchCheckpoint(
+                checkpoint_path(self._data_dir, symbol, timeframe),
+                symbol, timeframe, self.method,
+                max_scored=self.checkpoint_max_scored, log=self.log,
+            )
         seen = set()
         evaluated = 0
+        # U4.6 restored elite-pool seed for evolution (score, spec) tuples.
+        resumed_scored: List[tuple] = []
+        if resume and ckpt is not None:
+            state = ckpt.load()
+            if state:
+                seen = set(state.get("seen", set()))
+                evaluated = int(state.get("evaluated", 0))
+                resumed_scored = list(state.get("scored", []))
         # Locked holdout gate (A2 / P1.4): when memory.walk_forward.holdout_bars
         # > 0, only specs that ALSO pass on the untouched holdout tail may enter
         # the registry. We collect the passing fingerprints here and pass them
@@ -506,6 +531,18 @@ class StrategySearch(object):
         # neighbor score). Populated only for finalists when the gate is on;
         # forwarded to update_registry so the registry ranks by robustness.
         score_overrides: Dict[str, float] = {}
+        # U4.6: running (score, spec) log of every successfully scored spec. It
+        # seeds the evolution elite pool AND is what the checkpoint persists.
+        # Pre-seed it from a resumed checkpoint so evolution keeps converging.
+        scored_log: List[tuple] = list(resumed_scored)
+        # Counter shared with _run_evolution so the checkpoint always reflects
+        # the true cumulative trial count (including any resumed offset).
+        counter = {"evaluated": evaluated, "last_ckpt": evaluated}
+
+        def _write_checkpoint():
+            if ckpt is not None:
+                ckpt.save(counter["evaluated"], seen, scored_log)
+                counter["last_ckpt"] = counter["evaluated"]
 
         def _eval_one(spec: StrategySpec):
             """Evaluate + persist one spec once; return its avg_score (or None
@@ -521,6 +558,7 @@ class StrategySearch(object):
             try:
                 res = self.wf.evaluate(spec, ohlcv, point=point, persist=True)
                 score = float(res.get("avg_score", 0.0)) if res else 0.0
+                scored_log.append((score, spec))
                 if gating_on:
                     ok = True
                     if holdout_on:
@@ -557,23 +595,50 @@ class StrategySearch(object):
                 return None
 
         if self.method == "evolution":
-            evaluated = self._run_evolution(
-                symbol, timeframe, _eval_one)
+            self._run_evolution(
+                symbol, timeframe, _eval_one,
+                counter=counter, scored_log=scored_log,
+                start_time=start_time, write_checkpoint=_write_checkpoint)
+            evaluated = counter["evaluated"]
         else:
             if self.method == "grid":
                 specs = self._grid_specs(symbol, timeframe)
             else:
+                # Unbounded generator: the trial budget (max_trials) and/or the
+                # wall-clock budget are the real stopping conditions, and a
+                # resumed run may already have consumed some of max_trials.
                 specs = (self._random_spec(symbol, timeframe)
-                         for _ in range(self.max_trials))
+                         for _ in itertools.count())
+            budget_hit = False
             for spec in specs:
-                if evaluated >= self.max_trials:
+                if counter["evaluated"] >= self.max_trials:
+                    break
+                # U4.1 wall-clock budget: stop CLEANLY (rank what we have).
+                if self._budget_expired(start_time):
+                    self.log.info(
+                        "Time budget (%.2fh) reached after %d trials; "
+                        "stopping cleanly.", self.time_budget_hours,
+                        counter["evaluated"])
+                    budget_hit = True
                     break
                 score = _eval_one(spec)
                 if score is None:
                     continue
-                evaluated += 1
-                if evaluated % 25 == 0:
-                    self.log.info("  evaluated %d strategies...", evaluated)
+                counter["evaluated"] += 1
+                if counter["evaluated"] % 25 == 0:
+                    self.log.info("  evaluated %d strategies...",
+                                  counter["evaluated"])
+                # U4.6 periodic checkpoint write.
+                if (self.checkpoint_every > 0 and
+                        counter["evaluated"] - counter["last_ckpt"]
+                        >= self.checkpoint_every):
+                    _write_checkpoint()
+            evaluated = counter["evaluated"]
+
+        # Final checkpoint flush so a resume never re-evaluates the tail that
+        # ran after the last periodic write.
+        if ckpt is not None and evaluated != counter["last_ckpt"]:
+            _write_checkpoint()
 
         if gating_on:
             gates = []
@@ -604,41 +669,68 @@ class StrategySearch(object):
             "Search complete: %d strategies evaluated; %d in registry top.",
             evaluated, len(section.get("top", [])),
         )
+        # U4.6: a run that reached its trial budget completed cleanly, so drop
+        # the checkpoint (a later --resume would otherwise skip everything and
+        # do nothing). A budget-/reboot-interrupted run leaves the checkpoint in
+        # place so --resume can continue it. We treat "hit max_trials" as done.
+        if ckpt is not None and evaluated >= self.max_trials:
+            ckpt.clear()
         return {"evaluated": evaluated, "registry": section}
 
     # ------------------------------------------------------------------ #
-    def _run_evolution(self, symbol: str, timeframe: str, eval_one) -> int:
-        """Evolutionary search loop (U4.2).
+    def _run_evolution(self, symbol: str, timeframe: str, eval_one,
+                       counter: Optional[Dict[str, int]] = None,
+                       scored_log: Optional[List[tuple]] = None,
+                       start_time: Optional[float] = None,
+                       write_checkpoint=None) -> int:
+        """Evolutionary search loop (U4.2), with U4.1 time budget + U4.6
+        checkpointing (both no-ops when their hooks are absent).
 
-        Seeds generation 0 with fresh random specs, evaluates them, then breeds
-        each subsequent generation from the top ``elite_fraction`` seen so far:
-        ``mutate_fraction`` of children come from mutating/crossing elites and
-        the rest are fresh random for exploration. Every child is deduped by
-        fingerprint (handled inside eval_one), so the elite pool steadily
-        concentrates on what actually scores well without wasting CPU on repeats.
+        Seeds generation 0 with fresh random specs (or the RESUMED elite pool
+        in ``scored_log`` when a checkpoint was restored), evaluates them, then
+        breeds each subsequent generation from the top ``elite_fraction`` seen
+        so far: ``mutate_fraction`` of children come from mutating/crossing
+        elites and the rest are fresh random for exploration. Every child is
+        deduped by fingerprint (handled inside eval_one), so the elite pool
+        steadily concentrates on what actually scores well without wasting CPU
+        on repeats.
 
-        ``eval_one(spec) -> score|None`` evaluates + persists one spec and
-        returns its avg_score (or None if it was a duplicate / errored).
-        Returns the number of specs actually evaluated.
+        ``eval_one(spec) -> score|None`` evaluates + persists one spec (it also
+        appends the (score, spec) to ``scored_log``) and returns its avg_score
+        (or None if it was a duplicate / errored). ``counter["evaluated"]`` is
+        the shared cumulative trial count (may start > 0 on a resumed run).
+        Returns the number of specs evaluated in THIS call.
         """
+        if counter is None:
+            counter = {"evaluated": 0, "last_ckpt": 0}
+        if scored_log is None:
+            scored_log = []
         elite_frac = min(0.9, max(0.01, self.evo_elite_fraction))
         mutate_frac = min(1.0, max(0.0, self.evo_mutate_fraction))
         # Generation size: a modest batch keeps memory tiny and lets the elite
         # pool refresh often. Scale gently with the budget.
         gen_size = max(10, min(50, self.max_trials // 8 or 10))
-        scored: List[tuple] = []  # (score, spec) for every successfully scored
-        evaluated = 0
+        start_count = counter["evaluated"]
         # Guard against an infinite loop if almost everything dedups: cap the
         # number of generation attempts relative to the trial budget.
         attempts = 0
         max_attempts = self.max_trials * 4 + gen_size * 4
+        budget_hit = False
 
-        while evaluated < self.max_trials and attempts < max_attempts:
-            # Build this generation's candidate specs.
-            elites = self._elite_specs(scored, elite_frac)
+        while counter["evaluated"] < self.max_trials and attempts < max_attempts:
+            if start_time is not None and self._budget_expired(start_time):
+                self.log.info(
+                    "[evolution] time budget (%.2fh) reached after %d "
+                    "trials; stopping cleanly.", self.time_budget_hours,
+                    counter["evaluated"])
+                budget_hit = True
+                break
+            # Build this generation's candidate specs. Elites are drawn from the
+            # SHARED scored_log so a resumed run keeps converging from its pool.
+            elites = self._elite_specs(scored_log, elite_frac)
             batch: List[StrategySpec] = []
             for _ in range(gen_size):
-                if evaluated + len(batch) >= self.max_trials:
+                if counter["evaluated"] + len(batch) >= self.max_trials:
                     break
                 if elites and random.random() < mutate_frac:
                     batch.append(self._breed_from_elites(elites, symbol, timeframe))
@@ -651,20 +743,26 @@ class StrategySearch(object):
                 score = eval_one(spec)
                 if score is None:
                     continue
-                scored.append((score, spec))
-                evaluated += 1
-                if evaluated % 25 == 0:
+                counter["evaluated"] += 1
+                if counter["evaluated"] % 25 == 0:
                     self.log.info(
                         "  [evolution] evaluated %d strategies (pool=%d)...",
-                        evaluated, len(scored))
-                if evaluated >= self.max_trials:
+                        counter["evaluated"], len(scored_log))
+                # U4.6 periodic checkpoint write.
+                if (write_checkpoint is not None and self.checkpoint_every > 0
+                        and counter["evaluated"] - counter["last_ckpt"]
+                        >= self.checkpoint_every):
+                    write_checkpoint()
+                if counter["evaluated"] >= self.max_trials:
                     break
+            if budget_hit:
+                break
         self.log.info(
-            "[evolution] done: %d evaluated, best avg_score=%.4f.",
-            evaluated,
-            max((s for s, _ in scored), default=0.0),
+            "[evolution] done: %d evaluated this run, best avg_score=%.4f.",
+            counter["evaluated"] - start_count,
+            max((s for s, _ in scored_log), default=0.0),
         )
-        return evaluated
+        return counter["evaluated"] - start_count
 
     def _elite_specs(self, scored: List[tuple], elite_frac: float
                      ) -> List[StrategySpec]:
