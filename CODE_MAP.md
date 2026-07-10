@@ -819,8 +819,38 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   `--file`, `--log-dir` (default "logs"), `--symbol`. Reads
   `logs/decisions_*.jsonl` and shows which components pushed the score over/under
   the entry threshold (so a "no trade" is as explainable as a trade).
+- **scripts/gauntlet.py** (U5.1/U5.2 - the pre-flight gauntlet): runs a FIXED
+  sequence of five pessimistic stress tests on the registry TOP-1 strategy for a
+  symbol/tf and writes ONE verdict `backtests/gauntlet_<fingerprint>.md`.
+  argparse: `--symbol`, `--tf`, `--mc` (Monte-Carlo shuffles, default 1000),
+  `--warmup`; `main(argv)` returns 0 on PASS / 1 on FAIL. Gates:
+  `gate_full_history` (net profit + positive expectancy over all bars),
+  `gate_holdout` (re-score on the locked `holdout_bars` tail),
+  `gate_monte_carlo` (reshuffle trade order -> 5/95 equity envelopes, max-DD
+  distribution, `risk_of_ruin`; PASS needs final_equity>start AND
+  risk_of_ruin<=5%), `gate_cost_stress` (spread x1.5 must survive, x2 is
+  informational, via `_cfg_with_spread_mult` which scales BOTH flat
+  `spread_points` and the U3.3 `spread_model.base_points`), and
+  `gate_worst_window` (worst rolling 3-month equity not catastrophic).
+  `run_gauntlet` aggregates to `overall_pass`; `write_verdict_md` stamps the two
+  machine-parseable lines (`created_at_epoch`, `overall_pass`) the live gate
+  reads. Uses the same pessimistic `Backtester` (Phase U3) - no search, no live
+  orders; pure stdlib + project modules.
 - **examples/generate_sample_data.py**: writes synthetic OHLCV CSVs so the whole
   pipeline runs offline with no MT5.
+
+### app/gauntlet_gate.py - live pre-flight gate (U5.3)
+`general.live_requires_gauntlet` (default true) makes LIVE mode refuse to start
+unless a PASS gauntlet verdict exists for the registry top-1 of every traded
+symbol/tf AND is newer than the last search (registry `updated_at`).
+`parse_verdict_file` reads the two stamped lines without re-running anything;
+`check_symbol` returns (allowed, reason) - a symbol with no promoted strategy
+does NOT block (nothing to trade), a missing/FAIL/STALE verdict blocks;
+`check_live_allowed` aggregates across symbols (live allowed only if ALL pass)
+and, when the flag is off, always allows with a note. Fails LOUDLY: any checking
+error is treated as a BLOCK so a parsing bug never opens un-vetted live trading.
+Wired into `app/runners.py` (run_once/run_loop dispatch) and `main.py`; paper /
+backtest / search / train are never gated.
 
 ### Native MT5 Strategy Tester validation (experts/)
 - **experts/Mt5SmartBotEA.mq5**: a self-contained MQL5 Expert Advisor that
