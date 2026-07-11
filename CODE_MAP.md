@@ -433,6 +433,50 @@ trades it through the normal parity path.
   OFF). Parity/top-1 mode is unaffected (a single strategy has nothing to
   diversify against). Pure Python, Win7/Py3.8/CPU-only.
 
+### shadow_validation.py - `ShadowValidator` (UPGRADE_PLAN U6.5)
+- The HARD safety-demotion layer on top of the soft `decay_monitor`. Re-scores
+  every live strategy on its trailing live window against the walk-forward
+  reference it was promoted on, reusing `DecayMonitor.assess` so "shadow-suspect"
+  == "decay-suspect". `assess(...)` builds a per-strategy verdict; `run(...)`
+  sweeps the registry and DEMOTES a fingerprint (persists it to `demote_file`
+  with a plain-language reason + writes a Markdown report) only when it has
+  decayed below the threshold AND has >= `min_live_trades` of live evidence.
+  `clear_on_pass` auto-clears a recovered strategy.
+- One-way safe: NEVER promotes, edits, or trades - it can only pull a decayed
+  edge OFF live money. Wiring: `OrderManager.execute(..., fingerprint=)` refuses
+  a REAL order for a shadow-demoted fingerprint and forces it to paper (short-
+  circuits BEFORE the connector). Config `decision.shadow_validation` (default
+  OFF) => the demotion check and the run are byte-for-byte no-ops.
+- Run offline via `scripts/shadow_validate.py` (`--print`/`--list`/`--force`),
+  e.g. a weekend VPS cron.
+
+### chaos_monkey.py - `ChaosMonkey` (UPGRADE_PLAN U6.6)
+- Offline broker-nastiness STRESS DIAGNOSTIC. Never trades/promotes/edits the
+  registry. Re-scores each registry strategy on a CLEAN price history vs a COPY
+  into which broker nastiness is injected, then classifies GRACEFUL / FRAGILE /
+  SHATTERED (`classify(clean_net, chaos_net, init_balance, ccfg)`;
+  `degradation_ratio` = chaos/clean edge retained).
+- `ChaosConfig` parses `general.chaos_monkey` (all switches default OFF).
+  Data-series injectors mutate a COPY of the OHLCV: `inject_requotes` jitters a
+  fraction of bar OPENS by +/- points (only the open, so signals are unchanged
+  and we isolate fill-price damage); `inject_missed_bars` drops a fraction of
+  non-edge bars (first/last always kept); `build_chaos_series` applies both in a
+  fixed order. Cost/lot nastiness is applied via `chaos_config_override` (a
+  deep-copied config): `spread_storm` multiplies `backtest.spread_points` (and
+  `spread_model.base_points`); `partial_fills` scales `fixed_lot` down by the
+  expected partial-fill multiplier. NOTE: it indexes `clone["backtest"]`
+  directly, NOT `get_path()` (which returns a fresh DotDict copy whose writes
+  would be lost).
+- `ChaosMonkey.assess_strategy(spec, clean_ohlcv, warmup)` runs the clean vs
+  chaos backtests and classifies; `assess_registry(memory, symbol, tf, ohlcv,
+  warmup, top_n)` sweeps the registry top and returns a report dict (counts +
+  per-strategy verdicts + the exact injected nastiness). Every random choice is
+  seeded (`ccfg.seed`) => a verdict regenerates byte-for-byte.
+- CLI `scripts/chaos_monkey.py` (`--symbol/--tf/--warmup/--top/--force/
+  --all-nastiness/--print`): writes `backtests/chaos_report.md` + `.json`. With
+  the gate off it is a no-op unless `--force` (which also turns every injector on
+  when none are configured). Pure stdlib, Win7/Py3.8/CPU-only.
+
 ### metrics.py
 - `compute_metrics(trade_pnls, equity_curve, n_boot=1000, seed=42)` ->
   num_trades, win_rate, profit_factor, expectancy, net_profit, max_drawdown,
@@ -1050,6 +1094,15 @@ backtest / search / train are never gated.
     move is tallied `cost` -> REVIEW (never auto-loosened); below `min_events` a
     gate stays KEEP; malformed/empty journals degrade to an empty analysis with
     no exception (12 tests).
+  - `test_shadow_validation.py` (U6.5): the hard safety demotion. Verdict/run/
+    persistence of `ShadowValidator`, the disabled no-op, and the `OrderManager`
+    live->paper demotion when a fingerprint is shadow-demoted (12 tests).
+  - `test_chaos_monkey.py` (U6.6): the broker-nastiness harness. The requote /
+    missed-bar injectors mutate only a COPY (opens jittered inside the bar,
+    first/last bar kept), `chaos_config_override` really mutates the spread/lot
+    on the cloned config (regression: `get_path()` returns a copy), `classify`
+    returns GRACEFUL/FRAGILE/SHATTERED at the right thresholds, and a registry
+    sweep tallies the verdict counts (19 tests).
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.
