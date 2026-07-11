@@ -638,6 +638,26 @@ decision:
     adx_period: 14        # ADX period for the trend/range split
     min_bars_per_regime: 200  # a regime with fewer bars gets no champion
     champions_file: "data_store/regime_champions.json"  # persisted champion map
+  # ---------------------------------------------------------------------- #
+  # Trade-throttle learning (UPGRADE_PLAN Phase U6.4). Mines the U1.4 decision
+  # journal (logs/decisions_*.jsonl) to learn which VETO GATES actually saved
+  # money and which just cost missed profit. For every entry the engine WOULD
+  # have taken but a gate BLOCKED (reasons like veto_news_blackout / veto_time_gate
+  # / veto_learner / veto_meta_label), it looks `horizon` bars ahead in the same
+  # journal at the price the blocked signal implied and asks: did skipping that
+  # trade avoid a loss (gate "saved" money) or forfeit a gain (gate "cost" money)?
+  # It then recommends AUTO-TIGHTENING only the gates whose save-rate clears
+  # `min_save_rate` over at least `min_events` samples - it NEVER loosens a gate,
+  # NEVER inverts or creates a signal, and only ever writes a human-readable
+  # recommendation artifact (report_file). Applying a recommendation stays a
+  # manual, opt-in config edit. DEFAULT OFF: the analyzer is a report-only tool
+  # invoked by scripts/learn_throttle.py; nothing in the live path changes.
+  throttle_learning:
+    enabled: false        # master switch for the analyzer/report step
+    horizon: 5            # forward journal bars used to score a blocked signal
+    min_events: 20        # a gate needs >= this many blocked events to judge it
+    min_save_rate: 0.60   # tighten a gate only if it saved money this often
+    report_file: "backtests/throttle_report.md"  # where the recommendation is written
 
 # -----------------------------------------------------------------------------
 # Backtest engine (internal, for "backtest" mode)
