@@ -603,6 +603,22 @@ decision:
     epochs: 300           # training iterations (deterministic given the seed)
     horizon: 5            # forward bars used to label a historical firing win/loss
     model_file: "models/meta_label.json"  # persisted model (dict keyed by fingerprint)
+  # Regime router (U6.2). Instead of AVERAGING the top-K strategies (which
+  # cancels out a trend follower against a mean-reverter exactly when the market
+  # is choppy), route each bar to the single validated strategy that did best in
+  # the CURRENT regime. A tiny pure-Python detector labels the trailing window
+  # (ATR%-like volatility tercile + median ADX -> "<low|mid|high>_<trend|range>")
+  # using the SAME maths the walk-forward validation uses (U4.5), so the regime
+  # we route on is the regime we validated per-regime scores in. The router's
+  # composite is itself walk-forward scored before it can go live (U2.5).
+  # Default OFF keeps the plain parity/ensemble path unchanged; an untrained or
+  # empty router routes to nobody and the engine falls back to parity top-1.
+  regime_router:
+    enabled: false        # master switch; when false the router never routes
+    detect_window: 96     # trailing bars used to label the current regime
+    adx_period: 14        # ADX period for the trend/range split
+    min_bars_per_regime: 200  # a regime with fewer bars gets no champion
+    champions_file: "data_store/regime_champions.json"  # persisted champion map
 
 # -----------------------------------------------------------------------------
 # Backtest engine (internal, for "backtest" mode)
