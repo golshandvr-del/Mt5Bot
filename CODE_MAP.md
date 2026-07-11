@@ -859,6 +859,23 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   `append_decision(decision, symbol, timeframe, ...)` appends one JSON line to
   `logs/decisions_<YYYY-MM-DD>.jsonl` (UTC date). Stdlib `json` only; append-only
   so a crash never corrupts prior lines.
+- **throttle_learning.py** (U6.4 trade-throttle learning): offline, report-only
+  analyzer that mines the U1.4 decision journal for VETO GATES that saved money.
+  `_gate_of(reason)` maps a `veto_<gate>` reason string to its gate name (any
+  `veto_*` is picked up automatically). `read_journal(paths)` parses one/more
+  `decisions_*.jsonl` files (bad lines skipped). `_blocked_direction(rec)` returns
+  the implied +1/-1 for a "blocked event" (final `action` 0 + a `veto_` reason +
+  non-zero `score`), else None. `analyze_journal(records, horizon)` groups by
+  symbol+timeframe and, for each blocked event, compares the price proxy
+  (`mid`/`close`/... in `components`) `horizon` lines ahead against the implied
+  direction -> tallies per gate `{events, saved, cost, undecided}` (against the
+  signal = SAVED, with it = COST). `recommend(stats, min_events, min_save_rate)`
+  -> per-gate `tighten`/`review`/`keep` (TIGHTEN only when save-rate clears the
+  bar over enough decided events; a money-costing gate is REVIEW, never
+  auto-loosened). `render_report(...)` / `run_analysis(...)` produce a
+  plain-language Markdown report. NEVER edits config, inverts signals, or touches
+  the live path. Config `decision.throttle_learning`
+  (enabled/horizon/min_events/min_save_rate/report_file, default OFF). Stdlib only.
 
 ---
 
@@ -907,6 +924,13 @@ trade outcomes back into `TimeStats` so the time edge is learned empirically.
   `--file`, `--log-dir` (default "logs"), `--symbol`. Reads
   `logs/decisions_*.jsonl` and shows which components pushed the score over/under
   the entry threshold (so a "no trade" is as explainable as a trade).
+- **scripts/learn_throttle.py** (U6.4 trade-throttle learning): CLI wrapper over
+  `core/utils/throttle_learning.py`. Reads the decision journal and writes a
+  Markdown recommendation of which veto gates to TIGHTEN. argparse: `--config`,
+  `--log-dir` (default "logs"), `--file`, `--date`, `--horizon`, `--min-events`,
+  `--min-save-rate`, `--out`, `--print`; knobs default from the
+  `decision.throttle_learning` config block. Report-only: it never edits config
+  or the live path, so applying a recommendation stays a manual, opt-in edit.
 - **scripts/gauntlet.py** (U5.1/U5.2 - the pre-flight gauntlet): runs a FIXED
   sequence of five pessimistic stress tests on the registry TOP-1 strategy for a
   symbol/tf and writes ONE verdict `backtests/gauntlet_<fingerprint>.md`.
@@ -1019,6 +1043,13 @@ backtest / search / train are never gated.
     veto turns an intended parity entry into a hold, a passing/absent gate leaves
     the action unchanged, and it can never turn a hold into a trade); the
     persisted `_FEATURE_NAMES` layout is frozen (14 tests).
+  - `test_throttle_learning.py` (U6.4): the trade-throttle analyzer. `_gate_of`
+    maps veto reason strings to gates; `_blocked_direction` fires only for
+    flat-action lines carrying a veto + non-zero score; a gate that avoids an
+    adverse move is tallied `saved` -> TIGHTEN, a gate that forfeits a favourable
+    move is tallied `cost` -> REVIEW (never auto-loosened); below `min_events` a
+    gate stays KEEP; malformed/empty journals degrade to an empty analysis with
+    no exception (12 tests).
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.

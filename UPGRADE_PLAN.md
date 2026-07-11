@@ -318,7 +318,7 @@ portfolio manager". Each is optional and config-gated.
       pairwise signal correlation (measured on walk-forward decisions) so the
       ensemble contains genuinely different edges, not 3 clones of one trend
       follower.
-- [ ] U6.4 Trade-throttle learning: learn from the decision journal (U1.4)
+- [x] U6.4 Trade-throttle learning: learn from the decision journal (U1.4)
       which VETOES would have saved money (news blackout, spread spike,
       regime mismatch) and auto-tighten only those gates - never invert
       signals.
@@ -354,6 +354,30 @@ section 8.
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-11 U6.4 (Trade-throttle learning) COMPLETE - learn which VETOES saved
+  money, tighten only those, never invert a signal. New
+  `core/utils/throttle_learning.py` mines the U1.4 decision journal
+  (`logs/decisions_*.jsonl`): a "blocked event" is a line whose final `action`
+  is 0 yet carries a `veto_` reason and a non-zero `score` (the engine WANTED to
+  act but a gate blocked it). `_gate_of` maps a reason string to its gate by the
+  `veto_<gate>` prefix (news_blackout / time_gate / learner / meta_label and any
+  future veto_*). `analyze_journal(records, horizon)` groups by symbol+timeframe,
+  and for each blocked event compares the price proxy `horizon` journal lines
+  ahead against the implied direction: a move AGAINST it means the gate SAVED
+  money, a move WITH it means the gate COST missed profit (missing price ->
+  undecided). `recommend(stats, min_events, min_save_rate)` returns per-gate
+  tighten/keep/review: TIGHTEN only when a gate cleared min_save_rate over
+  >= min_events decided events; a chronically money-costing gate is flagged
+  REVIEW (a human decides) but NEVER auto-loosened. `render_report` emits a
+  plain-language Markdown table. New `scripts/learn_throttle.py` CLI runs
+  read->analyze->recommend->write, defaulting knobs from the new
+  `decision.throttle_learning` config block
+  (enabled/horizon/min_events/min_save_rate/report_file, default OFF). It is
+  report-only: applying a recommendation stays a manual, opt-in config edit and
+  the live path is untouched (signals are never inverted or created).
+  tests/test_throttle_learning.py (12 tests) covers gate mapping, blocked-entry
+  detection, saved/cost/review/keep, min_events, and malformed/empty journals.
+  Pure Python, Win7/Py3.8/CPU-only. NEXT: U6.5 (continuous shadow validation).
 - 2026-07-11 U6.3 (Anti-portfolio diversification) COMPLETE - stop three clones
   of one edge masquerading as a diversified ensemble. When DecisionEngine BLENDS
   the top-K memory strategies, each strategy's blend weight is now penalized by
