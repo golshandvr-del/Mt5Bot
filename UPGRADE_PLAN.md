@@ -327,9 +327,18 @@ portfolio manager". Each is optional and config-gated.
       score drops below the decay threshold, auto-demote to paper and email/log
       a plain-language explanation (extends the existing decay_monitor from a
       blend-weight tweak to a hard safety demotion).
-- [ ] U6.6 Chaos-monkey harness: a test mode that injects broker nastiness
+- [x] U6.6 Chaos-monkey harness: a test mode that injects broker nastiness
       into the sim (requotes, partial fills, missed bars, spread storms) and
       reports which registry strategies degrade gracefully vs shatter.
+      DONE: core/strategy/chaos_monkey.py (`ChaosConfig` + data injectors
+      inject_requotes/inject_missed_bars/build_chaos_series + cost/lot
+      chaos_config_override + classify GRACEFUL/FRAGILE/SHATTERED + `ChaosMonkey`
+      orchestrator with clean-vs-chaos scoring and a seeded, reproducible
+      registry sweep), general.chaos_monkey config block (default OFF, every
+      nastiness switch off), scripts/chaos_monkey.py CLI (writes
+      backtests/chaos_report.md/.json; --force/--all-nastiness/--top/--print),
+      and tests/test_chaos_monkey.py (19 tests). Diagnostic only - never trades,
+      promotes, or edits the registry.
 
 ---
 
@@ -354,6 +363,30 @@ section 8.
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-11 U6.6 (Chaos-monkey harness) COMPLETE - Phase U6 (and the whole
+  UPGRADE_PLAN, U1-U6) is now DONE. An OFFLINE broker-nastiness stress
+  diagnostic that answers "if the broker misbehaves for a week, does my edge
+  survive or evaporate?" without ever trading, promoting, or editing the
+  registry. `core/strategy/chaos_monkey.py`: `ChaosConfig` parses the new
+  `general.chaos_monkey` block (all switches default OFF => pure no-op). Four
+  independently-gated, SEEDED (reproducible) injectors - data-series mutators
+  on a COPY of the OHLCV (`inject_requotes` jitters a fraction of bar OPENS by
+  +/- points so only the fill price is hurt, signals unchanged;
+  `inject_missed_bars` drops a fraction of non-edge bars, first/last kept) and
+  cost/lot overrides on a deep-copied config (`chaos_config_override`:
+  spread_storm multiplies spread_points + spread_model.base_points; partial_fills
+  scales fixed_lot down by the expected partial multiplier). `classify` labels
+  each strategy GRACEFUL (keeps >= graceful_floor_mult of clean net AND positive)
+  / FRAGILE (positive but below the floor) / SHATTERED (non-positive or below the
+  catastrophe floor); `ChaosMonkey.assess_strategy` runs clean-vs-chaos and
+  `assess_registry` sweeps the registry top into one report. `scripts/chaos_monkey.py`
+  writes backtests/chaos_report.md + .json (--force/--all-nastiness/--top/--print;
+  no-op when disabled unless --force). tests/test_chaos_monkey.py (19) cover the
+  injectors, the get_path()-copy regression in chaos_config_override, the
+  classifier thresholds, and the registry sweep. Docs synced (README
+  "Chaos-monkey" section + TOC; CODE_MAP module/script/test entries, plus the
+  U6.5 shadow_validation entries that were missing). Pure stdlib, Win7/Py3.8/
+  CPU-only. NEXT: none - the plan is complete.
 - 2026-07-11 U6.5 (Continuous shadow validation) COMPLETE - the HARD safety
   demotion on top of the soft decay monitor. `core/strategy/shadow_validation.py`
   (`ShadowValidator`) re-scores every live strategy on its trailing live window
