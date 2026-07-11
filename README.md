@@ -35,12 +35,13 @@ lightweight and pure-Python friendly so it runs comfortably on weak machines.
 8. [Configuration](#configuration)
 9. [The gauntlet: your pre-flight checklist](#the-gauntlet-your-pre-flight-checklist)
 10. [Shadow validation: pulling a dead edge off live money](#shadow-validation-pulling-a-dead-edge-off-live-money)
-11. [Exporting history and backtesting in MT5](#exporting-history-and-backtesting-in-mt5)
-12. [Deploying on a VPS](#deploying-on-a-vps)
-13. [Testing](#testing)
-14. [Hardware notes and limitations](#hardware-notes-and-limitations)
-15. [Honest notes: what is realistic](#honest-notes-what-is-realistic)
-16. [Risk disclaimer](#risk-disclaimer)
+11. [Chaos-monkey: does your edge survive a bad broker week?](#chaos-monkey-does-your-edge-survive-a-bad-broker-week)
+12. [Exporting history and backtesting in MT5](#exporting-history-and-backtesting-in-mt5)
+13. [Deploying on a VPS](#deploying-on-a-vps)
+14. [Testing](#testing)
+15. [Hardware notes and limitations](#hardware-notes-and-limitations)
+16. [Honest notes: what is realistic](#honest-notes-what-is-realistic)
+17. [Risk disclaimer](#risk-disclaimer)
 
 ---
 
@@ -654,6 +655,64 @@ run is a no-op and the live path is byte-for-byte unchanged.
 
 > A demoted strategy stays on paper until a fresh search **re-validates** it -
 > a dead edge can never silently keep bleeding real money.
+
+---
+
+## Chaos-monkey: does your edge survive a bad broker week?
+
+The gauntlet and shadow validation both assume the broker behaves *normally*.
+Real brokers do not: they requote your entry, drop bars from the feed, blow the
+spread wide open at news/rollover, and fill only part of your requested size.
+The **chaos-monkey harness (U6.6)** answers one blunt question:
+
+> *If the broker misbehaves for a week, does my edge survive or evaporate?*
+
+It is a **purely offline stress diagnostic** - it never trades, never promotes,
+never edits the registry. It re-scores every registry strategy twice: once on
+the **clean** price history, and once on a **copy** of that history into which
+"broker nastiness" has been injected, then classifies each strategy:
+
+- **GRACEFUL** - keeps `>= graceful_floor_mult` of its clean net profit (40% by
+  default) **and** stays positive under chaos. Trust it.
+- **FRAGILE** - still positive but loses more than the graceful floor of its
+  edge. A warning: the edge is thinner than it looks.
+- **SHATTERED** - goes non-positive (or below the catastrophe floor) the moment
+  the broker misbehaves. **Do not trust it live.**
+
+Four independently switchable nastiness injectors (all **default OFF**):
+
+| Injector | What it models | How it is injected |
+| -------- | -------------- | ------------------ |
+| `spread_storm` | spread widens 2x+ at news/rollover | multiplies the cost model's spread |
+| `requotes` | broker requotes your entry to a worse price | jitters a fraction of bar *opens* (+/- points) |
+| `missed_bars` | data-feed gap / a bar the EA never saw | drops a fraction of non-edge bars |
+| `partial_fills` | broker fills only part of your size | scales the effective lot down |
+
+Every random choice is driven by a fixed `seed`, so a chaos verdict regenerates
+**byte-for-byte** - a SHATTERED verdict is reproducible, not a one-off unlucky
+roll.
+
+### Running it
+
+```bash
+python scripts/chaos_monkey.py                    # run per config
+python scripts/chaos_monkey.py --symbol XAUUSD --tf M15
+python scripts/chaos_monkey.py --force            # one-off run even if disabled
+python scripts/chaos_monkey.py --all-nastiness    # turn every injector on
+python scripts/chaos_monkey.py --top 10 --print   # top-10 only, echo the report
+```
+
+With `general.chaos_monkey.enabled: false` (the default) the harness is a pure
+no-op. `--force` runs it anyway, and if no injector is configured it turns them
+all on - so a one-off "how robust is my registry?" check needs no config edit.
+It writes one human-readable report to `backtests/chaos_report.md` (plus a
+`chaos_report.json`) with a per-strategy verdict table and the exact injected
+nastiness. All knobs live under `general.chaos_monkey` in `config.yaml`
+(intensities, classification thresholds); everything is Win7 / Py3.8 / CPU-only
+and stdlib-only.
+
+> Chaos-monkey is a **diagnostic, not a gate** - it never blocks a run. Use it
+> to *stop trusting* strategies that only look good under a polite broker.
 
 ---
 
