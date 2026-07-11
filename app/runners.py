@@ -157,6 +157,8 @@ def run_train(ctx: BotContext) -> Dict[str, Any]:
         log.warning("Learner not ready after training; nothing saved.")
     # U6.1: also (re)train the meta-labeling gates when enabled (no-op else).
     results["meta_label"] = train_meta_labelers(ctx, log)
+    # U6.2: also (re)build the per-regime champion map when enabled (no-op else).
+    results["regime_router"] = train_regime_router(ctx, log)
     ctx.shutdown()
     return results
 
@@ -217,6 +219,8 @@ def _run_train_per_symbol(ctx: BotContext, log: Any, tf: str, name: str,
                     "(insufficient data for every symbol?).")
     # U6.1: also (re)train the meta-labeling gates when enabled (no-op else).
     results["meta_label"] = train_meta_labelers(ctx, log)
+    # U6.2: also (re)build the per-regime champion map when enabled (no-op else).
+    results["regime_router"] = train_regime_router(ctx, log)
     ctx.shutdown()
     return results
 
@@ -268,6 +272,69 @@ def train_meta_labelers(ctx: BotContext, log: Any = None) -> Dict[str, Any]:
             "fingerprint": spec.fingerprint(),
             "trained": bool(ok),
         })
+    return results
+
+
+def train_regime_router(ctx: BotContext, log: Any = None) -> Dict[str, Any]:
+    """
+    UPGRADE_PLAN U6.2: build + persist the per-regime champion map.
+
+    For each symbol we take the top-K registry specs as the candidate pool and
+    ask the RegimeRouter to pick, per regime (ATR%/ADX terciles), the spec that
+    scores best on THAT regime's bars. The champion map is persisted to one JSON
+    file so live routing needs no re-training. Runs ONLY when
+    decision.regime_router.enabled is true; otherwise a no-op.
+
+    Never fatal: a symbol with no registry strategies or too little data is
+    skipped (the router simply stays untrained for it, and the engine falls back
+    to plain parity top-1).
+    """
+    if log is None:
+        log = get_logger("app.runners.regime_router", ctx.cfg)
+    if not bool(ctx.cfg.get_path("decision.regime_router.enabled", False)):
+        return {"enabled": False, "trained": []}
+
+    router = ctx.regime_router
+    if router is None:
+        return {"enabled": False, "trained": []}
+
+    tf = _timeframe(ctx)
+    backtester = Backtester(ctx.cfg)
+    results: Dict[str, Any] = {"enabled": True, "trained": []}
+    for symbol in _symbols(ctx):
+        top = ctx.memory.load_registry_top(symbol, tf)
+        if not top:
+            log.info("Regime-router: no registry strategy for %s; skipping.",
+                     symbol)
+            continue
+        ohlcv = _load_history(ctx, symbol, tf)
+        if len(ohlcv) < 500:
+            log.warning("Regime-router: not enough data for %s; skipping.",
+                        symbol)
+            continue
+        specs = []
+        for entry in top:
+            try:
+                specs.append(StrategySpec.from_dict(entry["spec"]))
+            except Exception:
+                continue
+        if not specs:
+            continue
+        try:
+            champions = router.train(specs, ohlcv, backtester)
+            router.save()
+        except Exception as exc:
+            log.error("Regime-router training failed for %s: %s", symbol, exc)
+            champions = {}
+        results["trained"].append({
+            "symbol": symbol,
+            "candidates": len(specs),
+            "regimes": sorted(champions.keys()),
+        })
+        # One shared champions file: the first symbol with data wins (single
+        # instrument is the intended deployment). Stop after a successful build.
+        if champions:
+            break
     return results
 
 
