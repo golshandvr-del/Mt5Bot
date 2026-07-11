@@ -658,6 +658,29 @@ decision:
     min_events: 20        # a gate needs >= this many blocked events to judge it
     min_save_rate: 0.60   # tighten a gate only if it saved money this often
     report_file: "backtests/throttle_report.md"  # where the recommendation is written
+  # ---------------------------------------------------------------------- #
+  # Continuous shadow validation (UPGRADE_PLAN Phase U6.5). The soft decay
+  # monitor above only ZERO-WEIGHTS a drifting strategy inside a blend. This is
+  # the HARD safety layer: run offline (e.g. every weekend on the VPS via
+  # scripts/shadow_validate.py), it re-scores each live strategy on its trailing
+  # `window` realized live/paper trades against the walk-forward reference it was
+  # promoted on. If that live-window mean has decayed below the decay threshold
+  # (reusing the SAME DecayMonitor maths so "shadow-suspect" == "decay-suspect"),
+  # the strategy is DEMOTED to paper: its fingerprint is written to
+  # `demote_file` with a plain-language reason, and the live path refuses to send
+  # real orders for a demoted fingerprint until a fresh search re-validates and
+  # clears it. It NEVER promotes, NEVER edits a strategy, and NEVER trades - it
+  # can only pull a decayed edge OFF live money. DEFAULT OFF: nothing is demoted
+  # and the live path is unchanged until a user opts in. `min_live_trades` guards
+  # against demoting on noise; `clear_on_pass` lets a recovered strategy be
+  # auto-un-demoted when its live window recovers above the threshold.
+  shadow_validation:
+    enabled: false        # master switch; when false nothing is ever demoted
+    window: 200           # trailing live/paper trades used to re-score a strategy
+    min_live_trades: 30   # need >= this many live trades before a demotion can fire
+    clear_on_pass: true   # auto-un-demote a strategy whose live window recovers
+    demote_file: "data_store/demotions.json"  # persisted demoted-fingerprint set
+    report_file: "backtests/shadow_report.md"  # plain-language run report
 
 # -----------------------------------------------------------------------------
 # Backtest engine (internal, for "backtest" mode)
