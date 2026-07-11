@@ -292,11 +292,16 @@ reproducible PASS verdict. The user always knows WHY a strategy was allowed.
 Ideas that change the bot's nature from "strategy picker" to "adaptive
 portfolio manager". Each is optional and config-gated.
 
-- [ ] U6.1 Meta-labeling filter: train the light ML model NOT to predict
+- [x] U6.1 Meta-labeling filter: train the light ML model NOT to predict
       direction, but to predict "will the top strategy's NEXT signal win?"
       using regime features (ATR%, ADX, session, day). The model becomes a
       quality gate on top of a validated strategy - this composes cleanly with
       parity mode (veto-only) and is the single highest-leverage ML use here.
+      DONE: core/strategy/meta_label.py (pure-Python logistic-regression gate
+      keyed per strategy fingerprint, JSON-persisted), decision.meta_label
+      config block (default OFF), DecisionEngine veto-only wiring, BotContext
+      builder, train-mode training pass (app/runners.train_meta_labelers), and
+      tests/test_meta_label.py (14 tests).
 - [ ] U6.2 Regime router: promote per-regime champions (from U4.5) and let a
       tiny detector (ATR%/ADX terciles, pure Python) route each bar to the
       champion of the CURRENT regime instead of averaging strategies that
@@ -338,6 +343,38 @@ updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
 ---
 
 ## 8. Change log (append newest at top)
+
+- 2026-07-11 U6.1 (Meta-labeling filter) COMPLETE - the single highest-leverage
+  ML use in the project. Instead of predicting direction, the meta-labeler
+  answers "given the validated top strategy is about to fire HERE, will that
+  trade win?" and becomes a VETO-ONLY quality gate that composes cleanly with
+  parity mode. Code (landed earlier this phase): core/strategy/meta_label.py -
+  a MetaLabeler holding one tiny pure-Python L2-regularized logistic regression
+  (_LogReg) PER strategy fingerprint, JSON-persisted as a dict keyed by
+  fingerprint (atomic temp-file + os.replace). Features are regime/context only
+  (|signal|, ATR%, ADX/100, and sin/cos of hour-of-day and day-of-week), and
+  labels come from build_dataset() marking each historical firing a win when the
+  forward `horizon`-bar move went the strategy's way. Wiring: decision.meta_label
+  config block (enabled default false, min_win_prob, min_train_samples,
+  learning_rate, epochs, horizon, model_file); DecisionEngine accepts an optional
+  meta_labeler and, in the parity path, calls should_veto() only when it already
+  intends an entry - the gate can BLOCK a low-P(win) entry (reason
+  "veto_meta_label=1", plus "meta_win_prob=..") but can never create, flip, or
+  resize a trade; BotContext lazily builds+loads the labeler only when the block
+  is enabled; train mode (app/runners.train_meta_labelers) fits one gate per top
+  registry strategy from its own firings. Degrades gracefully everywhere: a
+  disabled OR untrained OR single-class OR too-few-samples gate NEVER vetoes, so
+  the default-off light path is byte-for-byte unchanged. U6.1 tests added this
+  session: tests/test_meta_label.py (14 tests) proving (a) the logreg learns a
+  separable problem and round-trips through to_dict/from_dict identically,
+  (b) disabled/untrained/too-few/single-class gates never veto, (c) train()
+  persists and a fresh instance reloads to identical predictions, (d) should_veto
+  fires exactly when P(win) < min_win_prob, (e) ENGINE integration is veto-only
+  (a veto turns an intended entry into a hold; a passing/absent gate leaves the
+  action unchanged; a gate can never turn a hold into a trade), and (f) the
+  persisted feature layout is frozen. Suite 177 -> 191 green (1 skipped). NEXT:
+  U6.2 (regime router - per-regime champions + tiny ATR%/ADX detector, must pass
+  U2.5 composite validation).
 
 - 2026-07-10 Phase U5 (Final validation gauntlet) COMPLETE - U5.5 done, so
   U5.1-U5.5 are all [x]. U5.5 (docs) added the README section "The gauntlet: your
