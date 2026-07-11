@@ -144,6 +144,35 @@ class DecisionEngine(object):
             cfg.get_path("decision.decay_monitor.enabled", False)
         )
 
+        # UPGRADE_PLAN U6.3: anti-portfolio diversification. When blending the
+        # top-K memory strategies, penalize each strategy's blend weight by how
+        # strongly its per-bar signal series correlates with the rest of the
+        # ensemble, so three near-clones of one edge cannot masquerade as a
+        # diversified bet. Only ever SHRINKS weights; never inflates or flips.
+        # Config-gated (decision.diversification.enabled, default OFF) and
+        # computed once per (symbol, timeframe). Parity/top-1 mode is unaffected.
+        dv = cfg.get_path("decision.diversification", {})
+        dv = dv if hasattr(dv, "get") else {}
+        self.diversify_enabled = bool(dv.get("enabled", False))
+        try:
+            self.diversify_corr_window = int(dv.get("corr_window", 500))
+        except Exception:
+            self.diversify_corr_window = 500
+        try:
+            self.diversify_min_overlap = int(dv.get("min_overlap", 50))
+        except Exception:
+            self.diversify_min_overlap = 50
+        try:
+            self.diversify_penalty_strength = float(dv.get("penalty_strength", 1.0))
+        except Exception:
+            self.diversify_penalty_strength = 1.0
+        try:
+            self.diversify_min_weight_factor = float(dv.get("min_weight_factor", 0.25))
+        except Exception:
+            self.diversify_min_weight_factor = 0.25
+        # Cache of {fingerprint: diversification_factor} per (symbol, timeframe).
+        self._diversify_cache: Dict[str, Dict[str, float]] = {}
+
         dec = cfg.get_path("decision", {})
         # UPGRADE_PLAN U2.4: decision mode. "parity" (default) trades the
         # validated top-1 strategy exactly; "blend" is the legacy composite.
@@ -209,6 +238,101 @@ class DecisionEngine(object):
         self._ensemble_cache[key] = strategies
         return strategies
 
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _pearson(a: List[float], b: List[float], min_overlap: int) -> float:
+        """Pearson correlation of two aligned series over their co-active bars.
+
+        A bar counts only when BOTH series are non-zero there (a strategy that
+        is flat contributes no opinion to correlate). Returns 0.0 when fewer
+        than ``min_overlap`` such bars exist or either series has no variance -
+        i.e. "no measurable similarity", the diversification-neutral value.
+        """
+        n = min(len(a), len(b))
+        xs: List[float] = []
+        ys: List[float] = []
+        for i in range(n):
+            x = a[i]
+            y = b[i]
+            if x == 0.0 and y == 0.0:
+                continue
+            xs.append(x)
+            ys.append(y)
+        m = len(xs)
+        if m < max(2, int(min_overlap)):
+            return 0.0
+        mean_x = sum(xs) / m
+        mean_y = sum(ys) / m
+        num = 0.0
+        var_x = 0.0
+        var_y = 0.0
+        for i in range(m):
+            dx = xs[i] - mean_x
+            dy = ys[i] - mean_y
+            num += dx * dy
+            var_x += dx * dx
+            var_y += dy * dy
+        if var_x <= 0.0 or var_y <= 0.0:
+            return 0.0
+        return num / ((var_x ** 0.5) * (var_y ** 0.5))
+
+    def _diversification_weights(self, symbol: str, timeframe: str,
+                                 ensemble: List[Strategy],
+                                 ohlcv: Any) -> Dict[str, float]:
+        """U6.3: per-strategy diversification factor in [min_weight_factor, 1.0].
+
+        For each ensemble strategy we build its per-bar signal series over the
+        trailing ``corr_window`` bars, then measure its AVERAGE absolute Pearson
+        correlation with every OTHER ensemble member. A strategy that just echoes
+        the rest (avg |corr| near 1) is damped toward ``min_weight_factor``; a
+        genuinely different edge (avg |corr| near 0) keeps its full 1.0 weight.
+        The factor is: 1 - penalty_strength * avg_abs_corr, floored at
+        min_weight_factor and capped at 1.0 (it can only shrink, never inflate).
+        Computed once per (symbol, timeframe) and cached. Returns {} (a no-op)
+        when disabled or fewer than two strategies exist.
+        """
+        key = "%s|%s" % (symbol, timeframe)
+        if key in self._diversify_cache:
+            return self._diversify_cache[key]
+        factors: Dict[str, float] = {}
+        if not self.diversify_enabled or len(ensemble) < 2:
+            self._diversify_cache[key] = factors
+            return factors
+        try:
+            n = len(ohlcv.close) if hasattr(ohlcv, "close") else 0
+            window = max(0, int(self.diversify_corr_window))
+            # Build each strategy's signal series (trailing window slice).
+            series: List[tuple] = []  # (fingerprint, signal_series)
+            for strat in ensemble:
+                try:
+                    fp = strat.spec.fingerprint()
+                    sig = strat.signal_series(ohlcv)
+                except Exception:
+                    continue
+                if window and len(sig) > window:
+                    sig = sig[len(sig) - window:]
+                series.append((fp, sig))
+            for i, (fp_i, sig_i) in enumerate(series):
+                corrs: List[float] = []
+                for j, (fp_j, sig_j) in enumerate(series):
+                    if i == j:
+                        continue
+                    c = self._pearson(sig_i, sig_j, self.diversify_min_overlap)
+                    corrs.append(abs(c))
+                avg_abs = (sum(corrs) / len(corrs)) if corrs else 0.0
+                factor = 1.0 - self.diversify_penalty_strength * avg_abs
+                if factor > 1.0:
+                    factor = 1.0
+                if factor < self.diversify_min_weight_factor:
+                    factor = self.diversify_min_weight_factor
+                factors[fp_i] = factor
+        except Exception as exc:
+            self.log.error("Diversification weighting failed for %s: %s",
+                           key, exc)
+            factors = {}
+        self._diversify_cache[key] = factors
+        return factors
+
     def _indicator_signal(self, ohlcv: Any, symbol: str,
                           timeframe: str) -> (float, str, float, float):
         """
@@ -221,6 +345,12 @@ class DecisionEngine(object):
         if ensemble:
             use_council = self.council_enabled and self.council is not None
             use_decay = self.decay_enabled and bool(self.decay_suspects)
+            # U6.3: per-strategy diversification factors (empty when disabled).
+            use_diversify = self.diversify_enabled and len(ensemble) >= 2
+            diversify_factors = (
+                self._diversification_weights(symbol, timeframe, ensemble, ohlcv)
+                if use_diversify else {}
+            )
             sig_acc = 0.0     # sum of weight * signal
             sl_acc = 0.0      # sum of weight * sl_atr_mult
             tp_acc = 0.0      # sum of weight * tp_atr_mult
@@ -248,6 +378,14 @@ class DecisionEngine(object):
                         w = 1.0
                     if w < 0.0:
                         w = 0.0
+                # U6.3: shrink the weight of a strategy that just echoes the rest
+                # of the ensemble (never inflates; factor is in [floor, 1.0]).
+                if diversify_factors:
+                    try:
+                        w *= float(diversify_factors.get(
+                            strat.spec.fingerprint(), 1.0))
+                    except Exception:
+                        pass
                 sig_acc += w * sig
                 sl_acc += w * strat.spec.sl_atr_mult
                 tp_acc += w * strat.spec.tp_atr_mult
@@ -256,6 +394,8 @@ class DecisionEngine(object):
                 label = "ensemble+council" if use_council else "ensemble"
                 if use_decay:
                     label += "+decay"
+                if diversify_factors:
+                    label += "+diversify"
                 return (max(-1.0, min(1.0, sig_acc / w_total)), label,
                         sl_acc / w_total, tp_acc / w_total)
 
