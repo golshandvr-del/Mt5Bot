@@ -46,6 +46,36 @@ class OrderManager(object):
         self.decay_enabled = bool(
             cfg.get_path("decision.decay_monitor.enabled", False)
         )
+        # UPGRADE_PLAN U6.5: hard shadow-validation demotion. When enabled, a
+        # fingerprint that the ShadowValidator has demoted to paper is refused
+        # REAL (live) orders here: the order is forced to paper instead of being
+        # sent to the broker. Config-gated and DEFAULT OFF, so with the gate off
+        # this is a byte-for-byte no-op and the live path is unchanged. The
+        # demotions set is read lazily from the persisted demote_file so the
+        # order manager never depends on the (offline) validator being loaded.
+        self.shadow_enabled = bool(
+            cfg.get_path("decision.shadow_validation.enabled", False)
+        )
+        self.shadow_demote_file = str(
+            cfg.get_path("decision.shadow_validation.demote_file",
+                         "data_store/demotions.json")
+        )
+
+    def _is_shadow_demoted(self, fingerprint: Optional[str]) -> bool:
+        """True if ``fingerprint`` is currently shadow-demoted (refuse live).
+
+        Reads the persisted demotions file directly (no validator instance
+        needed) and degrades gracefully: any error means "not demoted" so a
+        read failure can never block trading. No-op when the gate is off.
+        """
+        if not self.shadow_enabled or not fingerprint:
+            return False
+        try:
+            from core.utils.helpers import read_json
+            data = read_json(self.shadow_demote_file, default={})
+            return isinstance(data, dict) and str(fingerprint) in data
+        except Exception:
+            return False
 
     # ------------------------------------------------------------------ #
     def open_positions(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -83,22 +113,31 @@ class OrderManager(object):
 
     # ------------------------------------------------------------------ #
     def execute(self, decision: Any, symbol: str, atr: float,
-                last_close: float) -> Dict[str, Any]:
+                last_close: float,
+                fingerprint: Optional[str] = None) -> Dict[str, Any]:
         """
         Turn a Decision into an order (or a logged paper order).
 
         Parameters
         ----------
-        decision   : Decision object (action in {-1,0,+1}, sl/tp multiples...).
-        symbol     : trading symbol.
-        atr        : latest ATR value used to place SL/TP.
-        last_close : latest close price, used as an offline fallback for prices.
+        decision    : Decision object (action in {-1,0,+1}, sl/tp multiples...).
+        symbol      : trading symbol.
+        atr         : latest ATR value used to place SL/TP.
+        last_close  : latest close price, used as an offline fallback for prices.
+        fingerprint : optional strategy fingerprint. When shadow validation
+                      (U6.5) has demoted this fingerprint, a LIVE order is
+                      refused and forced to paper instead (safety demotion).
 
         Returns a result dict describing what was done.
         """
         action = int(getattr(decision, "action", 0))
         if action == 0:
             return {"ok": True, "action": "flat", "reason": "no signal"}
+
+        # U6.5 hard safety demotion: never send a REAL order for a strategy the
+        # shadow validator pulled off live money. In paper mode this is moot
+        # (already never sends real orders); in live mode we downgrade to paper.
+        shadow_demoted = self._is_shadow_demoted(fingerprint)
 
         # Respect risk limits before opening anything new.
         open_now = self.open_positions(symbol)
@@ -143,6 +182,14 @@ class OrderManager(object):
         if self.mode != "live":
             self.log.info("PAPER ORDER: %s", order_plan)
             return {"ok": True, "action": "paper", "order": order_plan}
+
+        # U6.5: live mode but the strategy is shadow-demoted -> force paper.
+        if shadow_demoted:
+            self.log.info(
+                "SHADOW DEMOTED %s: refusing live order, forced to paper: %s",
+                fingerprint, order_plan)
+            return {"ok": True, "action": "paper", "order": order_plan,
+                    "reason": "shadow_demoted"}
 
         # Live mode: build and send the MT5 order request.
         if self.connector is None or not getattr(self.connector, "connected", False):
