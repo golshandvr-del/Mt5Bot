@@ -220,7 +220,11 @@ def chaos_config_override(cfg, ccfg):
     The data injectors are handled separately (they mutate the series)."""
     clone = copy.deepcopy(cfg)
     try:
-        bt = clone.get_path("backtest", {})
+        # NOTE: index the underlying dict directly (clone["backtest"]) rather
+        # than clone.get_path("backtest"). get_path() returns a FRESH DotDict
+        # wrapper, so writing back to it would be lost; direct indexing returns
+        # the real nested dict by reference so mutations persist.
+        bt = clone["backtest"] if "backtest" in clone else {}
         if hasattr(bt, "get"):
             if ccfg.spread_storm:
                 base = float(bt.get("spread_points", 10) or 10)
