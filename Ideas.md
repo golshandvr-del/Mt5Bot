@@ -180,6 +180,30 @@ Legend for status: [ ] planned   [~] in progress   [x] done   [-] rejected/defer
 
 ## 7. Change log (append newest at top)
 
+- U6.1 (Meta-labeling filter) COMPLETE (2026-07-11). The first Phase U6
+  non-linear upgrade and the single highest-leverage ML use in the project.
+  Rather than predicting DIRECTION (every indicator already votes on that), the
+  new `core/strategy/meta_label.py::MetaLabeler` predicts a much easier question -
+  "given the validated top strategy is about to fire HERE, will that trade win?" -
+  and becomes a VETO-ONLY quality gate that composes cleanly with parity mode.
+  It is a tiny pure-Python L2-regularized logistic regression (`_LogReg`) held
+  PER strategy fingerprint in one JSON file, learning from regime/context
+  features only (|signal|, ATR%, ADX, hour-of-day and day-of-week as sin/cos)
+  with each historical firing labelled a win when the forward horizon-bar move
+  went the strategy's way. Config block `decision.meta_label` (enabled default
+  false, min_win_prob, min_train_samples, learning_rate, epochs, horizon,
+  model_file). The `DecisionEngine` takes an optional `meta_labeler` (supplied by
+  BotContext only when enabled) and, after parity intends an entry, calls
+  `should_veto()` - a low predicted win-probability BLOCKS that entry (reason
+  `veto_meta_label=1`, records `meta_win_prob`), but it can never create, flip,
+  or resize a trade. Trained in `train` mode by
+  `app/runners.train_meta_labelers` (one gate per top registry strategy).
+  Degrades gracefully: disabled / untrained / single-class / too-few-samples
+  gates NEVER veto, so the default-off light path is byte-for-byte unchanged.
+  Tests: `tests/test_meta_label.py` (14) cover the logreg, train/persist/reload,
+  the veto threshold, the veto-only engine integration, and the frozen feature
+  layout. Offline suite 177 -> 191 green (1 skipped). NEXT: U6.2 (regime router).
+
 - Phase U5 (Final validation gauntlet) COMPLETE (2026-07-10, U5.1-U5.5 all [x]).
   Fixes the last gap before live money: a strategy that looked good in search had
   never been *stress-tested*. U5.1/U5.2 added `scripts/gauntlet.py` - a fixed
