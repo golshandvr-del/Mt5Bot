@@ -603,6 +603,25 @@ decision:
     epochs: 300           # training iterations (deterministic given the seed)
     horizon: 5            # forward bars used to label a historical firing win/loss
     model_file: "models/meta_label.json"  # persisted model (dict keyed by fingerprint)
+  # ---------------------------------------------------------------------- #
+  # Anti-portfolio diversification (UPGRADE_PLAN Phase U6.3). When the engine
+  # BLENDS the top-K memory strategies, three near-clones of the same trend
+  # follower would dominate the average and masquerade as a "diversified"
+  # ensemble while carrying a single concentrated bet. This penalizes each
+  # strategy's blend weight by how strongly its per-bar signal series CORRELATES
+  # with the rest of the ensemble (Pearson, measured on the recent history the
+  # engine already has). A strategy that just echoes the others is damped toward
+  # `min_weight_factor`; a genuinely different edge keeps its full weight. It
+  # only ever SHRINKS weights (never inflates, never flips a signal) and is
+  # computed once per (symbol, timeframe) and cached. DEFAULT OFF keeps the
+  # plain average/council blend byte-for-byte unchanged. Parity mode (top-1) is
+  # unaffected - there is nothing to diversify when a single strategy trades.
+  diversification:
+    enabled: false        # master switch; when false no weight is penalized
+    corr_window: 500      # trailing bars of signal history used to correlate
+    min_overlap: 50       # need >= this many co-active bars or corr is treated 0
+    penalty_strength: 1.0 # 0 = no penalty; 1 = full penalty at avg |corr| == 1
+    min_weight_factor: 0.25  # floor the diversification factor cannot go below
   # Regime router (U6.2). Instead of AVERAGING the top-K strategies (which
   # cancels out a trend follower against a mean-reverter exactly when the market
   # is choppy), route each bar to the single validated strategy that did best in
