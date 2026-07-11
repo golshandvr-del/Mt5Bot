@@ -368,6 +368,45 @@ Meta-labeling win-probability VETO gate: does NOT predict direction, it predicts
   Config block `decision.meta_label` (enabled default false). Trained in train
   mode by `app/runners.train_meta_labelers` (one gate per top registry strategy).
 
+### regime_router.py - `RegimeRouter` (UPGRADE_PLAN U6.2)
+Regime router: instead of AVERAGING top-K strategies that disagree (a trend
+follower + a mean-reverter cancel out exactly in chop), it routes each bar to the
+single validated strategy that historically did best IN THE CURRENT REGIME, then
+trades it through the normal parity path.
+- `RegimeDetector(cfg)`: labels a trailing OHLCV window
+  `"<low|mid|high>_<trend|range>"` using an ATR%-like realized-vol proxy
+  (`_window_volatility`, bucketed by fitted terciles) plus median ADX (>=
+  `memory.search.regime.adx_trend_threshold` -> "trend"). Uses the SAME maths as
+  `WalkForward._label_segments` (U4.5) so live labels == validation labels.
+  `fit_cutoffs(ohlcv)` learns the low/mid/high vol cutoffs from history;
+  `set_cutoffs`/`cutoffs` persist them; `label(ohlcv)` labels the last window,
+  `label_series(ohlcv)` gives the per-bar trailing-window labels used to backtest
+  the composite identically to production. Config `decision.regime_router`
+  (`detect_window` 96, `adx_period` 14). Absent fitted cutoffs -> everything
+  "mid" (safe non-discriminating default).
+- `RegimeRouter(cfg, memory)`: holds a per-regime champion map (regime ->
+  {fingerprint, score, spec}) in ONE JSON file (`champions_file`, default
+  `data_store/regime_champions.json`). `train(specs, ohlcv, backtester, point)`
+  scores each candidate on ONLY each regime's bars (via `_MaskedRegimeStrategy`,
+  which forces decisions/signals flat outside the kept regime) and keeps the best
+  per regime, skipping regimes with < `min_bars_per_regime` (default 200) bars.
+  `champion_for(regime)`, `champions()`, `is_ready()` (enabled AND has >=1
+  champion), `save()`/`load()` (ASCII JSON, atomic). Fully optional
+  (`decision.regime_router.enabled`, default OFF); untrained/empty -> routes to
+  nobody so the engine falls back to plain parity top-1.
+- `RegimeRouterStrategy`: a Strategy-compatible COMPOSITE that, per bar, takes the
+  decision/signal of the current regime's champion (flat if none). Handed to the
+  Backtester / `scripts/validate_ensemble.py --router` so the router's composite
+  is walk-forward scored end-to-end, satisfying the U2.5 rule that no unvalidated
+  composite may go live.
+- Wiring: `DecisionEngine.__init__(..., regime_router=None)`; in parity mode
+  `_route_to_regime_champion(ensemble, ohlcv, reasons)` prefers the current
+  regime's champion over top-1 (veto-safe: falls back to top-1 when the router is
+  absent/disabled/untrained, no champion for the regime, the champion is
+  decay-suspect, or it is not in the ensemble). `BotContext.regime_router` lazily
+  builds+loads it only when enabled. `app/runners` train mode (re)builds and
+  persists the champion map when enabled (no-op otherwise).
+
 ### metrics.py
 - `compute_metrics(trade_pnls, equity_curve, n_boot=1000, seed=42)` ->
   num_trades, win_rate, profit_factor, expectancy, net_profit, max_drawdown,

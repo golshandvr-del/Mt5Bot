@@ -302,10 +302,18 @@ portfolio manager". Each is optional and config-gated.
       config block (default OFF), DecisionEngine veto-only wiring, BotContext
       builder, train-mode training pass (app/runners.train_meta_labelers), and
       tests/test_meta_label.py (14 tests).
-- [ ] U6.2 Regime router: promote per-regime champions (from U4.5) and let a
+- [x] U6.2 Regime router: promote per-regime champions (from U4.5) and let a
       tiny detector (ATR%/ADX terciles, pure Python) route each bar to the
       champion of the CURRENT regime instead of averaging strategies that
       disagree. Router itself must pass U2.5 composite validation.
+      DONE: core/strategy/regime_router.py (`RegimeDetector` reusing the U4.5
+      labelling maths, `RegimeRouter` per-regime champion map + JSON persistence,
+      `RegimeRouterStrategy` validatable composite), decision.regime_router
+      config block (default OFF), DecisionEngine parity routing to the
+      current-regime champion (veto-safe top-1 fallback), BotContext lazy
+      build/load, train-mode champion-map build in app/runners,
+      scripts/validate_ensemble.py `--router` mode (U2.5 composite validation),
+      and tests/test_regime_router.py.
 - [ ] U6.3 Anti-portfolio diversification: when blending top-K, penalize
       pairwise signal correlation (measured on walk-forward decisions) so the
       ensemble contains genuinely different edges, not 3 clones of one trend
@@ -336,14 +344,36 @@ portfolio manager". Each is optional and config-gated.
 | 5 | U5 Gauntlet | 2 | U1+U3+U4 | live without proof |
 | 6 | U6 Non-linear | open-ended | U1-U5 | (optional upside) |
 
-Rules of engagement (same as structure.md section 6): every step keeps the
-offline test suite green, stays Win7/Py3.8/CPU-only, degrades gracefully, and
-updates the four docs (README, CODE_MAP, structure.md/this file, Ideas.md).
+Rules of engagement: every step keeps the offline test suite green, stays
+Win7/Py3.8/CPU-only, degrades gracefully, and updates the surviving docs
+(README, CODE_MAP, and this file). NOTE: structure.md and Ideas.md were removed
+from the repo during Phase U6; the change log now lives only in this file's
+section 8.
 
 ---
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-11 U6.2 (Regime router) COMPLETE - route, don't average. Instead of
+  blending top-K strategies that disagree (a trend follower + a mean-reverter
+  cancel out exactly in chop), the router trades the single validated strategy
+  that historically did best IN THE CURRENT REGIME. core/strategy/regime_router.py
+  adds `RegimeDetector` (labels a trailing window `<low|mid|high>_<trend|range>`
+  with the SAME ATR%/ADX tercile maths as the U4.5 walk-forward labelling, so
+  live == validated), `RegimeRouter` (per-regime champion map built in train mode
+  by scoring each candidate on ONLY that regime's bars via a masked strategy,
+  JSON-persisted, skips regimes with < min_bars_per_regime bars), and
+  `RegimeRouterStrategy` (a Strategy-compatible composite that routes each bar to
+  its regime champion so the Backtester / validate_ensemble can walk-forward
+  score it end-to-end - the U2.5 gate). New `decision.regime_router` config block
+  (enabled/detect_window/adx_period/min_bars_per_regime/champions_file, default
+  OFF). DecisionEngine parity mode prefers the current-regime champion over top-1
+  but stays veto-safe (falls back to top-1 when the router is absent/disabled/
+  untrained, has no champion for the regime, the champion is decay-suspect, or it
+  is not in the ensemble). BotContext lazily builds+loads the router; app/runners
+  train mode (re)builds+persists the champion map; scripts/validate_ensemble.py
+  gained a `--router` mode. Added tests/test_regime_router.py. Docs synced
+  (CODE_MAP regime_router.py entry). NEXT: U6.3 (anti-portfolio diversification).
 - 2026-07-11 U6.1 (Meta-labeling filter) COMPLETE - the single highest-leverage
   ML use in the project. Instead of predicting direction, the meta-labeler
   answers "given the validated top strategy is about to fire HERE, will that
