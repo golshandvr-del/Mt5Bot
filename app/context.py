@@ -31,6 +31,7 @@ from core.memory.store import MemoryStore
 from core.strategy.council import StrategyCouncil
 from core.strategy.decay_monitor import DecayMonitor
 from core.strategy.meta_label import MetaLabeler
+from core.strategy.regime_router import RegimeRouter
 from core.news.aggregator import NewsAnalyzer
 from core.timing.time_stats import TimeStats
 from core.timing.time_context import TimeContextProvider
@@ -73,6 +74,10 @@ class BotContext(object):
         # UPGRADE_PLAN U6.1: optional meta-labeling gate (built only when
         # decision.meta_label.enabled is true; loads its persisted model once).
         self._meta_labeler = None
+        # UPGRADE_PLAN U6.2: lazily built regime router (only when
+        # decision.regime_router.enabled is true; loads its persisted champion
+        # map once). None when disabled so the engine falls back to parity top-1.
+        self._regime_router = None
 
     # ------------------------------------------------------------------ #
     @property
@@ -322,6 +327,26 @@ class BotContext(object):
         return self._meta_labeler
 
     @property
+    def regime_router(self):
+        """UPGRADE_PLAN U6.2: lazily build the regime router.
+
+        Only constructed when decision.regime_router.enabled is true; it loads
+        its persisted per-regime champion map once. Returns None when disabled
+        (engine falls back to plain parity top-1) or when no champion map has
+        been trained yet, so the default path is unchanged.
+        """
+        if not bool(self.cfg.get_path("decision.regime_router.enabled", False)):
+            return None
+        if self._regime_router is None:
+            router = RegimeRouter(self.cfg, memory=self.memory)
+            try:
+                router.load()
+            except Exception as exc:
+                self.log.error("regime_router load failed: %s", exc)
+            self._regime_router = router
+        return self._regime_router
+
+    @property
     def engine(self) -> DecisionEngine:
         if self._engine is None:
             # A5 / P3.4: when per-symbol ML is enabled, give the engine a
@@ -340,6 +365,7 @@ class BotContext(object):
                 council=self.council,
                 decay_suspects=self.decay_suspects(),
                 meta_labeler=self.meta_labeler,
+                regime_router=self.regime_router,
             )
         return self._engine
 
