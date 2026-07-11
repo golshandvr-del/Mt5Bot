@@ -34,12 +34,13 @@ lightweight and pure-Python friendly so it runs comfortably on weak machines.
 7. [How to run](#how-to-run)
 8. [Configuration](#configuration)
 9. [The gauntlet: your pre-flight checklist](#the-gauntlet-your-pre-flight-checklist)
-10. [Exporting history and backtesting in MT5](#exporting-history-and-backtesting-in-mt5)
-11. [Deploying on a VPS](#deploying-on-a-vps)
-12. [Testing](#testing)
-13. [Hardware notes and limitations](#hardware-notes-and-limitations)
-14. [Honest notes: what is realistic](#honest-notes-what-is-realistic)
-15. [Risk disclaimer](#risk-disclaimer)
+10. [Shadow validation: pulling a dead edge off live money](#shadow-validation-pulling-a-dead-edge-off-live-money)
+11. [Exporting history and backtesting in MT5](#exporting-history-and-backtesting-in-mt5)
+12. [Deploying on a VPS](#deploying-on-a-vps)
+13. [Testing](#testing)
+14. [Hardware notes and limitations](#hardware-notes-and-limitations)
+15. [Honest notes: what is realistic](#honest-notes-what-is-realistic)
+16. [Risk disclaimer](#risk-disclaimer)
 
 ---
 
@@ -613,6 +614,46 @@ you accept full responsibility for going live without a verdict.
 
 > Going live is therefore **mechanically impossible** without a written,
 > reproducible PASS - and you always know *why* a strategy was allowed.
+
+---
+
+## Shadow validation: pulling a dead edge off live money
+
+The gauntlet proves a strategy *before* it trades. **Shadow validation (U6.5)**
+watches it *while* it trades and yanks it off live money the moment it stops
+working. It is the **hard** layer on top of the soft `decay_monitor`: the soft
+monitor only zero-weights a drifting strategy inside a blend; shadow validation
+pulls it off **real orders** entirely.
+
+Run it OFFLINE - e.g. a weekend cron on the VPS:
+
+```bash
+python scripts/shadow_validate.py            # run per config
+python scripts/shadow_validate.py --print    # also echo the report
+python scripts/shadow_validate.py --list     # just list demoted strategies
+python scripts/shadow_validate.py --force    # one-off run even if disabled
+```
+
+For every live strategy it re-scores the trailing live window
+(`decision.shadow_validation.window` trades) against the walk-forward reference
+distribution the strategy was promoted on, reusing the **same** `DecayMonitor`
+maths - so "shadow-suspect" is exactly "decay-suspect". A strategy is **demoted
+to paper** only when it has decayed below the decay threshold **and** has at
+least `min_live_trades` of live evidence (never a demotion on noise). The
+fingerprint is written to `data_store/demotions.json` with a plain-language
+reason, and a Markdown report lands at `backtests/shadow_report.md`. A strategy
+whose live window later **recovers** is auto-cleared when `clear_on_pass` is on.
+
+The demotion is mechanically enforced on the live path: `OrderManager` refuses a
+**real** order for any demoted fingerprint and forces it to paper instead (it
+short-circuits before the broker connector is ever touched). Demotion is
+**one-way safe** - shadow validation can only pull a decayed edge *off* live
+money; it never promotes, edits, or trades. It is config-gated and
+**default OFF** (`decision.shadow_validation.enabled`): with the gate off the
+run is a no-op and the live path is byte-for-byte unchanged.
+
+> A demoted strategy stays on paper until a fresh search **re-validates** it -
+> a dead edge can never silently keep bleeding real money.
 
 ---
 
