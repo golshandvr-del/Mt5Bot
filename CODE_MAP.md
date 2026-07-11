@@ -350,6 +350,24 @@ and indicator layers consistent.
 - `Strategy(spec)`: instantiates the spec's indicators once; `blended_signal`
   (weighted [-1,+1]), `decision` (+1/-1/0 via thresholds), `atr_value` for SL/TP.
 
+### meta_label.py - `MetaLabeler` (UPGRADE_PLAN U6.1)
+Meta-labeling win-probability VETO gate: does NOT predict direction, it predicts
+"given the validated top strategy is about to fire HERE, will that trade win?"
+- `_LogReg`: a tiny pure-Python L2-regularized logistic regression (gradient
+  descent + feature standardization), `to_dict/from_dict` for JSON persistence.
+- `MetaLabeler(cfg)`: holds ONE `_LogReg` per strategy `fingerprint()` in a
+  single JSON file (`decision.meta_label.model_file`, atomic temp-file +
+  os.replace). Features are regime/context only - `_FEATURE_NAMES` =
+  `[signal_mag, atr_pct, adx, hour_sin, hour_cos, dow_sin, dow_cos]` (order is a
+  persisted contract). `build_dataset(spec, ohlcv, horizon)` labels each
+  historical firing win=forward `horizon`-bar move went the strategy's way;
+  `train()` fits + persists (refuses on < `min_train_samples` or single-class);
+  `win_probability()` scores the last bar; `should_veto()` returns
+  `(veto, p_win)` and vetoes ONLY when enabled AND a trained model exists AND
+  `p_win < min_win_prob`. Disabled/untrained/too-few/single-class => never veto.
+  Config block `decision.meta_label` (enabled default false). Trained in train
+  mode by `app/runners.train_meta_labelers` (one gate per top registry strategy).
+
 ### metrics.py
 - `compute_metrics(trade_pnls, equity_curve, n_boot=1000, seed=42)` ->
   num_trades, win_rate, profit_factor, expectancy, net_profit, max_drawdown,
@@ -634,11 +652,16 @@ Value object: `action` (+1/-1/0), `score` [-1,+1], `size_hint` [0,1],
 
 ### `DecisionEngine`
 Constructed with cfg + optional `learner`, `feature_builder`, `news_analyzer`,
-`memory`, `timing`, and `learner_provider`. `learner_provider` (A5 / P3.4) is an
-optional callable `symbol -> learner`; when supplied (BotContext passes
-`ctx.learner_for` only while `learning.per_symbol` is true) the engine uses the
-DECIDING symbol's own ML model, falling back to the shared `learner` on any
-failure.
+`memory`, `timing`, `learner_provider`, and `meta_labeler`. `learner_provider`
+(A5 / P3.4) is an optional callable `symbol -> learner`; when supplied (BotContext
+passes `ctx.learner_for` only while `learning.per_symbol` is true) the engine uses
+the DECIDING symbol's own ML model, falling back to the shared `learner` on any
+failure. `meta_labeler` (U6.1, a `MetaLabeler`) is supplied by BotContext ONLY
+when `decision.meta_label.enabled` is true; in the parity path, after an entry is
+intended the engine calls `meta_labeler.should_veto(spec, ohlcv, sig)` and, on a
+veto, blocks the entry (reason `veto_meta_label=1`, records `meta_win_prob`). It
+is strictly VETO-ONLY: it can turn an intended entry into a hold but never
+create/flip/resize a trade, and it stays silent when disabled or untrained.
 
 **Decision mode (UPGRADE_PLAN U2.4)** - `decision.mode` selects the whole
 decision path:
@@ -922,6 +945,15 @@ backtest / search / train are never gated.
     (and a flat spread is identical without a `spread_model`); `risk_pct` sizing
     clamps to min/max lot; the `max_daily_loss` circuit breaker cuts the trade
     count; and too-tight stops are rejected by `min_stop_points` (12 tests).
+  - `test_meta_label.py` (U6.1): the meta-labeling veto gate. `_LogReg` learns a
+    separable two-class problem and round-trips through `to_dict/from_dict`
+    identically; a disabled OR untrained OR too-few-samples OR single-class gate
+    NEVER vetoes; `train()` persists and a fresh `MetaLabeler` reloads to
+    identical `win_probability`; `should_veto` fires exactly when
+    `P(win) < min_win_prob`; ENGINE integration proves it is VETO-ONLY (a forced
+    veto turns an intended parity entry into a hold, a passing/absent gate leaves
+    the action unchanged, and it can never turn a hold into a trade); the
+    persisted `_FEATURE_NAMES` layout is frozen (14 tests).
   - `test_news.py`: lexicon sentiment bounds, offline/disabled graceful neutral.
   - `test_pipeline.py`: DecisionEngine on synthetic data + run_once/backtest/
     train end-to-end on sample CSVs.
