@@ -239,3 +239,145 @@ def chaos_config_override(cfg, ccfg):
     except Exception:
         pass
     return clone
+
+
+# --------------------------------------------------------------------------- #
+# Classification
+# --------------------------------------------------------------------------- #
+def classify(clean_net, chaos_net, init_balance, ccfg):
+    """Return one of GRACEFUL / FRAGILE / SHATTERED for a single strategy.
+
+    - SHATTERED : chaos net is non-positive, OR falls below the catastrophe
+                  floor (catastrophe_mult * starting balance).
+    - GRACEFUL  : chaos net stays positive AND keeps >= graceful_floor_mult of
+                  the clean net (when clean net was positive). If clean net was
+                  <= 0 the strategy should never have been trusted, so any
+                  positive chaos net is GRACEFUL and non-positive is SHATTERED.
+    - FRAGILE   : positive but keeps less than the graceful floor of its edge.
+    """
+    catastrophe_floor = ccfg.catastrophe_mult * init_balance
+    if chaos_net <= 0.0 or chaos_net < catastrophe_floor:
+        return "SHATTERED"
+    if clean_net <= 0.0:
+        # No clean edge to preserve; surviving positive under chaos is a pass.
+        return "GRACEFUL"
+    if chaos_net >= ccfg.graceful_floor_mult * clean_net:
+        return "GRACEFUL"
+    return "FRAGILE"
+
+
+def degradation_ratio(clean_net, chaos_net):
+    """Fraction of the clean edge retained under chaos (chaos/clean). Returns
+    None when the clean edge was non-positive (ratio undefined)."""
+    if clean_net is None or chaos_net is None:
+        return None
+    if clean_net <= 0.0:
+        return None
+    try:
+        return float(chaos_net) / float(clean_net)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Orchestrator
+# --------------------------------------------------------------------------- #
+class ChaosMonkey(object):
+    """Scores strategies clean-vs-chaos and classifies their robustness.
+
+    Never trades, promotes, or edits the registry. The report it produces is a
+    pure diagnostic. Enable via ``general.chaos_monkey.enabled`` (plus at least
+    one nastiness switch); disabled = pure no-op.
+    """
+
+    def __init__(self, cfg: Any):
+        self.cfg = cfg
+        self.log = get_logger("strategy.chaos_monkey", cfg)
+        self.ccfg = ChaosConfig(cfg)
+        try:
+            self.init_balance = float(
+                cfg.get_path("backtest.initial_balance", 10000.0) or 10000.0)
+        except Exception:
+            self.init_balance = 10000.0
+
+    # ---- single strategy ------------------------------------------------- #
+    def assess_strategy(self, spec, clean_ohlcv, warmup=60):
+        """Run one strategy on the clean series and on a chaos series, then
+        classify. Returns a per-strategy result dict."""
+        rng = random.Random(self.ccfg.seed)
+        # Clean baseline (unperturbed config + series).
+        clean_bt = Backtester(self.cfg)
+        clean_res = clean_bt.run(Strategy(spec), clean_ohlcv, warmup=warmup)
+        clean_m = clean_res.metrics or {}
+        clean_net = float(clean_m.get("net_profit", 0.0) or 0.0)
+
+        # Chaos: mutate the series (data injectors) + config (cost/lot).
+        chaos_series = build_chaos_series(clean_ohlcv, self.ccfg, rng)
+        chaos_cfg = chaos_config_override(self.cfg, self.ccfg)
+        chaos_bt = Backtester(chaos_cfg)
+        chaos_res = chaos_bt.run(Strategy(spec), chaos_series, warmup=warmup)
+        chaos_m = chaos_res.metrics or {}
+        chaos_net = float(chaos_m.get("net_profit", 0.0) or 0.0)
+
+        verdict = classify(clean_net, chaos_net, self.init_balance, self.ccfg)
+        ratio = degradation_ratio(clean_net, chaos_net)
+        return {
+            "fingerprint": spec.fingerprint(),
+            "name": getattr(spec, "name", "") or spec.fingerprint(),
+            "verdict": verdict,
+            "clean_net_profit": round(clean_net, 4),
+            "chaos_net_profit": round(chaos_net, 4),
+            "retained_ratio": (round(ratio, 4) if ratio is not None else None),
+            "clean_num_trades": int(clean_m.get("num_trades", 0) or 0),
+            "chaos_num_trades": int(chaos_m.get("num_trades", 0) or 0),
+            "clean_max_drawdown": clean_m.get("max_drawdown"),
+            "chaos_max_drawdown": chaos_m.get("max_drawdown"),
+            "chaos_bars": len(chaos_series),
+        }
+
+    # ---- registry sweep -------------------------------------------------- #
+    def assess_registry(self, memory, symbol, timeframe, ohlcv, warmup=60,
+                        top_n=0):
+        """Assess every registry strategy for symbol/timeframe (top_n>0 limits
+        to the first N). Returns the full report dict."""
+        top = memory.load_registry_top(symbol, timeframe) or []
+        if top_n and top_n > 0:
+            top = top[:top_n]
+        results = []
+        for entry in top:
+            spec_dict = entry.get("spec", {})
+            if not spec_dict:
+                continue
+            try:
+                spec = StrategySpec.from_dict(spec_dict)
+            except Exception as exc:  # pragma: no cover - defensive
+                self.log.error("chaos: bad spec skipped: %s", exc)
+                continue
+            results.append(self.assess_strategy(spec, ohlcv, warmup=warmup))
+
+        counts = {"GRACEFUL": 0, "FRAGILE": 0, "SHATTERED": 0}
+        for r in results:
+            counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
+        return {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "created_at": int(time.time()),
+            "created_at_iso": time.strftime("%Y-%m-%d %H:%M:%S",
+                                            time.gmtime()),
+            "enabled": self.ccfg.enabled,
+            "seed": self.ccfg.seed,
+            "nastiness": {
+                "spread_storm": self.ccfg.spread_storm,
+                "spread_mult": self.ccfg.spread_mult,
+                "requotes": self.ccfg.requotes,
+                "requote_frac": self.ccfg.requote_frac,
+                "requote_points": self.ccfg.requote_points,
+                "missed_bars": self.ccfg.missed_bars,
+                "missed_frac": self.ccfg.missed_frac,
+                "partial_fills": self.ccfg.partial_fills,
+                "partial_frac": self.ccfg.partial_frac,
+            },
+            "graceful_floor_mult": self.ccfg.graceful_floor_mult,
+            "counts": counts,
+            "strategies": results,
+        }
