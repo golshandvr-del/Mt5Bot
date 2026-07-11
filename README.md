@@ -425,6 +425,30 @@ Veto behaviour in parity mode is tunable under `decision.parity_vetoes`
 `decision.parity_learner_veto_level` (how strongly the learner must disagree
 before it blocks a trade; default `0.5`, `0` disables the learner veto).
 
+### The meta-labeling quality gate (optional, `decision.meta_label`)
+
+There is one more, higher-leverage veto you can turn on: a **meta-labeling
+filter**. Instead of predicting market *direction* (every indicator already
+votes on that), it learns a much easier, more useful thing - *"given the
+validated top strategy is about to fire **here**, will that particular trade
+win?"* - from regime/context features only (volatility as ATR%, trend strength
+as ADX, the FX session via hour-of-day, and the day of week, plus how strong
+the firing was). It is a tiny pure-Python logistic regression, trained per
+strategy fingerprint during `train` mode from that strategy's own historical
+firings, and persisted to `models/meta_label.json`.
+
+At decision time it is **veto-only**, exactly like the other parity gates: when
+its predicted win-probability for the current firing drops below
+`decision.meta_label.min_win_prob` (default `0.5`) it *blocks* the entry the
+validated strategy wanted - it can never create, flip, or resize a trade. It is
+**OFF by default** and degrades gracefully: a disabled, untrained, single-class,
+or too-few-samples (`min_train_samples`, default 50) gate never vetoes, so the
+light path is byte-for-byte unchanged until you deliberately enable it. To use
+it: set `decision.meta_label.enabled: true`, run `train` once to fit the gate,
+then run `paper`/`live` as usual (`decision.mode: parity`). Every decision then
+logs `meta_win_prob=..` (and `veto_meta_label=1` when it blocks) for the
+auditing tools. This is UPGRADE_PLAN item U6.1.
+
 > Why this exists: a real tester run turned 10,000 into ~3-4k in a year because
 > the live path (old blend) traded a composite that was never backtested, while
 > the EA silently traded a crippled single-indicator version of the winner.
