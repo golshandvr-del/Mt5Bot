@@ -95,10 +95,19 @@ class DecisionEngine(object):
                  learner_provider: Optional[object] = None,
                  council: Optional[object] = None,
                  decay_suspects: Optional[object] = None,
-                 meta_labeler: Optional[object] = None):
+                 meta_labeler: Optional[object] = None,
+                 regime_router: Optional[object] = None):
         self.cfg = cfg
         self.log = get_logger("decision.engine", cfg)
         self.learner = learner
+        # UPGRADE_PLAN U6.2: optional regime router. When enabled AND trained,
+        # parity mode routes each bar to the validated champion of the CURRENT
+        # regime instead of always trading the registry top-1. It only ever
+        # CHOOSES among already-validated strategies (never invents a signal);
+        # an untrained/empty router falls back to the plain parity top-1, so the
+        # default path is unchanged. Config-gated (decision.regime_router.enabled,
+        # default OFF).
+        self.regime_router = regime_router
         # UPGRADE_PLAN U6.1: optional meta-labeling quality gate. When enabled
         # AND trained for the firing strategy it acts as a VETO-ONLY gate: it can
         # BLOCK a low-P(win) entry the validated strategy wanted, but never
@@ -329,6 +338,47 @@ class DecisionEngine(object):
     # ------------------------------------------------------------------ #
     # Parity mode (UPGRADE_PLAN U2.4): trade the validated top-1 strategy.
     # ------------------------------------------------------------------ #
+    def _route_regime_strategy(self, ohlcv: Any, ensemble: Optional[List[Any]],
+                               reasons: List[str]) -> Optional[Any]:
+        """U6.2: pick the current-regime champion from the ensemble, or None.
+
+        Returns the executable Strategy in ``ensemble`` whose fingerprint is the
+        champion for the CURRENT regime. Returns None (caller keeps top-1) when
+        the router is absent/disabled/untrained, when no champion exists for the
+        regime, when the champion is decay-suspect, or when it is not present in
+        the validated ensemble. Never raises - routing must degrade gracefully.
+        """
+        router = self.regime_router
+        if router is None or not ensemble:
+            return None
+        try:
+            if not getattr(router, "is_ready", lambda: False)():
+                return None
+            regime = router.detector.label(ohlcv)
+            champ = router.champion_for(regime)
+            if not champ:
+                reasons.append("regime=%s(no_champion)" % regime)
+                return None
+            fp = champ.get("fingerprint")
+            use_decay = self.decay_enabled and bool(self.decay_suspects)
+            for cand in ensemble:
+                try:
+                    cfp = cand.spec.fingerprint()
+                except Exception:
+                    continue
+                if cfp != fp:
+                    continue
+                if use_decay and cfp in self.decay_suspects:
+                    reasons.append("regime=%s(champion_decay_suspect)" % regime)
+                    return None
+                reasons.append("regime=%s -> champion %s" % (regime, fp[:8]))
+                return cand
+            reasons.append("regime=%s(champion_not_in_ensemble)" % regime)
+            return None
+        except Exception as exc:
+            self.log.error("Regime routing failed: %s", exc)
+            return None
+
     def _decide_parity(self, ohlcv: Any, symbol: str,
                        timeframe: str) -> Decision:
         """
@@ -363,6 +413,16 @@ class DecisionEngine(object):
                         pass
                 strat = cand
                 break
+
+        # U6.2: if a trained regime router is present, prefer the validated
+        # champion of the CURRENT regime over the plain top-1. The champion is
+        # looked up among the SAME ensemble the search validated; if the regime
+        # has no champion (or that champion is decay-suspect / not in the
+        # ensemble) we keep the top-1 pick above, so routing never trades
+        # something the parity path would not otherwise have been allowed to.
+        routed = self._route_regime_strategy(ohlcv, ensemble, reasons)
+        if routed is not None:
+            strat = routed
 
         if strat is None:
             reasons.append("parity=no_registry_strategy")
