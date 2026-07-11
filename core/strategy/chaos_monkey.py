@@ -123,3 +123,119 @@ class ChaosConfig(object):
     def any_nastiness(self):
         return bool(self.spread_storm or self.requotes or self.missed_bars
                     or self.partial_fills)
+
+
+# --------------------------------------------------------------------------- #
+# Data-series injectors (requotes, missed bars)
+# --------------------------------------------------------------------------- #
+def _infer_point(ohlcv):
+    """Cheap point-size guess so requote jitter is in sensible price units."""
+    from core.utils.helpers import symbol_offline_specs
+    try:
+        return float(symbol_offline_specs(getattr(ohlcv, "symbol", ""))["point"])
+    except Exception:
+        return 0.0001
+
+
+def inject_requotes(ohlcv, frac, points, rng):
+    """Return a COPY of ohlcv with a `frac` of bar OPENS jittered by +/- up to
+    `points` points. Only the OPEN is perturbed because next-open fills are what
+    a requote hits; high/low/close stay intact so indicator signals are
+    unchanged and we isolate the fill-price damage. A no-op when frac<=0."""
+    out = ohlcv.slice(0, len(ohlcv))
+    if frac <= 0.0 or points <= 0.0 or len(out) == 0:
+        return out
+    point = _infer_point(ohlcv)
+    jitter_max = points * point
+    opens = list(out.open)
+    highs = out.high
+    lows = out.low
+    n = len(opens)
+    for i in range(n):
+        if rng.random() >= frac:
+            continue
+        # Signed jitter; a requote can be better or worse, but we bias WORSE by
+        # drawing the magnitude uniformly and letting sign be random - the
+        # pessimistic sim already halves-spread against us on top of this.
+        delta = rng.uniform(-jitter_max, jitter_max)
+        new_open = opens[i] + delta
+        # Keep the open inside the bar's own [low, high] so the bar stays valid.
+        hi = highs[i] if i < len(highs) else new_open
+        lo = lows[i] if i < len(lows) else new_open
+        if new_open > hi:
+            new_open = hi
+        if new_open < lo:
+            new_open = lo
+        opens[i] = new_open
+    out.open = opens
+    return out
+
+
+def inject_missed_bars(ohlcv, frac, rng):
+    """Return a COPY of ohlcv with a `frac` of NON-EDGE bars dropped, modelling a
+    data-feed gap / a bar the EA never received. The first and last bars are
+    always kept so slicing / warmup logic elsewhere stays well-defined. A no-op
+    when frac<=0."""
+    n = len(ohlcv)
+    out = ohlcv.slice(0, n)
+    if frac <= 0.0 or n < 5:
+        return out
+    keep_idx = []
+    for i in range(n):
+        if i == 0 or i == n - 1:
+            keep_idx.append(i)
+            continue
+        if rng.random() < frac:
+            continue  # drop this bar
+        keep_idx.append(i)
+    if len(keep_idx) == n:
+        return out
+    res = OHLCV(out.symbol, out.timeframe)
+    res.time = [out.time[i] for i in keep_idx] if out.time else []
+    res.open = [out.open[i] for i in keep_idx]
+    res.high = [out.high[i] for i in keep_idx]
+    res.low = [out.low[i] for i in keep_idx]
+    res.close = [out.close[i] for i in keep_idx]
+    res.volume = [out.volume[i] for i in keep_idx] if out.volume else []
+    return res
+
+
+def build_chaos_series(ohlcv, ccfg, rng):
+    """Apply every enabled DATA-mutating injector, in a fixed order, to a copy
+    of ohlcv. Cost/lot nastiness is applied via config, not here."""
+    series = ohlcv.slice(0, len(ohlcv))
+    if ccfg.missed_bars:
+        series = inject_missed_bars(series, ccfg.missed_frac, rng)
+    if ccfg.requotes:
+        series = inject_requotes(series, ccfg.requote_frac,
+                                 ccfg.requote_points, rng)
+    return series
+
+
+def chaos_config_override(cfg, ccfg):
+    """Return a deep-copied config with the COST/LOT nastiness applied:
+      - spread storm  : multiply spread_points (and spread_model.base_points).
+      - partial fills : scale fixed_lot down toward partial_min_scale (a blunt
+                        proxy for "you rarely get your full requested size").
+    The data injectors are handled separately (they mutate the series)."""
+    clone = copy.deepcopy(cfg)
+    try:
+        bt = clone.get_path("backtest", {})
+        if hasattr(bt, "get"):
+            if ccfg.spread_storm:
+                base = float(bt.get("spread_points", 10) or 10)
+                bt["spread_points"] = base * ccfg.spread_mult
+                sm = bt.get("spread_model", None)
+                if hasattr(sm, "get") and len(sm) > 0:
+                    sm_base = float(sm.get("base_points", base) or base)
+                    sm["base_points"] = sm_base * ccfg.spread_mult
+            if ccfg.partial_fills:
+                lot = float(bt.get("fixed_lot", 0.1) or 0.1)
+                # Expected size multiplier if `partial_frac` of fills are cut to
+                # `partial_min_scale`: E = (1-f) + f*min_scale.
+                f = ccfg.partial_frac
+                eff = (1.0 - f) + f * ccfg.partial_min_scale
+                bt["fixed_lot"] = lot * eff
+    except Exception:
+        pass
+    return clone
