@@ -407,6 +407,32 @@ trades it through the normal parity path.
   builds+loads it only when enabled. `app/runners` train mode (re)builds and
   persists the champion map when enabled (no-op otherwise).
 
+### Anti-portfolio diversification (UPGRADE_PLAN U6.3, in engine.py)
+- When `DecisionEngine` BLENDS the top-K memory strategies, three near-clones of
+  one edge would dominate the average while carrying a single concentrated bet.
+  U6.3 penalizes each strategy's blend weight by how strongly its per-bar signal
+  series CORRELATES with the rest of the ensemble.
+- `DecisionEngine._pearson(a, b, min_overlap)` (staticmethod): Pearson
+  correlation over CO-ACTIVE bars only (a bar where both series are 0 is skipped
+  - a flat strategy has no opinion to correlate). Returns 0.0 (the neutral value)
+  when fewer than `min_overlap` co-active bars exist or either series has no
+  variance.
+- `DecisionEngine._diversification_weights(symbol, timeframe, ensemble, ohlcv)`:
+  builds each ensemble member's signal series over the trailing `corr_window`
+  bars via `strat.signal_series(ohlcv)`, then for each strategy computes its
+  AVERAGE absolute correlation with every other member. Returns a
+  `{fingerprint: factor}` map where `factor = 1 - penalty_strength * avg_abs_corr`,
+  capped at 1.0 and floored at `min_weight_factor` - so it can only SHRINK a
+  weight, never inflate or flip a signal. Computed once per (symbol, timeframe)
+  and cached in `_diversify_cache`; returns `{}` (a no-op) when disabled or the
+  ensemble has < 2 members.
+- Wiring: in the blend path `_indicator_signal` multiplies each strategy's blend
+  weight by its diversification factor when `decision.diversification.enabled` and
+  `len(ensemble) >= 2`. Config block `decision.diversification`
+  (enabled/corr_window/min_overlap/penalty_strength/min_weight_factor, default
+  OFF). Parity/top-1 mode is unaffected (a single strategy has nothing to
+  diversify against). Pure Python, Win7/Py3.8/CPU-only.
+
 ### metrics.py
 - `compute_metrics(trade_pnls, equity_curve, n_boot=1000, seed=42)` ->
   num_trades, win_rate, profit_factor, expectancy, net_profit, max_drawdown,

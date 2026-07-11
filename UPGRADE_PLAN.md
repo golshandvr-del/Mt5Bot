@@ -314,7 +314,7 @@ portfolio manager". Each is optional and config-gated.
       build/load, train-mode champion-map build in app/runners,
       scripts/validate_ensemble.py `--router` mode (U2.5 composite validation),
       and tests/test_regime_router.py.
-- [ ] U6.3 Anti-portfolio diversification: when blending top-K, penalize
+- [x] U6.3 Anti-portfolio diversification: when blending top-K, penalize
       pairwise signal correlation (measured on walk-forward decisions) so the
       ensemble contains genuinely different edges, not 3 clones of one trend
       follower.
@@ -354,6 +354,22 @@ section 8.
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-11 U6.3 (Anti-portfolio diversification) COMPLETE - stop three clones
+  of one edge masquerading as a diversified ensemble. When DecisionEngine BLENDS
+  the top-K memory strategies, each strategy's blend weight is now penalized by
+  how strongly its per-bar signal series CORRELATES with the rest of the
+  ensemble. New `DecisionEngine._pearson(a, b, min_overlap)` computes correlation
+  over co-active bars only (a flat strategy contributes no opinion; < min_overlap
+  overlap or zero variance -> 0.0, the neutral value), and
+  `_diversification_weights(symbol, timeframe, ensemble, ohlcv)` returns a
+  per-fingerprint factor `1 - penalty_strength * avg_abs_corr`, capped at 1.0 and
+  floored at `min_weight_factor` (it can only SHRINK a weight, never inflate or
+  flip a signal). Factors are computed once per (symbol, timeframe) and cached in
+  `_diversify_cache`. New `decision.diversification` config block
+  (enabled/corr_window/min_overlap/penalty_strength/min_weight_factor, default
+  OFF) keeps the plain average/council blend byte-for-byte unchanged; parity
+  (top-1) mode is unaffected since a single strategy has nothing to diversify
+  against. Pure Python, Win7/Py3.8/CPU-only. NEXT: U6.4 (trade-throttle learning).
 - 2026-07-11 U6.2 (Regime router) COMPLETE - route, don't average. Instead of
   blending top-K strategies that disagree (a trend follower + a mean-reverter
   cancel out exactly in chop), the router trades the single validated strategy
