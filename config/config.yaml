@@ -36,6 +36,32 @@ general:
   # trading a strategy that never survived the gauntlet.
   live_requires_gauntlet: true
 
+  # ---------------------------------------------------------------------- #
+  # U6.6 Chaos-monkey harness: an OFFLINE stress diagnostic (never trades).
+  # It re-scores every registry strategy on a clean price history vs a COPY of
+  # that history into which "broker nastiness" is injected, then reports which
+  # strategies degrade gracefully (GRACEFUL) vs shatter (SHATTERED). Run it
+  # with `python scripts/chaos_monkey.py`. All switches default OFF so this is
+  # a pure no-op until you ask for it. Every choice is seeded => reproducible.
+  # ---------------------------------------------------------------------- #
+  chaos_monkey:
+    enabled: false          # master switch; when false the harness is a no-op
+    seed: 20240607          # fixed seed => a chaos verdict regenerates identically
+    # --- individual nastiness switches (turn on the ones you want) --- #
+    spread_storm: false     # globally widen the cost model (spread x spread_mult)
+    spread_mult: 2.0        # how much wider the spread gets during the storm
+    requotes: false         # jitter a fraction of bar OPENS => worse fills
+    requote_frac: 0.15      # fraction of bars whose open is requoted (0..1)
+    requote_points: 8.0     # max +/- jitter applied to a requoted open (points)
+    missed_bars: false      # drop a fraction of bars (data-feed gaps)
+    missed_frac: 0.05       # fraction of non-edge bars dropped (0..1)
+    partial_fills: false    # shrink effective size (broker fills only part)
+    partial_frac: 0.20      # fraction of fills that are partial (0..1)
+    partial_min_scale: 0.5  # size multiplier applied to a partial fill (0..1)
+    # --- classification thresholds --- #
+    graceful_floor_mult: 0.4   # keep >= 40% of clean net AND stay positive => GRACEFUL
+    catastrophe_mult: -0.25    # chaos net below -25% of start balance => SHATTERED
+
 # -----------------------------------------------------------------------------
 # Logging
 # -----------------------------------------------------------------------------
