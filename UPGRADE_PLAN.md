@@ -322,7 +322,7 @@ portfolio manager". Each is optional and config-gated.
       which VETOES would have saved money (news blackout, spread spike,
       regime mismatch) and auto-tighten only those gates - never invert
       signals.
-- [ ] U6.5 Continuous shadow validation on the VPS: the loop re-scores the
+- [x] U6.5 Continuous shadow validation on the VPS: the loop re-scores the
       live strategy on the trailing 3 months every weekend; if its live-window
       score drops below the decay threshold, auto-demote to paper and email/log
       a plain-language explanation (extends the existing decay_monitor from a
@@ -354,6 +354,24 @@ section 8.
 
 ## 8. Change log (append newest at top)
 
+- 2026-07-11 U6.5 (Continuous shadow validation) COMPLETE - the HARD safety
+  demotion on top of the soft decay monitor. `core/strategy/shadow_validation.py`
+  (`ShadowValidator`) re-scores every live strategy on its trailing live window
+  against the walk-forward reference it was promoted on, reusing
+  `DecayMonitor.assess` so "shadow-suspect" == "decay-suspect". When a strategy
+  has decayed below the decay threshold AND has >= `min_live_trades` of live
+  evidence it is DEMOTED: the fingerprint is persisted to `demote_file` with a
+  plain-language reason and a Markdown report is written; a recovered strategy is
+  auto-cleared when `clear_on_pass`. New `scripts/shadow_validate.py` runs it
+  OFFLINE (weekend VPS cron), with `--force`/`--list`/`--print`. The live path is
+  wired: `OrderManager.execute(..., fingerprint=)` refuses a REAL order for a
+  shadow-demoted fingerprint and forces it to paper (short-circuits BEFORE the
+  connector). One-way safe: NEVER promotes, edits, or trades - it can only pull a
+  decayed edge OFF live money. Config `decision.shadow_validation` (default OFF):
+  with the gate off the demotion check and the run are byte-for-byte no-ops.
+  Tests: `tests/test_shadow_validation.py` (12) cover verdict/run/persistence,
+  the disabled no-op, and the OrderManager live->paper demotion. Docs synced
+  (README "Shadow validation", CODE_MAP module/script/test, Ideas).
 - 2026-07-11 U6.4 (Trade-throttle learning) COMPLETE - learn which VETOES saved
   money, tighten only those, never invert a signal. New
   `core/utils/throttle_learning.py` mines the U1.4 decision journal
