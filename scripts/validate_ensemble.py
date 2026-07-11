@@ -36,6 +36,13 @@ Usage
     python scripts/validate_ensemble.py
     python scripts/validate_ensemble.py --symbol XAUUSD --timeframe M15
     python scripts/validate_ensemble.py --symbol XAUUSD --tf M15 --warmup 60
+    python scripts/validate_ensemble.py --router      # U6.2 regime-router composite
+
+The `--router` flag validates the REGIME-ROUTER composite (U6.2) instead of the
+engine blend: it replays `RegimeRouterStrategy` (each bar routed to its regime
+champion) through the same pessimistic Backtester + U1 receipts, so the router's
+live composite is walk-forward validated end-to-end - the U2.5 rule that no
+unvalidated composite may go live applies to the router too.
 
 All text is standard ASCII English only.
 """
@@ -91,9 +98,107 @@ def _build_ensemble(memory, symbol, timeframe):
     return strategies, specs
 
 
-def validate(cfg, symbol, timeframe, warmup=60):
-    """Validate the engine-blend composite for one symbol/timeframe."""
+def _validate_router(cfg, symbol, timeframe, warmup, memory, report_dir):
+    """U6.2: walk-forward validate the REGIME-ROUTER composite.
+
+    The router's live object (`RegimeRouterStrategy`) routes every bar to the
+    champion of the current regime. Replaying it through the SAME pessimistic
+    Backtester + U1 receipts proves the composite the router actually trades is
+    validated end-to-end, satisfying the U2.5 rule that no unvalidated composite
+    may go live. Requires a trained champion map (train mode, U6.2); degrades to
+    a clear message when the router is empty/disabled.
+    """
+    from core.strategy.regime_router import RegimeRouter, RegimeRouterStrategy
+
+    router = RegimeRouter(cfg, memory=memory)
+    router.load()
+    if not router.champions():
+        print("=" * 70)
+        print("Regime router has no champions for %s %s - nothing to validate."
+              % (symbol, timeframe))
+        print("Enable decision.regime_router and run `python main.py --mode "
+              "train` to build the champion map first.")
+        return {"symbol": symbol, "timeframe": timeframe,
+                "mode": "regime_router_composite", "error": "empty_router"}
+
+    feed = DataFeed(cfg)
+    ohlcv = feed.get_ohlcv(symbol, timeframe)
+    if ohlcv is None or len(ohlcv) < 200:
+        n = 0 if ohlcv is None else len(ohlcv)
+        print("=" * 70)
+        print("Not enough price data for %s %s (%d bars)." % (
+            symbol, timeframe, n))
+        return {"symbol": symbol, "timeframe": timeframe,
+                "mode": "regime_router_composite",
+                "error": "insufficient_data", "bars": n}
+
+    composite = RegimeRouterStrategy(router)
+    bt = Backtester(cfg)
+    result = bt.run(composite, ohlcv, warmup=warmup, record_trades=True)
+    artifacts = trade_log.write_artifacts(
+        result, "%s_ROUTER" % symbol, timeframe, report_dir=report_dir)
+
+    champions = router.champions()
+    summary = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "mode": "regime_router_composite",
+        "n_regimes": len(champions),
+        "regimes": {r: e.get("fingerprint") for r, e in champions.items()},
+        "composite_sl_atr_mult": composite.spec.sl_atr_mult,
+        "composite_tp_atr_mult": composite.spec.tp_atr_mult,
+        "bars": len(ohlcv),
+        "num_trades": len(getattr(result, "trade_pnls", []) or []),
+        "metrics": result.metrics,
+        "artifacts": artifacts,
+        "caveat": ("Price-only regime-router composite (each bar routed to its "
+                   "regime champion). ML learner and news are NOT included - "
+                   "they cannot be replayed offline without lookahead risk."),
+    }
+    out_path = os.path.join(
+        report_dir, "router_validation_%s_%s.json" % (symbol, timeframe))
+    try:
+        with open(out_path, "w") as handle:
+            json.dump(summary, handle, indent=2, default=str)
+        summary["summary_file"] = out_path
+    except Exception as exc:  # pragma: no cover - defensive
+        print("WARNING: could not write summary JSON: %s" % exc)
+
+    m = summary.get("metrics", {}) or {}
+    print("=" * 70)
+    print("REGIME-ROUTER COMPOSITE VALIDATION  (UPGRADE_PLAN U6.2 / U2.5)")
+    print("  symbol/timeframe   :", symbol, timeframe)
+    print("  regimes routed     :", summary["n_regimes"])
+    for r, fp in summary["regimes"].items():
+        print("    %-14s -> %s" % (r, (fp or "")[:12]))
+    print("  bars               :", summary["bars"])
+    print("  num_trades         :", summary["num_trades"])
+    print("  net_profit         :", m.get("net_profit"))
+    print("  expectancy         :", m.get("expectancy"))
+    print("  profit_factor      :", m.get("profit_factor"))
+    print("  max_drawdown       :", m.get("max_drawdown"))
+    print("-" * 70)
+    art = summary.get("artifacts", {}) or {}
+    print("  trades CSV         :", art.get("trades"))
+    print("  summary JSON       :", summary.get("summary_file"))
+    print("CAVEAT:", summary.get("caveat"))
+    print("=" * 70)
+    return summary
+
+
+def validate(cfg, symbol, timeframe, warmup=60, mode="blend"):
+    """Validate a live composite for one symbol/timeframe.
+
+    mode="blend"  -> the engine-blend CompositeStrategy (U2.5).
+    mode="router" -> the RegimeRouterStrategy composite (U6.2 / U2.5).
+    """
     memory = MemoryStore(cfg)
+    report_dir = resolve_path(
+        cfg, cfg.get_path("backtest.report_dir", "backtests"))
+    if mode == "router":
+        return _validate_router(cfg, symbol, timeframe, warmup, memory,
+                                report_dir)
+
     lt, st = _decision_thresholds(cfg)
 
     strategies, specs = _build_ensemble(memory, symbol, timeframe)
@@ -203,6 +308,9 @@ def main(argv=None):
                         help="Timeframe (default: mt5.timeframe).")
     parser.add_argument("--warmup", type=int, default=60,
                         help="Warmup bars before scoring (default 60).")
+    parser.add_argument("--router", action="store_true",
+                        help="Validate the REGIME-ROUTER composite (U6.2) "
+                             "instead of the engine-blend composite.")
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     cfg = load_config(args.config)
@@ -212,7 +320,8 @@ def main(argv=None):
         symbol = str(syms[0]) if syms else "EURUSD"
     timeframe = args.timeframe or str(cfg.get_path("mt5.timeframe", "M15"))
 
-    validate(cfg, symbol, timeframe, warmup=args.warmup)
+    validate(cfg, symbol, timeframe, warmup=args.warmup,
+             mode="router" if args.router else "blend")
     return 0
 
 
